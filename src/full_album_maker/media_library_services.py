@@ -117,6 +117,12 @@ class MediaSidecarStore:
             self.load()
         return self._records.get(asset_id, SidecarRecord())
 
+    def records(self) -> dict[str, SidecarRecord]:
+        """Return a copy for safe rebinding when an unsaved project gets a path."""
+        if not self._loaded:
+            self.load()
+        return dict(self._records)
+
     def set(self, asset_id: str, record: SidecarRecord, *, persist: bool = True) -> None:
         if not self._loaded:
             self.load()

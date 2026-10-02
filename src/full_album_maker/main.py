@@ -15,6 +15,7 @@ from full_album_maker.project_dirty import install_project_dirty_state
 from full_album_maker.async_import import install_async_import
 from full_album_maker.media_feature import install_step03_media
 from full_album_maker.media_feature_activation import install_step03_media_activation_guard
+from full_album_maker.media_completion import install_step03_media_completion
 
 
 install_feature()
@@ -30,6 +31,7 @@ install_project_dirty_state()
 install_async_import()
 install_step03_media()
 install_step03_media_activation_guard()
+install_step03_media_completion()
 
 
 def main(argv: list[str] | None = None) -> int:
