@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - ui/step-02-beranda
+    paths-ignore:
+      - docs/ui-beranda/**
   workflow_dispatch:
 
 permissions:
@@ -137,6 +139,7 @@ jobs:
           e=geometry('home-g02-e-output-invalid')
           assert e['home_mode'] == 'HOME_OUTPUT_INVALID', e
           assert e['output_invalid'] is True, e
+          assert e['output_warning_visible'] is True, e
 
           compact=geometry('home-1366')
           assert compact['window'] == [1366, 768], compact
@@ -153,7 +156,7 @@ jobs:
           patterns={
               'PRIVATE_KEY': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
               'GITHUB_TOKEN': re.compile(r'gh[pousr]_[A-Za-z0-9]{36,255}'),
-              'GOOGLE_API_KEY': re.compile(r'AIza[0-9A-Za-z_-]{35}'),
+              'GOOGLE_API_KEY': re.compile(r'AIza[0-9A-Za-z0-9_-]{35}'),
               'OPENAI_LIKE_KEY': re.compile(r'\bsk-[A-Za-z0-9_-]{20,}\b'),
           }
           hits=[]
