@@ -94,11 +94,13 @@ jobs:
           assert g['right_dock_width'] == 348, g
           assert g['timeline_height'] == 34, g
           assert g['status_height'] == 28, g
+          assert g['home_active'] is True, g
           assert g['recovery_visible'] is True, g
           assert g['recent_cards'] == 4, g
           compact=json.loads(Path('step02-evidence/reports/home-1366.json').read_text())['geometry']
           assert compact['window'] == [1366, 768], compact
           assert compact['nav_right'] == 71, compact
+          assert compact['home_active'] is True, compact
           print('STEP02_HOME_GEOMETRY_PASS')
           PY
 
