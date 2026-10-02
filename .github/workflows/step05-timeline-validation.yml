@@ -37,8 +37,13 @@ jobs:
           python -m pip install -e .
       - name: Compile source
         run: python -m compileall -q src
-      - name: Run STEP05 precision tests
-        run: python -m pytest -q tests/test_step05_timeline_precision.py
+      - name: Run STEP05 focused tests
+        run: |
+          python -m pytest -q \
+            tests/test_step05_timeline_precision.py \
+            tests/test_step05_timeline_audio.py \
+            tests/test_step05_timeline_ui.py \
+            tests/test_step05_timeline_integration.py
       - name: Run STEP04 regression gate
         run: |
           python -m pytest -q \
