@@ -128,16 +128,50 @@ jobs:
           assert compact['window'] == [1366,768] and compact['media_active'] is True, compact
           print('STEP03_COMPLETION_GEOMETRY_PASS')
           PY
-      - name: Build overlay and diff against Media reference
+      - name: Verify golden reference and build overlay when available
         run: |
           python - <<'PY'
+          import hashlib
+          import json
           from pathlib import Path
           from PIL import Image, ImageChops
-          ref=Image.open('docs/ui-reference/02-media.png').convert('RGB')
-          cur=Image.open('step03-completion-evidence/current/media-g03-final.png').convert('RGB')
-          assert ref.size == cur.size == (1672,941), (ref.size,cur.size)
-          Image.blend(ref,cur,0.5).save('step03-completion-evidence/compare/media-overlay-50.png')
-          ImageChops.difference(ref,cur).save('step03-completion-evidence/compare/media-diff.png')
+
+          manifest_path = Path('docs/ui-reference/manifest.json')
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          entry = next(item for item in manifest['references'] if item['id'] == 'UI-02')
+          expected_sha = entry['sha256']
+          ref = Path('docs/ui-reference') / entry['file']
+          cur_path = Path('step03-completion-evidence/current/media-g03-final.png')
+          report_path = Path('step03-completion-evidence/compare/reference-status.json')
+          cur = Image.open(cur_path).convert('RGB')
+          assert cur.size == tuple(manifest['golden_viewport']), (cur.size, manifest['golden_viewport'])
+
+          status = {
+              'reference_id': entry['id'],
+              'reference_file': entry['file'],
+              'expected_sha256': expected_sha,
+              'golden_viewport': manifest['golden_viewport'],
+              'current_file': str(cur_path),
+              'current_sha256': hashlib.sha256(cur_path.read_bytes()).hexdigest(),
+          }
+
+          if not ref.is_file():
+              status.update({
+                  'status': 'LOCAL_PENDING',
+                  'reason': 'Exact golden PNG is intentionally not committed; provide the immutable local golden pack to build overlay/diff.',
+              })
+              report_path.write_text(json.dumps(status, indent=2) + '\n', encoding='utf-8')
+              print('STEP03_REFERENCE_OVERLAY_LOCAL_PENDING', entry['file'], expected_sha)
+          else:
+              actual_sha = hashlib.sha256(ref.read_bytes()).hexdigest()
+              assert actual_sha == expected_sha, (actual_sha, expected_sha)
+              golden = Image.open(ref).convert('RGB')
+              assert golden.size == cur.size == tuple(manifest['golden_viewport']), (golden.size, cur.size)
+              Image.blend(golden, cur, 0.5).save('step03-completion-evidence/compare/media-overlay-50.png')
+              ImageChops.difference(golden, cur).save('step03-completion-evidence/compare/media-diff.png')
+              status.update({'status': 'PASS', 'actual_sha256': actual_sha})
+              report_path.write_text(json.dumps(status, indent=2) + '\n', encoding='utf-8')
+              print('STEP03_REFERENCE_OVERLAY_PASS', actual_sha)
           PY
       - name: Secret scan completion surfaces
         run: |
