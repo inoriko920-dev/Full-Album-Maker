@@ -40,6 +40,10 @@ class FoundationMainWindow(V14EditorMainWindow):
         self.setMinimumSize(1180, 720)
         self._foundation_ready = True
         self._apply_foundation_preferences()
+        # Qt/Windows may not deliver the child resize event before first show.
+        # Resolve responsive mode from the outer window explicitly so a saved
+        # 1366-wide window cannot start with the 172 px desktop rail.
+        self.foundation_shell.set_compact_mode(self.width() < TOKENS.compact_breakpoint)
         self._sync_foundation_state()
 
     def _foundation_adapter(self) -> FoundationCommandAdapter:
@@ -197,6 +201,11 @@ class FoundationMainWindow(V14EditorMainWindow):
             self._foundation_pref_store.save(prefs)
         except OSError:
             pass
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if getattr(self, "_foundation_ready", False):
+            self.foundation_shell.set_compact_mode(event.size().width() < TOKENS.compact_breakpoint)
 
     def closeEvent(self, event) -> None:
         if getattr(self, "_foundation_ready", False):
