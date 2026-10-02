@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - ui/step-01-foundation
+    paths-ignore:
+      - docs/ui-foundation/STEP01_TEST_REPORT.md
+      - docs/ui-foundation/HANDOFF_STEP01.md
+      - docs/ui-foundation/BASELINE.md
   workflow_dispatch:
 
 permissions:
@@ -55,30 +59,45 @@ jobs:
         run: python -m compileall -q src
 
       - name: Run STEP01 focused tests
-        run: python -m pytest -q tests/test_step01_foundation.py
+        run: python -m pytest -q tests/test_step01_foundation.py tests/test_step01_acceptance.py
 
       - name: Run recovered regression suite
         run: python -m pytest -q --disable-warnings
 
-      - name: Capture golden-viewport foundation states
+      - name: Capture all nine golden-viewport foundation routes
         run: |
           mkdir -p ui-golden/current ui-golden/diff ui-golden/reports
           python -m full_album_maker.foundation_capture --workspace home --output ui-golden/current/foundation-home.png --report ui-golden/reports/home.json
           python -m full_album_maker.foundation_capture --workspace media --output ui-golden/current/foundation-media.png --report ui-golden/reports/media.json
+          python -m full_album_maker.foundation_capture --workspace album --output ui-golden/current/foundation-album.png --report ui-golden/reports/album.json
           python -m full_album_maker.foundation_capture --workspace timeline --output ui-golden/current/foundation-timeline.png --report ui-golden/reports/timeline.json
+          python -m full_album_maker.foundation_capture --workspace visual --output ui-golden/current/foundation-visual.png --report ui-golden/reports/visual.json
+          python -m full_album_maker.foundation_capture --workspace template --output ui-golden/current/foundation-template.png --report ui-golden/reports/template.json
+          python -m full_album_maker.foundation_capture --workspace spectrum --output ui-golden/current/foundation-spectrum.png --report ui-golden/reports/spectrum.json
+          python -m full_album_maker.foundation_capture --workspace ai_agent --output ui-golden/current/foundation-ai-agent.png --report ui-golden/reports/ai-agent.json
           python -m full_album_maker.foundation_capture --workspace render --output ui-golden/current/foundation-render.png --report ui-golden/reports/render.json
-          cp ui-golden/current/foundation-home.png /tmp/foundation-mechanical-golden.png
+
+      - name: Prove deterministic repeat capture and diff pipeline
+        run: |
+          python -m full_album_maker.foundation_capture --workspace home --output ui-golden/current/foundation-home-repeat.png --report ui-golden/reports/home-repeat.json
           python - <<'PY'
           from pathlib import Path
           from full_album_maker.foundation_capture import _difference
           out=Path('ui-golden/diff')
           out.mkdir(parents=True, exist_ok=True)
-          print(_difference(Path('ui-golden/current/foundation-home.png'), Path('/tmp/foundation-mechanical-golden.png'), out))
+          result=_difference(
+              Path('ui-golden/current/foundation-home-repeat.png'),
+              Path('ui-golden/current/foundation-home.png'),
+              out,
+          )
+          print(result)
+          assert result['normalized_absolute_difference'] == 0.0, result
           PY
 
-      - name: Capture 1366 compact and 150 percent DPI gates
+      - name: Capture 1366 compact plus 125 and 150 percent DPI gates
         run: |
           python -m full_album_maker.foundation_capture --workspace media --width 1366 --height 768 --output ui-golden/current/foundation-1366.png --report ui-golden/reports/compact-1366.json
+          QT_SCALE_FACTOR=1.25 python -m full_album_maker.foundation_capture --workspace home --width 1672 --height 941 --scale 1.25 --output ui-golden/current/foundation-125dpi.png --report ui-golden/reports/dpi-125.json
           QT_SCALE_FACTOR=1.5 python -m full_album_maker.foundation_capture --workspace home --width 1672 --height 941 --scale 1.5 --output ui-golden/current/foundation-150dpi.png --report ui-golden/reports/dpi-150.json
 
       - name: Validate shell landmark reports
@@ -100,6 +119,11 @@ jobs:
           assert 340 <= timeline['timeline_height'] <= 365
           compact=reports['compact-1366']['geometry']
           assert compact['window'] == [1366, 768]
+          assert reports['dpi-125']['geometry']['scale'] == 1.25
+          assert reports['dpi-150']['geometry']['scale'] == 1.5
+          assert {reports[k]['geometry']['workspace'] for k in ('home','media','album','timeline','visual','template','spectrum','ai-agent','render')} == {
+              'home','media','album','timeline','visual','template','spectrum','ai_agent','render'
+          }
           print('LANDMARK_GATE_PASS')
           PY
 
