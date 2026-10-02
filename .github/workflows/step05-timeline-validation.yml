@@ -43,7 +43,8 @@ jobs:
             tests/test_step05_timeline_precision.py \
             tests/test_step05_timeline_audio.py \
             tests/test_step05_timeline_ui.py \
-            tests/test_step05_timeline_integration.py
+            tests/test_step05_timeline_integration.py \
+            tests/test_step05_timeline_render_mix.py
       - name: Run STEP04 regression gate
         run: |
           python -m pytest -q \
