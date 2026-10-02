@@ -41,14 +41,7 @@ def _difference(current: Path, golden: Path, out_dir: Path) -> dict[str, object]
 
 
 def _logical_viewport_image(client_pixmap, width: int, height: int, scale: float):
-    """Return an exact logical viewport at 100% without rescaling pixels.
-
-    Some Qt offscreen plugins honor widget minimum-size hints by making the
-    backing surface a few pixels wider than the requested top-level geometry.
-    Golden acceptance is defined by the requested logical viewport. At 100%
-    we therefore crop/pad the app capture to that viewport; content is never
-    rescaled. HiDPI captures keep their native backing-pixel dimensions.
-    """
+    """Return an exact logical viewport at 100% without rescaling pixels."""
     from PySide6.QtCore import QPoint
     from PySide6.QtGui import QColor, QImage, QPainter
 
@@ -70,16 +63,10 @@ def _logical_viewport_image(client_pixmap, width: int, height: int, scale: float
 
 
 def _compose_native_title_preview(client_source, title_height_logical: int, scale: float):
-    """Add deterministic native-title evidence above the captured Qt client.
-
-    Production keeps normal Windows chrome. Qt offscreen `window.grab()` captures
-    only the client area, while the frozen 1672x941 design references include a
-    thin native title row. The harness therefore draws a neutral Windows-like
-    title strip only into evidence output; it is not an application widget and
-    cannot become a duplicate production title bar.
-    """
+    """Add deterministic native-title evidence above the captured Qt client."""
     from PySide6.QtCore import QRect, QRectF, Qt
     from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
+    from PySide6.QtWidgets import QApplication
 
     client = client_source.toImage() if hasattr(client_source, "toImage") else client_source
     client.setDevicePixelRatio(1.0)
@@ -99,6 +86,8 @@ def _compose_native_title_preview(client_source, title_height_logical: int, scal
     p.setPen(QPen(QColor(TOKENS.border), max(1, int(round(scale)))))
     p.drawLine(0, title_px - 1, width_px, title_px - 1)
 
+    base_font = QApplication.instance().font() if QApplication.instance() is not None else QFont()
+    family = base_font.family()
     pad = max(8, int(round(13 * scale)))
     logo = max(14, int(round(18 * scale)))
     logo_y = max(4, (title_px - logo) // 2)
@@ -106,13 +95,13 @@ def _compose_native_title_preview(client_source, title_height_logical: int, scal
     p.setBrush(QColor(TOKENS.primary_600))
     p.drawRoundedRect(QRectF(pad, logo_y, logo, logo), 3 * scale, 3 * scale)
     p.setPen(QColor("#FFFFFF"))
-    icon_font = QFont("Segoe UI")
+    icon_font = QFont(family)
     icon_font.setPixelSize(max(8, int(round(10 * scale))))
     icon_font.setBold(True)
     p.setFont(icon_font)
     p.drawText(QRectF(pad, logo_y, logo, logo), Qt.AlignmentFlag.AlignCenter, "▶")
 
-    title_font = QFont("Noto Sans")
+    title_font = QFont(family)
     title_font.setPixelSize(max(10, int(round(12 * scale))))
     title_font.setWeight(QFont.Weight.DemiBold)
     p.setFont(title_font)
@@ -125,7 +114,7 @@ def _compose_native_title_preview(client_source, title_height_logical: int, scal
     )
 
     control_w = max(34, int(round(42 * scale)))
-    control_font = QFont("Segoe UI")
+    control_font = QFont(family)
     control_font.setPixelSize(max(9, int(round(11 * scale))))
     p.setFont(control_font)
     p.setPen(QColor("#53627A"))
@@ -143,16 +132,14 @@ def capture(workspace: str, output: Path, width: int, height: int, scale: float)
     from PySide6.QtCore import QEventLoop, QTimer
     from PySide6.QtWidgets import QApplication
 
+    from .foundation_font import install_foundation_font
     from .foundation_shell import FoundationFixtureWindow
 
     app = QApplication.instance() or QApplication([])
+    font_family = install_foundation_font(app)
     client_height = max(320, height - TOKENS.title_height)
     window = FoundationFixtureWindow(workspace)
     window.resize(width, client_height)
-    # Offscreen platform plugins differ in whether a child receives a pre-show
-    # resize notification. Make the requested responsive state explicit so the
-    # evidence is cross-platform and still exercises the same shell API used by
-    # FoundationMainWindow.resizeEvent in production.
     window.shell.set_compact_mode(width < TOKENS.compact_breakpoint)
     window.show()
     loop = QEventLoop()
@@ -177,6 +164,7 @@ def capture(workspace: str, output: Path, width: int, height: int, scale: float)
         "status_height": window.shell.status_bar.height(),
         "workspace": workspace,
         "scale": scale,
+        "font_family": font_family,
     }
     window.close()
     return geometry
