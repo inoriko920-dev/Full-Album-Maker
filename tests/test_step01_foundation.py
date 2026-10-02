@@ -18,6 +18,9 @@ def test_step01_color_and_geometry_contract():
     assert TOKENS.surface == "#FFFFFF"
     assert TOKENS.text_primary == "#10234A"
     assert TOKENS.text_muted == "#5C6B82"
+    assert TOKENS.title_height in range(40, 43)
+    assert TOKENS.command_height in range(52, 57)
+    assert TOKENS.title_height + TOKENS.command_height in range(92, 101)
     assert TOKENS.nav_width in range(160, 181)
     assert TOKENS.right_dock_width in range(330, 361)
     assert TOKENS.status_height in range(26, 31)
@@ -62,6 +65,9 @@ def test_foundation_theme_does_not_restore_legacy_dark_theme():
     assert "#FFFFFF" in FOUNDATION_STYLE
     assert "#07101c" not in FOUNDATION_STYLE.lower()
     assert "qlineargradient" not in FOUNDATION_STYLE.lower()
+    # App name belongs to native title chrome; command bar keeps only a spacer.
+    assert "QLabel#appName" in FOUNDATION_STYLE
+    assert "color: transparent" in FOUNDATION_STYLE
 
 
 def test_golden_reference_manifest_hashes_are_exact():
@@ -87,7 +93,7 @@ def test_shell_has_one_shared_navigation_and_switches_without_rebuild(qapp):
     from full_album_maker.foundation_shell import FoundationFixtureWindow
 
     window = FoundationFixtureWindow("home")
-    window.resize(1672, 941)
+    window.resize(1672, 900)
     window.show()
     qapp.processEvents()
     shell = window.shell
@@ -111,7 +117,7 @@ def test_shell_compact_mode_at_1366_keeps_navigation_usable(qapp):
     from full_album_maker.foundation_shell import FoundationFixtureWindow
 
     window = FoundationFixtureWindow("media")
-    window.resize(1366, 768)
+    window.resize(1366, 768 - TOKENS.title_height)
     window.show()
     qapp.processEvents()
     assert window.shell.navigation.width() == TOKENS.nav_compact_width
