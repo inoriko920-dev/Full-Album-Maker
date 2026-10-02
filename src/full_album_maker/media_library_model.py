@@ -214,3 +214,15 @@ def normalize_tags(values: Iterable[str]) -> tuple[str, ...]:
             seen.add(key)
             result.append(value)
     return tuple(result)
+
+
+@dataclass(frozen=True)
+class MediaAddToAlbumCommand:
+    asset_ids: tuple[str, ...]
+    source_workspace: str = "media"
+
+    def validate(self) -> None:
+        if not self.asset_ids or any(not str(value).strip() for value in self.asset_ids):
+            raise ValueError("Media Add-to-Album command membutuhkan minimal satu asset ID valid.")
+        if self.source_workspace != "media":
+            raise ValueError("Source workspace Add-to-Album harus media.")

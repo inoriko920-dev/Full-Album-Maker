@@ -13,6 +13,7 @@ from full_album_maker.atomic_bundle import install_atomic_bundle
 from full_album_maker.render_lifecycle import install_render_lifecycle
 from full_album_maker.project_dirty import install_project_dirty_state
 from full_album_maker.async_import import install_async_import
+from full_album_maker.media_feature import install_step03_media
 
 
 install_feature()
@@ -26,6 +27,7 @@ install_atomic_bundle()
 install_render_lifecycle()
 install_project_dirty_state()
 install_async_import()
+install_step03_media()
 
 
 def main(argv: list[str] | None = None) -> int:
