@@ -71,11 +71,12 @@ def test_clear_visual_is_undoable_and_never_deletes_media(tmp_path: Path) -> Non
     controller = EditorController(doc)
     before_assets = set(doc.asset_map())
     controller.dispatch(SetSongVisual(songs[0].song_id, None))
-    assert doc.song_map()[songs[0].song_id].visual_asset_id is None
-    assert set(doc.asset_map()) == before_assets
-    assert photo.asset_id in doc.asset_map()
-    controller.undo()
-    assert doc.song_map()[songs[0].song_id].visual_asset_id == photo.asset_id
+    active = controller.snapshot()
+    assert active.song_map()[songs[0].song_id].visual_asset_id is None
+    assert set(active.asset_map()) == before_assets
+    assert photo.asset_id in active.asset_map()
+    restored = controller.undo()
+    assert restored.song_map()[songs[0].song_id].visual_asset_id == photo.asset_id
 
 
 def test_relink_preserves_asset_identity_and_is_undoable(tmp_path: Path) -> None:
@@ -85,12 +86,13 @@ def test_relink_preserves_asset_identity_and_is_undoable(tmp_path: Path) -> None
     old_locator = missing.locator
     controller = EditorController(doc)
     controller.dispatch(RelinkMediaAsset(missing.asset_id, str(replacement)))
-    assert doc.song_map()[songs[2].song_id].visual_asset_id == missing.asset_id
-    assert doc.asset_map()[missing.asset_id].locator == str(replacement)
-    assert assignment_status(doc, songs[2].song_id).state == "image"
-    controller.undo()
-    assert doc.asset_map()[missing.asset_id].locator == old_locator
-    assert assignment_status(doc, songs[2].song_id).state == "missing"
+    active = controller.snapshot()
+    assert active.song_map()[songs[2].song_id].visual_asset_id == missing.asset_id
+    assert active.asset_map()[missing.asset_id].locator == str(replacement)
+    assert assignment_status(active, songs[2].song_id).state == "image"
+    restored = controller.undo()
+    assert restored.asset_map()[missing.asset_id].locator == old_locator
+    assert assignment_status(restored, songs[2].song_id).state == "missing"
 
 
 def test_auto_match_is_deterministic_and_preserves_existing(tmp_path: Path) -> None:
