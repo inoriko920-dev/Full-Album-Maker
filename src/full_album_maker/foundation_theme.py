@@ -30,7 +30,16 @@ QFrame#workspaceNavigation {{ border-left: none; border-top: none; border-bottom
 QFrame#contextHost, QFrame#workspaceHost, QFrame#inspectorDock {{ border-top: none; border-bottom: none; }}
 QFrame#timelineDock {{ border-left: none; border-right: none; }}
 QFrame#appStatusBar {{ border-left: none; border-right: none; border-bottom: none; }}
-QLabel#appName {{ font-size: 16px; font-weight: 650; color: {t.text_primary}; }}
+/* Production uses the native Windows title bar for the app name. Keep this
+   spacer so the first global command aligns with the golden references, but
+   do not render a duplicate title inside the command row. */
+QLabel#appName {{
+    min-width: 168px;
+    max-width: 168px;
+    font-size: 16px;
+    font-weight: 650;
+    color: transparent;
+}}
 QLabel#workspaceHeading {{ font-size: 26px; font-weight: 750; color: {t.text_primary}; }}
 QLabel#sectionHeading {{ font-size: 16px; font-weight: 650; color: {t.text_primary}; }}
 QLabel#muted, QLabel#metadata {{ color: {t.text_muted}; }}
