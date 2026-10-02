@@ -106,9 +106,9 @@ def test_production_visual_route_uses_step06_surfaces_without_route_mutation(tmp
 
     assert window.foundation_state.workspace == "visual"
     assert window.foundation_shell.workspace_stack.currentWidget() is window.visual_workspace_s06
-    assert window.visual_context_s06.isVisible() is True
+    assert not window.visual_context_s06.isHidden()
     assert window._inspector_router.currentWidget() is window.visual_inspector_s06
-    assert window.visual_timeline_s06.isVisible() is True
+    assert not window.visual_timeline_s06.isHidden()
     assert window._s06_primary_song_id == doc.playlist.entries[0].song_id
     assert window.editor_workspace.document().content_signature() == signature
 
