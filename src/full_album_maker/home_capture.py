@@ -70,6 +70,11 @@ def capture(output: Path, width: int = 1672, height: int = 941, scale: float = 1
     shell.workspace_stack.removeWidget(old)
     old.setParent(None)
     shell.workspace_stack.insertWidget(home_index, home)
+    # QStackedWidget selects the next page when its current page is removed.
+    # State is already "home", so FoundationUiState.set_workspace("home") is a
+    # no-op. Select the newly inserted Beranda explicitly instead of silently
+    # capturing the Media placeholder with a Beranda nav selection.
+    shell.workspace_stack.setCurrentWidget(home)
     shell.inspector.content.set_properties_widget(HomeInspectorWidget(home_state))
     shell.set_workspace("home")
     state.set_status(
@@ -111,6 +116,7 @@ def capture(output: Path, width: int = 1672, height: int = 941, scale: float = 1
         "workspace": "home",
         "scale": scale,
         "font_family": font_family,
+        "home_active": shell.workspace_stack.currentWidget() is home,
         "recovery_visible": not home.recovery_banner.isHidden(),
         "recent_cards": min(4, len(home_state.recent_projects)),
     }
