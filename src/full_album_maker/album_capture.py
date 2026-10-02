@@ -143,7 +143,15 @@ def capture(state: str, output: Path, width: int, height: int, scale: float) -> 
         "scale": scale,
         "font_family": font_family,
     }
-    window.close()
+
+    # Do not call close() in deterministic/offscreen capture. The production
+    # closeEvent correctly asks the user to save a dirty Editor V2 document,
+    # which would create an unanswerable modal dialog on a headless CI runner.
+    # Hiding/deleting the fixture window bypasses only that interactive shutdown
+    # prompt; application close semantics remain untouched.
+    window.hide()
+    window.deleteLater()
+    app.processEvents()
     return geometry
 
 
