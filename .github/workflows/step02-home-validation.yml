@@ -63,45 +63,86 @@ jobs:
       - name: Run recovered regression suite
         run: python -m pytest -q --disable-warnings
 
-      - name: Capture STEP02 golden fixture states
+      - name: Capture STEP02 golden and edge fixture states
         run: |
           mkdir -p step02-evidence/current step02-evidence/reports
           python -m full_album_maker.home_capture \
-            --output step02-evidence/current/home-g02-a.png \
-            --report step02-evidence/reports/home-g02-a.json
+            --state recovery \
+            --output step02-evidence/current/home-g02-a-recovery.png \
+            --report step02-evidence/reports/home-g02-a-recovery.json
           python -m full_album_maker.home_capture \
-            --width 1366 --height 768 \
+            --state no-recovery \
+            --output step02-evidence/current/home-g02-b-no-recovery.png \
+            --report step02-evidence/reports/home-g02-b-no-recovery.json
+          python -m full_album_maker.home_capture \
+            --state first-run \
+            --output step02-evidence/current/home-g02-c-first-run.png \
+            --report step02-evidence/reports/home-g02-c-first-run.json
+          python -m full_album_maker.home_capture \
+            --state portable-warning \
+            --output step02-evidence/current/home-g02-d-portable-warning.png \
+            --report step02-evidence/reports/home-g02-d-portable-warning.json
+          python -m full_album_maker.home_capture \
+            --state output-invalid \
+            --output step02-evidence/current/home-g02-e-output-invalid.png \
+            --report step02-evidence/reports/home-g02-e-output-invalid.json
+          python -m full_album_maker.home_capture \
+            --state recovery --width 1366 --height 768 \
             --output step02-evidence/current/home-1366.png \
             --report step02-evidence/reports/home-1366.json
           QT_SCALE_FACTOR=1.25 python -m full_album_maker.home_capture \
-            --scale 1.25 \
+            --state recovery --scale 1.25 \
             --output step02-evidence/current/home-125dpi.png \
             --report step02-evidence/reports/home-125dpi.json
           QT_SCALE_FACTOR=1.5 python -m full_album_maker.home_capture \
-            --scale 1.5 \
+            --state recovery --scale 1.5 \
             --output step02-evidence/current/home-150dpi.png \
             --report step02-evidence/reports/home-150dpi.json
 
-      - name: Validate STEP02 geometry evidence
+      - name: Validate STEP02 geometry and edge-state evidence
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          report=json.loads(Path('step02-evidence/reports/home-g02-a.json').read_text())
-          g=report['geometry']
-          assert g['window'] == [1672, 941], g
-          assert g['nav_right'] == 171, g
-          assert g['right_dock_width'] == 348, g
-          assert g['timeline_height'] == 34, g
-          assert g['status_height'] == 28, g
-          assert g['home_active'] is True, g
-          assert g['recovery_visible'] is True, g
-          assert g['recent_cards'] == 4, g
-          compact=json.loads(Path('step02-evidence/reports/home-1366.json').read_text())['geometry']
+
+          def geometry(name):
+              return json.loads(Path(f'step02-evidence/reports/{name}.json').read_text())['geometry']
+
+          a=geometry('home-g02-a-recovery')
+          assert a['window'] == [1672, 941], a
+          assert a['nav_right'] == 171, a
+          assert a['right_dock_width'] == 348, a
+          assert a['timeline_height'] == 34, a
+          assert a['status_height'] == 28, a
+          assert a['home_active'] is True, a
+          assert a['home_mode'] == 'HOME_RECOVERY_AVAILABLE', a
+          assert a['recovery_visible'] is True, a
+          assert a['recent_cards'] == 4, a
+
+          b=geometry('home-g02-b-no-recovery')
+          assert b['home_mode'] == 'HOME_NO_RECOVERY', b
+          assert b['recovery_visible'] is False, b
+          assert b['recent_cards'] == 4, b
+
+          c=geometry('home-g02-c-first-run')
+          assert c['home_mode'] == 'HOME_FIRST_RUN', c
+          assert c['recovery_visible'] is False, c
+          assert c['recent_empty'] is True, c
+          assert c['recent_cards'] == 0, c
+
+          d=geometry('home-g02-d-portable-warning')
+          assert d['home_mode'] == 'HOME_PORTABLE_WARNING', d
+          assert d['recovery_visible'] is False, d
+
+          e=geometry('home-g02-e-output-invalid')
+          assert e['home_mode'] == 'HOME_OUTPUT_INVALID', e
+          assert e['output_invalid'] is True, e
+
+          compact=geometry('home-1366')
           assert compact['window'] == [1366, 768], compact
           assert compact['nav_right'] == 71, compact
           assert compact['home_active'] is True, compact
-          print('STEP02_HOME_GEOMETRY_PASS')
+          print('STEP02_HOME_G02_A_E_PASS')
           PY
 
       - name: Secret scan STEP02 surfaces
