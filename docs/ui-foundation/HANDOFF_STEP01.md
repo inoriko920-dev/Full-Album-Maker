@@ -3,9 +3,8 @@
 Project / repo: **Full Album Maker — `inoriko920-dev/Full-Album-Maker`**  
 Branch: `ui/step-01-foundation`  
 STEP 00 recovery baseline: `recovery/step-00-r0` @ `87860b7281c3c5e9731ccf082dac84ab14624402`  
-Validated STEP 01 runtime HEAD: `084808da876d2bfd8a72764e7951515578a1a995`  
-Documentation closure pre-handoff HEAD: `670847a23fe96699754acfaac23979ef88f91359`  
-Authoritative CI: run `36977769859` (#23), **SUCCESS**
+Authoritative tested STEP 01 SHA: `0bd0aa3769b2913900d6ba169b70bffff1d674ba`  
+Authoritative CI: run `36978076538` (#24), **SUCCESS**
 
 ## 1. STEP 00 gate status
 
@@ -16,17 +15,15 @@ The STEP 00 provenance contract remains in force:
 - recovered v1.4.0 is the exact source baseline;
 - v1.4.1 portable is behavior/build evidence only;
 - exact v1.4.1 source is not claimed;
-- historical recovery evidence and source labels remain untouched.
+- recovery evidence and source labels remain untouched.
 
 ## 2. STEP 01 decision
 
-**READY_WITH_LIMITATIONS**
+# READY_WITH_LIMITATIONS
 
-STEP 02 may begin from the STEP 01 branch/foundation.
+STEP 02 **may begin** from the STEP 01 foundation. All acceptance criteria marked critical by the STEP 01 specification pass. The remaining limitations are explicit and non-blocking for Beranda.
 
-The limitation is explicit: the exact external multi-megabyte golden PNG binaries are not checked into this branch/CI, so the final all-nine whole-window raster overlay against those exact files is not claimed. The structural shell landmark gates, deterministic capture/diff mechanism, responsive behavior, DPI states, Linux regression suite, Windows focused suite, and secret scan all pass.
-
-## 3. Foundation files/components created or modified
+## 3. Foundation files/components
 
 Primary STEP 01 ownership:
 
@@ -42,237 +39,162 @@ Primary STEP 01 ownership:
 - `tests/test_step01_acceptance.py`
 - `tests/step01_validate_evidence.py`
 - `.github/workflows/step01-foundation-validation.yml`
+- `docs/ui-reference/manifest.json`
 - `docs/ui-foundation/UI_FOUNDATION_MAP.md`
 - `docs/ui-foundation/KNOWN_LIMITATIONS.md`
 - `docs/ui-foundation/STEP01_TEST_REPORT.md`
 - `docs/ui-foundation/BASELINE.md`
 - `docs/ui-foundation/HANDOFF_STEP01.md`
 
-Recovered application modules outside this list remain part of the v1.4.0 source baseline and were not opportunistically redesigned as STEP 01 workspace features.
+Recovered application modules remain the implementation baseline; STEP 01 does not introduce a parallel project/timeline/render/AI engine.
 
-## 4. Design token source
+## 4. Shared contracts to reuse in STEP 02+
 
-`src/full_album_maker/foundation_tokens.py`
+### Design tokens
 
-Key shell contract values include:
+Source: `src/full_album_maker/foundation_tokens.py`.
 
-- title evidence height: 41 px
+Key values:
+
+- title evidence: 41 px
 - command bar: 55 px
 - navigation: 172 px
 - compact navigation: 72 px
-- context panel: 264 px
+- context panel target: 264 px
 - right dock: 348 px
 - status bar: 28 px
 - golden viewport: 1672×941
 - compact breakpoint: 1450 px
 - minimum supported width: 1366 px
 
-Colors/spacing/radius/control/icon metrics are likewise centralized in the same token source.
+### Workspace registry
 
-## 5. Workspace registry source
+`WORKSPACE_ORDER` in `foundation_tokens.py`:
 
-`WORKSPACE_ORDER` in `src/full_album_maker/foundation_tokens.py`.
-
-Exact route order:
-
-```text
-home → media → album → timeline → visual → template → spectrum → ai_agent → render
-```
+`home → media → album → timeline → visual → template → spectrum → ai_agent → render`
 
 Labels:
 
-```text
-Beranda → Media → Album → Timeline → Visual → Template → Spectrum → AI Agent → Render
-```
+`Beranda → Media → Album → Timeline → Visual → Template → Spectrum → AI Agent → Render`
 
-STEP 01 owns only the shared routing host and controlled placeholder bodies. Final workspace content starts in STEP 02.
+### Inspector dock
 
-## 6. InspectorDockHost source
-
-`InspectorDockHost` in `src/full_album_maker/foundation_shell.py`.
-
-Contract:
+`InspectorDockHost` in `foundation_shell.py`:
 
 - one shared right dock;
-- `Properti | AI` reusable host;
-- collapse/expand behavior;
+- tabs `Properti | AI`;
+- collapse/expand;
 - no duplicated per-workspace inspector shell.
 
-## 7. TimelineDockHost source
+### Timeline dock
 
-`TimelineDockHost` and `TimelineFoundationCanvas` in `src/full_album_maker/foundation_shell.py`.
-
-Contract:
+`TimelineDockHost` in `foundation_shell.py`:
 
 - one shared timeline host;
-- collapse/expand behavior;
-- workspace-specific preferred heights;
-- stable shell geometry;
-- Split/Ripple/Snap/Marker remain intentionally non-final placeholders until later timeline semantics.
+- collapse/expand;
+- per-workspace preferred heights;
+- Split/Ripple/Snap/Marker controls remain intentionally non-final until the Timeline step.
 
-## 8. Status bar/event source
+### Status model
 
-`FoundationUiState` + `AppStatusBar` in `src/full_album_maker/foundation_shell.py`.
+`FoundationUiState` + `AppStatusBar` in `foundation_shell.py`.
 
-Status data is event/model driven for save state, FFmpeg, AI, jobs, and project context; final workspace bodies are not coupled directly to status widgets.
+Save, FFmpeg, AI, jobs and project-context status are event/model driven rather than directly coupled to workspace widgets.
 
-## 9. Golden viewport tested
+## 5. Golden viewport, DPI and responsive evidence
 
-**PASS — 1672×941**
+Golden viewport: **1672×941 — PASS**.
 
-Linux CI generated deterministic 100% captures for all nine routes:
+100% shared-shell geometry:
 
-- `foundation-home.png`
-- `foundation-media.png`
-- `foundation-album.png`
-- `foundation-timeline.png`
-- `foundation-visual.png`
-- `foundation-template.png`
-- `foundation-spectrum.png`
-- `foundation-ai-agent.png`
-- `foundation-render.png`
-
-The repeated Home capture produced normalized absolute difference `0.0` against the immediately repeated deterministic capture.
-
-## 10. DPI tested
-
-**PASS — 100%, 125%, 150%**
-
-Validated in both Linux/offscreen and Windows Server 2025 CI for the foundation shell evidence states.
-
-## 11. 1366×768 tested
-
-**PASS — Linux + Windows**
-
-The compact navigation rail measures 72 px (`nav_right=71`) and preserves access through icons, accessible names, and tooltips.
-
-## 12. Screenshot evidence paths
-
-Linux artifact `step01-ui-evidence` (artifact `11213744092`):
-
-```text
-ui-golden/current/
-ui-golden/diff/
-ui-golden/reports/
-```
-
-Windows artifact `step01-ui-evidence-windows` (artifact `11213354895`):
-
-```text
-ui-golden-windows/foundation-home-100.png
-ui-golden-windows/foundation-home-125.png
-ui-golden-windows/foundation-home-150.png
-ui-golden-windows/foundation-1366.png
-ui-golden-windows/*.json
-```
-
-Artifact digests:
-
-```text
-step01-ui-evidence
-sha256:000d9f812c826d2c3eaf1ad3d9a5ab1b5fb23d8a620619ee23a409bd02fbcb74
-
-step01-ui-evidence-windows
-sha256:dd478dbe74ff74730a9e2c0c9cd72e6db44f4c33dc5b36e7788baf4ebb1a45a9
-```
-
-## 13. Landmark drift summary
-
-Validated 100% shell geometry at 1672×941:
-
-- native title evidence: 41 px
-- command bar bottom: y=95
-- navigation width: 172 px
-- right dock width: 348 px
+- title strip: 41 px
+- title + command region: 96 px
+- navigation: 172 px
+- right dock: 348 px
 - status bar: 28 px
-- Home timeline: 34 px
-- Media/Album timeline: 194 px
-- Timeline workspace: 352 px
+- Home/Render timeline: 34 px collapsed
+- Media/Album: 194 px
+- Timeline: 352 px
 - Visual: 238 px
 - Template: 158 px
 - Spectrum: 252 px
 - AI Agent: 178 px
-- Render: 34 px
 
-The mechanical repeat-capture diff is exactly 0.0. The remaining visual limitation is not shell instability; it is the absence of the exact external golden binary payloads inside CI for a final all-nine raster overlay.
+DPI:
 
-## 14. Tests PASS / FAIL / NOT TESTED
+- 100%: PASS
+- 125%: PASS
+- 150%: PASS
+- Linux and Windows validation paths both succeed.
 
-### PASS
+Responsive:
 
-- source compile
-- frozen golden manifest integrity
-- Linux focused STEP 01: **15 passed**
+- 1366×768: PASS on Linux + Windows
+- compact navigation: 72 px with tooltip/accessible labels.
+
+## 6. Tests and artifacts
+
+At tested SHA `0bd0aa3769b2913900d6ba169b70bffff1d674ba`:
+
+- Linux STEP 01 focused: **15 passed**
 - Linux recovered regression: **246 passed, 88 skipped**
-- Windows focused STEP 01: **15 passed**
-- all-nine Linux 1672×941 route captures
-- deterministic repeat capture/diff
-- Linux 1366×768
-- Windows 1366×768
-- Linux 125% / 150%
-- Windows 125% / 150%
-- Linux evidence validator
-- Windows geometry validator
-- high-confidence secret scan
-- evidence artifact uploads
-- save/open compatibility fixtures
-- portable app-relative resource-path fixture
+- Windows STEP 01 focused: **15 passed**
+- all nine route captures: PASS
+- deterministic Home repeat diff: **0.0**
+- Linux evidence validator: PASS
+- Windows geometry gate: PASS
+- secret scan: PASS
 
-### FAIL
+Final run #24 artifacts:
 
-- none in authoritative run `36977769859`
+- `step01-ui-evidence`
+  - ID `11213948740`
+  - SHA-256 `239fd0c4b6661b765edbcbbc2bf15965132910e7556e9ed4d0bdcbaa959cef19`
+- `step01-ui-evidence-windows`
+  - ID `11214850767`
+  - SHA-256 `6ca8c179250286e783a93f3d3c677d8e9dfcae5a9d0f1c7afb21e1db5c240245`
 
-### NOT TESTED / externally pending
+See `STEP01_TEST_REPORT.md` for AC01–AC20 detail.
 
-- exact all-nine whole-window raster overlay against the external original golden PNG binaries themselves
-- manual real-user workflow of final workspace bodies, because those bodies are intentionally STEP 02–10 scope
-- packaging remediation for the historical FFmpeg 404 pin, which is deliberately outside STEP 01
+## 7. Known limitations carried into STEP 02
 
-## 15. Known limitations
+1. Exact v1.4.1 source is unavailable. Do not guess or reconstruct it; use exact recovered v1.4.0 implementation source and v1.4.1 portable only as behavior/build evidence.
+2. The historical FFmpeg asset/pin issue from STEP 00 is not silently changed in STEP 01; packaging remediation belongs to the later release gate.
+3. Exact multi-megabyte golden PNG binaries are verified/frozen by SHA-256 manifest but are not committed through the text-oriented connector. The harness accepts external originals and refuses golden resizing.
+4. Offscreen evidence draws a deterministic Windows-like title strip because production uses native Windows title chrome and Qt `window.grab()` captures only the client surface.
+5. Whole-window pixel parity of finished workspace content is not claimed at STEP 01 because final Beranda/Media/etc. bodies are intentionally placeholders.
+6. Timeline editing semantics behind Split/Ripple/Snap/Marker are deferred to the later Timeline step.
 
-1. Exact v1.4.1 source remains unavailable; no source is guessed from portable module names.
-2. External exact golden PNG binaries are not stored on this branch through the text-oriented connector; only their frozen hashes/manifest are committed.
-3. Final workspace bodies remain placeholders by design.
-4. Historical v1.4.0 FFmpeg asset pin still returns 404 and remains a separate release/build remediation task.
-5. Timeline editing semantics behind placeholder controls are deferred to the later Timeline step.
+## 8. Regression rules for STEP 02
 
-See `KNOWN_LIMITATIONS.md` for the maintained canonical list.
+- Do not create a second MainWindow/project store/timeline engine/render engine/AI state model.
+- Do not duplicate navigation, command bar, right dock, timeline dock or status bar inside Beranda.
+- Do not create a Home-only stylesheet that bypasses shared tokens/components.
+- Do not change route IDs/order.
+- Do not alter project schema, renderer contract, timeline data model or AI action contract just to implement Beranda.
+- Global Render remains a route/preflight entry point; it must not auto-start a render.
+- Preserve 1366 compact mode, DPI behavior, keyboard focus, dock state and status model.
+- Run focused STEP 02 tests plus the full recovered regression suite before closing Beranda.
 
-## 16. Regression risk
+## 9. STEP 02 first task recommendation — Beranda only
 
-**Low to moderate, controlled.**
+Implement **UI-01 Beranda / Project Hub** before touching Media.
 
-Reasons:
+Required sequence:
 
-- STEP 01 wraps the recovered implementation rather than creating a parallel project/timeline/AI engine;
-- workspace switching is shared-state based;
-- production save/open adapters remain connected to recovered behavior;
-- the full recovered Linux regression suite passes;
-- Windows focused UI/geometry tests pass;
-- workspace bodies are deliberately deferred instead of being mixed into foundation refactoring.
+1. Replace only route `home` placeholder with a real `HomeWorkspace`; keep the other eight routes as controlled placeholders.
+2. Implement hero `Mulai Full Album` with `Proyek Baru` and `Buka Proyek`, wired to the existing foundation/recovered adapters.
+3. Implement conditional `Autosave tersedia` banner. `Pulihkan` must load actual recoverable state; dismiss must not delete recovery data unless explicitly confirmed.
+4. Implement four-column `Proyek Terakhir` cards at 1672×941 using real recent-project metadata or deterministic fixture data for screenshot tests. Card overflow menu may remove from recent/reveal/show metadata; it must not delete source media by default.
+5. Implement `Mulai Cepat`: `Impor Lagu → Susun Timeline → Render`, gated by actual project context.
+6. Bind the Home right dock to real `Status Portable` checks and `Pengaturan Cepat` state. AI unconfigured must remain non-blocking for manual editing.
+7. Keep Home timeline collapsed and display `Belum ada proyek yang dibuka` when no project is active.
+8. Add deterministic Home fixture, 1672×941 capture and overlay/diff against exact UI-01 when the external original is supplied. Tune the app to the golden; never resize the golden to the app.
+9. Add New/Open/Recent/Autosave/quick-setting behavior tests and preserve all STEP 01 shell tests.
+10. Do not start Media until Home golden/behavior acceptance is closed and evidence is written.
 
-Main remaining risk is future workspace implementation accidentally duplicating or bypassing the shared foundation. STEP 02+ must reuse the established shell contracts.
+## 10. Closure
 
-## 17. Uncommitted files/processes
+**FINAL STEP 01: READY_WITH_LIMITATIONS → STEP 02 MAY START.**
 
-No local working tree is maintained by this connector workflow. All STEP 01 implementation and closure documentation described here are committed on the remote branch. No background implementation process is assumed to remain running after this handoff.
-
-## 18. STEP 02 first-task recommendation
-
-Implement **Beranda only** on top of the existing shared shell.
-
-Rules for STEP 02:
-
-1. Do not recreate navigation, command bar, right dock, timeline dock, or status bar.
-2. Reuse `foundation_tokens.py` and shared reusable components.
-3. Preserve the recovered project/save/open behavior and shared state.
-4. Keep the other eight workspace bodies as controlled placeholders until their assigned steps.
-5. Add Beranda-specific deterministic screenshot/evidence tests against the frozen reference contract.
-6. Do not treat the STEP 01 placeholder-center screenshot as final Beranda parity.
-7. Keep the exact-golden-binary limitation explicit until the external originals are available for direct overlay.
-
-## 19. Gate closure
-
-STEP 01 is closed as:
-
-**FINAL: READY_WITH_LIMITATIONS → STEP 02 MAY START**
+No runtime implementation task from STEP 01 remains uncommitted. Closure-document commits after the tested SHA only record evidence/handoff and do not change the validated foundation runtime.
