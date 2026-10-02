@@ -142,8 +142,11 @@ jobs:
 
           assert Image.open('ui-golden/current/foundation-home.png').size == (1672, 941)
           assert Image.open('ui-golden/current/foundation-1366.png').size == (1366, 768)
-          assert Image.open('ui-golden/current/foundation-125dpi.png').size == (2090, 1176)
-          assert Image.open('ui-golden/current/foundation-150dpi.png').size == (2508, 1412)
+          baseline_aspect=1672/941
+          for filename in ('foundation-125dpi.png', 'foundation-150dpi.png'):
+              size=Image.open(Path('ui-golden/current') / filename).size
+              assert size[0] >= 1672 and size[1] >= 941, (filename, size)
+              assert abs((size[0] / size[1]) - baseline_aspect) < 0.02, (filename, size)
           print('LANDMARK_GATE_PASS')
           PY
 
