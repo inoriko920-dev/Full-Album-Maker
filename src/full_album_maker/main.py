@@ -18,6 +18,7 @@ from full_album_maker.media_feature_activation import install_step03_media_activ
 from full_album_maker.media_completion import install_step03_media_completion
 from full_album_maker.media_layout_fix import install_step03_media_layout_fix
 from full_album_maker.album_feature import install_step04_album
+from full_album_maker.album_restore_fix import install_step04_album_restore_fix
 
 
 install_feature()
@@ -36,6 +37,7 @@ install_step03_media_activation_guard()
 install_step03_media_completion()
 install_step03_media_layout_fix()
 install_step04_album()
+install_step04_album_restore_fix()
 
 
 def main(argv: list[str] | None = None) -> int:
