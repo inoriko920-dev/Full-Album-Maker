@@ -167,8 +167,11 @@ class DecodedVisualPreviewWorkspace(VisualPreviewWorkspace):
 
 
 def install_step06_visual_preview_decode() -> None:
-    # visual_feature_step06 imported the base class symbol at module load time;
-    # replace that runtime factory before any FoundationMainWindow is created.
+    # The feature module imported the workspace class by value, while the base
+    # workspace resolves VisualPreviewCanvas from its own module globals. Patch
+    # both factories before any FoundationMainWindow instance is created.
     from . import visual_feature_step06 as feature
+    from . import visual_workspace_step06 as workspace
 
+    workspace.VisualPreviewCanvas = DecodedVisualPreviewCanvas
     feature.VisualPreviewWorkspace = DecodedVisualPreviewWorkspace
