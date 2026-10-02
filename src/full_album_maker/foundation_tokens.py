@@ -19,6 +19,10 @@ class FoundationTokens:
     warning: str = "#E6A100"
     danger: str = "#D64545"
 
+    # Native Windows title chrome is outside the Qt client area in production.
+    # The offscreen screenshot harness reproduces it deterministically so the
+    # 1672x941 golden references and client shell use the same coordinate space.
+    title_height: int = 41
     command_height: int = 55
     nav_width: int = 172
     nav_compact_width: int = 72
