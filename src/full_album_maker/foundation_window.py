@@ -20,7 +20,7 @@ from .home_services import (
     HomeProjectService, QuickDefaultsStore, RecentProjectsService, RecoveryService,
 )
 from .home_state import (
-    CapabilityState, HomeMode, HomeViewState, PortableStatus, RecoveryValidation,
+    CapabilityState, HomeViewState, PortableStatus, RecoveryValidation,
 )
 from .home_workspace import HomeWorkspace
 from .paths import ffmpeg_path, output_dir
@@ -42,14 +42,12 @@ class FoundationMainWindow(V14EditorMainWindow):
         self._home_recovery_service = RecoveryService()
         self._home_state = HomeViewState()
         super().__init__()
-
         self._foundation_project_open = bool(self.project.videos or self.project.audios)
         legacy = self.takeCentralWidget()
         self._legacy_root = legacy
         if legacy is not None:
             legacy.hide()
             legacy.setParent(self)
-
         self.foundation_state = FoundationUiState()
         self.foundation_shell = FoundationShellWidget(state=self.foundation_state, adapter=self._foundation_adapter())
         self.setCentralWidget(self.foundation_shell)
@@ -89,7 +87,6 @@ class FoundationMainWindow(V14EditorMainWindow):
         candidate = self._home_recovery_service.discover()
         if candidate is not None and candidate.validation_state == RecoveryValidation.VALID:
             self._home_state = self._home_state.with_valid_recovery(candidate)
-
         self.home_workspace = HomeWorkspace(state=self._home_state)
         self.home_workspace.create_project_requested.connect(self._home_create_project)
         self.home_workspace.open_project_requested.connect(self._home_choose_open_project)
@@ -99,21 +96,17 @@ class FoundationMainWindow(V14EditorMainWindow):
         self.home_workspace.recent_remove_requested.connect(self._home_remove_recent)
         self.home_workspace.show_all_recent_requested.connect(self._home_show_all_recent)
         self.home_workspace.quick_route_requested.connect(self._home_quick_route)
-
         index = self.foundation_shell.workspace_stack._index["home"]
         old_home = self.foundation_shell.workspace_stack.widget(index)
         self.foundation_shell.workspace_stack.removeWidget(old_home)
         old_home.setParent(None)
         self.foundation_shell.workspace_stack.insertWidget(index, self.home_workspace)
-
         self.home_inspector = HomeInspectorWidget(self._home_state)
         self.home_inspector.defaults_changed.connect(self._home_defaults_changed)
         self.home_inspector.browse_output_requested.connect(self._home_browse_output)
         self._inspector_router = QStackedWidget()
         self._inspector_router.addWidget(self.home_inspector)
-        self._inspector_router.addWidget(
-            FAMEmptyState("Belum ada pilihan", "Pilih objek di workspace untuk melihat properti.")
-        )
+        self._inspector_router.addWidget(FAMEmptyState("Belum ada pilihan", "Pilih objek di workspace untuk melihat properti."))
         self.foundation_shell.inspector.content.set_properties_widget(self._inspector_router)
         self.foundation_state.workspace_changed.connect(self._home_workspace_changed)
         self._home_workspace_changed(self.foundation_state.workspace)
@@ -227,9 +220,7 @@ class FoundationMainWindow(V14EditorMainWindow):
     def _home_open_recent(self, path: str) -> None:
         source = Path(path)
         if not source.exists():
-            located, _ = QFileDialog.getOpenFileName(
-                self, "Cari Lokasi Proyek", str(source.parent), "Full Album Project (*.json)"
-            )
+            located, _ = QFileDialog.getOpenFileName(self, "Cari Lokasi Proyek", str(source.parent), "Full Album Project (*.json)")
             if not located:
                 return
             path = located
@@ -338,21 +329,27 @@ class FoundationMainWindow(V14EditorMainWindow):
         self._home_create_project()
 
     def _foundation_open_project(self) -> None:
-        self._home_choose_open_project()
+        before = id(self.project)
+        self.load_project_file()
+        if id(self.project) != before:
+            self._foundation_project_open = True
+            self._foundation_project_path = ""
+            self.foundation_shell.set_workspace("home")
+            self._home_state = self._home_state.with_recent(self._home_recent_service.load())
+            self._apply_home_state()
+        self._sync_foundation_state()
 
     def _foundation_save_project(self) -> None:
         if not self._foundation_project_open:
             return
-        target = self._foundation_project_path
-        if not target:
-            target, _ = QFileDialog.getSaveFileName(
-                self, "Simpan Proyek", str(output_dir() / "Full_Album_Project.json"), "Full Album Project (*.json)"
-            )
-            if not target:
-                return
+        if not self._foundation_project_path:
+            self.foundation_state.set_status(save=("Menyimpan…", "warning"))
+            self.save_project_file()
+            self._sync_foundation_state()
+            return
         self.foundation_state.set_status(save=("Menyimpan…", "warning"))
         try:
-            saved = save_project(target, self.project)
+            saved = save_project(self._foundation_project_path, self.project)
             self._foundation_project_path = saved
             self._home_recent_service.touch(saved, self.project)
             self._home_state = self._home_state.with_recent(self._home_recent_service.load())
@@ -429,9 +426,8 @@ class FoundationMainWindow(V14EditorMainWindow):
         )
         self.foundation_shell.timeline.set_project_context(context)
         self.foundation_shell.refresh_commands()
-        if hasattr(self, "_home_state"):
-            self._home_state = self._home_state.with_capabilities(caps)
-            self._apply_home_state()
+        self._home_state = self._home_state.with_capabilities(caps)
+        self._apply_home_state()
 
     def refresh(self, *args, **kwargs):
         result = super().refresh(*args, **kwargs)
