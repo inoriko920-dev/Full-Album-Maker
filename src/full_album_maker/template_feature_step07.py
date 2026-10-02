@@ -161,7 +161,7 @@ def _refresh(self) -> None:
         favorites=favorites,
     )
     if self._s07_selected_template_id:
-        descriptor = self._descriptor_map().get(self._s07_selected_template_id)
+        descriptor = self._s07_descriptor_map().get(self._s07_selected_template_id)
         if descriptor is not None:
             draft = self._s07_drafts.setdefault(
                 descriptor.template_id,
@@ -193,7 +193,7 @@ def _refresh_timeline(self) -> None:
 
 
 def _select_template(self, template_id: str) -> None:
-    descriptor = self._descriptor_map().get(str(template_id))
+    descriptor = self._s07_descriptor_map().get(str(template_id))
     if descriptor is None:
         return
     self._s07_selected_template_id = descriptor.template_id
@@ -206,7 +206,7 @@ def _select_template(self, template_id: str) -> None:
 
 
 def _current_descriptor(self) -> TemplateStudioDescriptor:
-    descriptor = self._descriptor_map().get(self._s07_selected_template_id)
+    descriptor = self._s07_descriptor_map().get(self._s07_selected_template_id)
     if descriptor is None:
         raise ValueError("Pilih template terlebih dahulu.")
     return descriptor
