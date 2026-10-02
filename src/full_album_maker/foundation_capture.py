@@ -70,7 +70,6 @@ def _compose_native_title_preview(client_pixmap, title_height_logical: int, scal
     p.setPen(QPen(QColor(TOKENS.border), max(1, int(round(scale)))))
     p.drawLine(0, title_px - 1, width_px, title_px - 1)
 
-    # Compact brand mark + title, matching the calm native chrome in references.
     pad = max(8, int(round(13 * scale)))
     logo = max(14, int(round(18 * scale)))
     logo_y = max(4, (title_px - logo) // 2)
@@ -96,7 +95,6 @@ def _compose_native_title_preview(client_pixmap, title_height_logical: int, scal
         "Full Album Maker",
     )
 
-    # Deterministic preview of native min/max/close affordances.
     control_w = max(34, int(round(42 * scale)))
     control_font = QFont("Segoe UI")
     control_font.setPixelSize(max(9, int(round(11 * scale))))
@@ -119,11 +117,14 @@ def capture(workspace: str, output: Path, width: int, height: int, scale: float)
     from .foundation_shell import FoundationFixtureWindow
 
     app = QApplication.instance() or QApplication([])
-    # Golden dimensions represent the outer window. Production uses native
-    # Windows chrome; offscreen evidence reserves the same logical height.
     client_height = max(320, height - TOKENS.title_height)
     window = FoundationFixtureWindow(workspace)
     window.resize(width, client_height)
+    # Offscreen platform plugins differ in whether a child receives a pre-show
+    # resize notification. Make the requested responsive state explicit so the
+    # evidence is cross-platform and still exercises the same shell API used by
+    # FoundationMainWindow.resizeEvent in production.
+    window.shell.set_compact_mode(width < TOKENS.compact_breakpoint)
     window.show()
     loop = QEventLoop()
     QTimer.singleShot(180, loop.quit)
