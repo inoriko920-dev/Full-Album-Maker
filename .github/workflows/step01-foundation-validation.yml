@@ -105,25 +105,45 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+          from PIL import Image
+
           reports={p.stem: json.loads(p.read_text()) for p in Path('ui-golden/reports').glob('*.json')}
           home=reports['home']['geometry']
-          media=reports['media']['geometry']
-          timeline=reports['timeline']['geometry']
           assert home['window'] == [1672, 941]
-          assert 52 <= home['command_bottom'] + 1 <= 58
+          assert 40 <= home['title_bottom'] + 1 <= 42
+          assert 92 <= home['command_bottom'] + 1 <= 100
           assert 160 <= home['nav_right'] + 1 <= 180
           assert 330 <= home['right_dock_width'] <= 360
           assert 26 <= home['status_height'] <= 30
           assert home['timeline_height'] <= 40
-          assert 180 <= media['timeline_height'] <= 210
-          assert 340 <= timeline['timeline_height'] <= 365
+
+          ranges = {
+              'media': (180, 210),
+              'album': (180, 210),
+              'timeline': (340, 365),
+              'visual': (225, 250),
+              'template': (150, 170),
+              'spectrum': (240, 265),
+              'ai-agent': (170, 190),
+              'render': (0, 40),
+          }
+          for name, (lo, hi) in ranges.items():
+              value=reports[name]['geometry']['timeline_height']
+              assert lo <= value <= hi, (name, value)
+
           compact=reports['compact-1366']['geometry']
           assert compact['window'] == [1366, 768]
+          assert compact['nav_right'] + 1 <= 80
           assert reports['dpi-125']['geometry']['scale'] == 1.25
           assert reports['dpi-150']['geometry']['scale'] == 1.5
           assert {reports[k]['geometry']['workspace'] for k in ('home','media','album','timeline','visual','template','spectrum','ai-agent','render')} == {
               'home','media','album','timeline','visual','template','spectrum','ai_agent','render'
           }
+
+          assert Image.open('ui-golden/current/foundation-home.png').size == (1672, 941)
+          assert Image.open('ui-golden/current/foundation-1366.png').size == (1366, 768)
+          assert Image.open('ui-golden/current/foundation-125dpi.png').size == (2090, 1176)
+          assert Image.open('ui-golden/current/foundation-150dpi.png').size == (2508, 1412)
           print('LANDMARK_GATE_PASS')
           PY
 
@@ -205,7 +225,23 @@ jobs:
       - name: Validate Windows reports
         shell: pwsh
         run: |
-          python -c "import json,pathlib; p=pathlib.Path('ui-golden-windows'); a=json.loads((p/'home-100.json').read_text()); b=json.loads((p/'compact-1366.json').read_text()); assert a['geometry']['window']==[1672,941]; assert b['geometry']['window']==[1366,768]; print('WINDOWS_STEP01_GATE_PASS')"
+          python - <<'PY'
+          import json
+          import pathlib
+          p=pathlib.Path('ui-golden-windows')
+          a=json.loads((p/'home-100.json').read_text())['geometry']
+          b=json.loads((p/'compact-1366.json').read_text())['geometry']
+          c=json.loads((p/'home-125.json').read_text())['geometry']
+          d=json.loads((p/'home-150.json').read_text())['geometry']
+          assert a['window']==[1672,941]
+          assert 40 <= a['title_bottom'] + 1 <= 42
+          assert 92 <= a['command_bottom'] + 1 <= 100
+          assert b['window']==[1366,768]
+          assert b['nav_right'] + 1 <= 80
+          assert c['scale']==1.25
+          assert d['scale']==1.5
+          print('WINDOWS_STEP01_GATE_PASS')
+          PY
 
       - name: Upload Windows UI evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
