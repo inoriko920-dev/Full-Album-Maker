@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .editor_models import Layer, ProjectDocument
 from .render_graph import CompiledFFmpeg, FFmpegV2Compiler, ticks_to_seconds
+from .timeline_precision import song_mix
 
 
 _AUDIO_SEGMENT = re.compile(r"^\[(\d+):a\].*\[aseg(\d+)\]$")
@@ -61,13 +62,68 @@ def _externalize_large_filter_graph(
     )
 
 
-class S11FFmpegCompiler(FFmpegV2Compiler):
-    """S10 visual compiler plus the opt-in S11 free-audio compositor.
+def _explicit_fades(document: ProjectDocument, song_id: str, duration: float) -> tuple[float, float]:
+    values = song_mix(document, song_id)
+    fade_in = min(max(0.0, ticks_to_seconds(values["fade_in_tick"])), max(0.0, duration))
+    fade_out = min(max(0.0, ticks_to_seconds(values["fade_out_tick"])), max(0.0, duration))
+    return fade_in, fade_out
 
-    Packed projects keep the established S10 graph. Free projects replace only
-    the album-audio concat section with timestamped segments over finite silence.
-    S12 additionally externalizes large filter graphs to avoid Windows command-line
-    exhaustion on long albums without changing the graph itself.
+
+def _apply_packed_mix(
+    compiled: CompiledFFmpeg,
+    document: ProjectDocument,
+) -> CompiledFFmpeg:
+    """Apply Timeline inspector gain/fades to the established Packed concat graph."""
+
+    args = list(compiled.args)
+    try:
+        filter_index = args.index("-filter_complex") + 1
+    except ValueError:
+        return compiled
+    events = list(compiled.render_plan.audio_events)
+    if not events:
+        return compiled
+    parts = args[filter_index].split(";")
+    changed = False
+    rebuilt: list[str] = []
+    for part in parts:
+        match = _AUDIO_SEGMENT.match(part)
+        if not match:
+            rebuilt.append(part)
+            continue
+        event_index = int(match.group(2))
+        if not 0 <= event_index < len(events):
+            rebuilt.append(part)
+            continue
+        event = events[event_index]
+        label = f"[aseg{event_index}]"
+        if not part.endswith(label):
+            rebuilt.append(part)
+            continue
+        duration = ticks_to_seconds(event.end_tick - event.start_tick)
+        fade_in, fade_out = _explicit_fades(document, event.song_id, duration)
+        chain = part[: -len(label)] + f",volume={float(event.gain):.8f}"
+        if fade_in > 0:
+            chain += f",afade=t=in:st=0:d={fade_in:.6f}:curve=tri"
+        if fade_out > 0:
+            fade_start = max(0.0, duration - fade_out)
+            chain += f",afade=t=out:st={fade_start:.6f}:d={fade_out:.6f}:curve=tri"
+        chain += label
+        rebuilt.append(chain)
+        changed = True
+    if not changed:
+        return compiled
+    args[filter_index] = ";".join(rebuilt)
+    return CompiledFFmpeg(tuple(args), compiled.render_plan, compiled.text_files)
+
+
+class S11FFmpegCompiler(FFmpegV2Compiler):
+    """S10 visual compiler plus Free Timeline and STEP05 clip-mix semantics.
+
+    Packed keeps the established concat topology but now applies the persisted
+    Timeline gain/fade values to each source segment. Free replaces the album
+    concat with timestamped segments over finite silence, preserving explicit
+    gap and crossfade behavior plus the same gain/fade values.
     """
 
     def compile_video(
@@ -85,6 +141,7 @@ class S11FFmpegCompiler(FFmpegV2Compiler):
             include_audio=include_audio,
         )
         if document.playlist.mode != "free":
+            compiled = _apply_packed_mix(compiled, document)
             return _externalize_large_filter_graph(compiled, work_dir)
 
         args = list(compiled.args)
@@ -126,15 +183,18 @@ class S11FFmpegCompiler(FFmpegV2Compiler):
             input_index = input_by_event[index]
             event_duration = ticks_to_seconds(event.end_tick - event.start_tick)
             start = ticks_to_seconds(event.start_tick)
-            fade_in = ticks_to_seconds(event.crossfade_in_tick)
-            fade_out = 0.0
+            explicit_in, explicit_out = _explicit_fades(document, event.song_id, event_duration)
+            fade_in = max(explicit_in, ticks_to_seconds(event.crossfade_in_tick))
+            fade_out = explicit_out
             if index + 1 < len(events):
                 incoming = events[index + 1]
                 if (
                     incoming.crossfade_in_tick > 0
                     and incoming.start_tick < event.end_tick
                 ):
-                    fade_out = ticks_to_seconds(incoming.crossfade_in_tick)
+                    fade_out = max(fade_out, ticks_to_seconds(incoming.crossfade_in_tick))
+            fade_in = min(fade_in, event_duration)
+            fade_out = min(fade_out, event_duration)
 
             chain = (
                 f"[{input_index}:a]aresample=48000,"
