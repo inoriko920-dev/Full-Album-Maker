@@ -17,14 +17,14 @@ STEP 01 inherits the verified recovery baseline established by STEP 00:
 
 STEP 01 does not overwrite, relabel, or guess recovery provenance from STEP 00.
 
-## 2. STEP 01 final validated implementation point
+## 2. STEP 01 authoritative validated snapshot
 
-The foundation implementation and its finalized limitation record passed the authoritative Linux and Windows workflow at:
+The final STEP 01 foundation snapshot passed the authoritative Linux and Windows validation workflow at:
 
 ```text
-commit: 0bd0aa3769b2913900d6ba169b70bffff1d674ba
-message: docs(ui): finalize STEP01 known limitations after Windows gate
-workflow run: 36978076538 (#24)
+commit: 33aac775a1a4b500aeabea2b268b15ad9b34ad9c
+message: docs(ui): mark STEP01 closure
+workflow run: 36978745032 (#34)
 result: SUCCESS
 ```
 
@@ -33,7 +33,7 @@ Both jobs completed successfully:
 - `validate-foundation` — Ubuntu 24.04 / Python 3.12.14
 - `validate-windows-foundation` — Windows Server 2025 / Python 3.12.10
 
-The runtime code immediately preceding this documentation closure is unchanged by the final limitation-record commit. The three closure documents `BASELINE.md`, `STEP01_TEST_REPORT.md`, and `HANDOFF_STEP01.md` are intentionally excluded from reruns by the STEP 01 workflow because they summarize already-produced evidence rather than modify runtime behavior.
+The closure documents `BASELINE.md`, `STEP01_TEST_REPORT.md`, and `HANDOFF_STEP01.md` are excluded from automatic STEP 01 reruns because they only summarize evidence already produced by the validated snapshot. Commits that modify only those closure documents do not supersede the tested runtime snapshot above.
 
 ## 3. Frozen visual contract
 
@@ -43,6 +43,7 @@ The runtime code immediately preceding this documentation closure is unchanged b
 - exact binary references: verified from the ASTRA source document but not committed through the text-oriented GitHub connector
 - capture harness: `src/full_album_maker/foundation_capture.py`
 - mechanical evidence validator: `tests/step01_validate_evidence.py`
+- visual-QA font: pinned Noto Sans is staged by CI and installed through `foundation_font.py`
 
 The manifest is the immutable identity check for the nine references. The harness refuses to resize a supplied golden image to manufacture a match and never uses a reference screenshot as a production background.
 
@@ -57,6 +58,7 @@ STEP 01 establishes one shared application foundation around the recovered appli
 - one shared per-workspace timeline dock host;
 - one event-driven status model for save/FFmpeg/AI/jobs/project context;
 - one white-blue design-token source and shared stylesheet/component system;
+- pinned Noto Sans visual-QA path with system-font fallback for development when the portable font is absent;
 - keyboard/focus/hover/disabled state handling;
 - app-local UI preference persistence with corrupt-preference fallback;
 - responsive compact navigation at the 1366-class viewport;
@@ -67,7 +69,7 @@ Final workspace bodies are intentionally **not** part of STEP 01 and remain defe
 
 ## 5. Final validation summary
 
-At tested SHA `0bd0aa3769b2913900d6ba169b70bffff1d674ba`:
+At tested SHA `33aac775a1a4b500aeabea2b268b15ad9b34ad9c`:
 
 - STEP 01 focused tests Linux: **15 passed**
 - recovered Linux regression suite: **246 passed, 88 skipped**
@@ -75,13 +77,14 @@ At tested SHA `0bd0aa3769b2913900d6ba169b70bffff1d674ba`:
 - source compile: **PASS** on Linux and Windows validation paths
 - all nine 1672×941 foundation route captures: **PASS**
 - deterministic repeated Home capture: normalized absolute difference **0.0**
-- shell landmark validator: **PASS**
+- shell landmark validator: **PASS** (`LINUX_STEP01_EVIDENCE_PASS`)
+- pinned font gate: **PASS** (`FONT_GATE_PASS Noto Sans`)
 - 1366×768 compact capture: **PASS** on Linux and Windows
 - 125% DPI capture: **PASS** on Linux and Windows
 - 150% DPI capture: **PASS** on Linux and Windows
 - high-confidence secret scan: **PASS**
-- Linux evidence artifact: `step01-ui-evidence`, ID `11213948740`, SHA-256 `239fd0c4b6661b765edbcbbc2bf15965132910e7556e9ed4d0bdcbaa959cef19`
-- Windows evidence artifact: `step01-ui-evidence-windows`, ID `11214850767`, SHA-256 `6ca8c179250286e783a93f3d3c677d8e9dfcae5a9d0f1c7afb21e1db5c240245`
+- Linux evidence artifact: `step01-ui-evidence`, ID `11214059138`, size `1,355,315` bytes, SHA-256 `5ff6708d490fb052f26975907391b53970bc64bc7e2109164363ae0e29baf368`
+- Windows evidence artifact: `step01-ui-evidence-windows`, ID `11214706528`, size `327,445` bytes, SHA-256 `8664c7e9c50a80d17615a1c27ffec50cf60f82a2baeb66549fb4865764c60952`
 
 Measured 100% golden-view shell landmarks:
 
