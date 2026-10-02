@@ -100,55 +100,8 @@ jobs:
           QT_SCALE_FACTOR=1.25 python -m full_album_maker.foundation_capture --workspace home --width 1672 --height 941 --scale 1.25 --output ui-golden/current/foundation-125dpi.png --report ui-golden/reports/dpi-125.json
           QT_SCALE_FACTOR=1.5 python -m full_album_maker.foundation_capture --workspace home --width 1672 --height 941 --scale 1.5 --output ui-golden/current/foundation-150dpi.png --report ui-golden/reports/dpi-150.json
 
-      - name: Validate shell landmark reports
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          from PIL import Image
-
-          reports={p.stem: json.loads(p.read_text()) for p in Path('ui-golden/reports').glob('*.json')}
-          home=reports['home']['geometry']
-          assert home['window'] == [1672, 941]
-          assert 40 <= home['title_bottom'] + 1 <= 42
-          assert 92 <= home['command_bottom'] + 1 <= 100
-          assert 160 <= home['nav_right'] + 1 <= 180
-          assert 330 <= home['right_dock_width'] <= 360
-          assert 26 <= home['status_height'] <= 30
-          assert home['timeline_height'] <= 40
-
-          ranges = {
-              'media': (180, 210),
-              'album': (180, 210),
-              'timeline': (340, 365),
-              'visual': (225, 250),
-              'template': (150, 170),
-              'spectrum': (240, 265),
-              'ai-agent': (170, 190),
-              'render': (0, 40),
-          }
-          for name, (lo, hi) in ranges.items():
-              value=reports[name]['geometry']['timeline_height']
-              assert lo <= value <= hi, (name, value)
-
-          compact=reports['compact-1366']['geometry']
-          assert compact['window'] == [1366, 768]
-          assert compact['nav_right'] + 1 <= 80
-          assert reports['dpi-125']['geometry']['scale'] == 1.25
-          assert reports['dpi-150']['geometry']['scale'] == 1.5
-          assert {reports[k]['geometry']['workspace'] for k in ('home','media','album','timeline','visual','template','spectrum','ai-agent','render')} == {
-              'home','media','album','timeline','visual','template','spectrum','ai_agent','render'
-          }
-
-          assert Image.open('ui-golden/current/foundation-home.png').size == (1672, 941)
-          assert Image.open('ui-golden/current/foundation-1366.png').size == (1366, 768)
-          baseline_aspect=1672/941
-          for filename in ('foundation-125dpi.png', 'foundation-150dpi.png'):
-              size=Image.open(Path('ui-golden/current') / filename).size
-              assert size[0] >= 1672 and size[1] >= 941, (filename, size)
-              assert abs((size[0] / size[1]) - baseline_aspect) < 0.02, (filename, size)
-          print('LANDMARK_GATE_PASS')
-          PY
+      - name: Validate shell landmark reports and screenshot evidence
+        run: python tests/step01_validate_evidence.py --root ui-golden
 
       - name: High-confidence secret scan
         run: |
