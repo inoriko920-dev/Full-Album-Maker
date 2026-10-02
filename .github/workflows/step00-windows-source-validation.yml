@@ -1,0 +1,27 @@
+name: STEP00 Windows source validation
+
+on:
+  push:
+    branches:
+      - recovery/step-00-r0
+    paths:
+      - .github/workflows/step00-windows-source-validation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-windows-source:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout triggering commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Python 3.12.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+
+      - name: Run recovered exact v1.4.0 portable build contract
+        shell: pwsh
+        run: ./build/build_portable.ps1
