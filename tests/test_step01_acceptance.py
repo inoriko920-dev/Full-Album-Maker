@@ -125,8 +125,9 @@ def test_keyboard_navigation_and_render_shortcut_are_non_destructive(qapp):
 
 
 @pytest.mark.usefixtures("qapp")
-def test_production_foundation_window_starts_and_route_switch_keeps_project(qapp, tmp_path, monkeypatch):
+def test_production_foundation_window_starts_route_switches_and_compacts(qapp, tmp_path, monkeypatch):
     from full_album_maker.foundation_preferences import FoundationPreferenceStore
+    from full_album_maker.foundation_tokens import TOKENS
     from full_album_maker.foundation_window import FoundationMainWindow
 
     monkeypatch.setattr(
@@ -143,6 +144,13 @@ def test_production_foundation_window_starts_and_route_switch_keeps_project(qapp
     qapp.processEvents()
     assert id(window.project) == before
     assert window.foundation_state.workspace == "album"
+
+    # The top-level window owns the responsive transition because Windows and
+    # offscreen Qt plugins can delay child resize notifications differently.
+    window.resize(1366, 768)
+    qapp.processEvents()
+    assert window.foundation_shell.navigation.width() == TOKENS.nav_compact_width
+    assert all(button.toolTip() for button in window.foundation_shell.navigation.buttons.values())
     window.close()
 
 
