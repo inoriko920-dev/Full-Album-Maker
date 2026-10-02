@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication, QMenu
 
 from full_album_maker.media_library_model import MediaAsset, MediaLibraryIndex, MediaMetadata, MediaType, stable_asset_id
@@ -14,13 +15,6 @@ from full_album_maker.media_workspace import MediaWorkspace
 
 def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
-
-
-def _settle(ms: int = 120) -> None:
-    loop = QEventLoop()
-    QTimer.singleShot(ms, loop.quit)
-    loop.exec()
-    _app().processEvents()
 
 
 def _asset(tmp_path: Path, name: str = "clip.mp4") -> MediaAsset:
@@ -63,26 +57,50 @@ def test_completion_workspace_targets_five_columns_and_collection_action(tmp_pat
 
 
 def test_completion_shared_shell_media_geometry_is_route_specific():
-    import full_album_maker.main  # installs STEP03 completion in production order
-    from full_album_maker.foundation_window import FoundationMainWindow
+    # Importing full_album_maker.main installs the complete recovered compatibility
+    # stack globally. Keep that production-order smoke in a child interpreter so
+    # it cannot mutate TimelineEngine/project-signature behavior for later tests in
+    # the same pytest process.
+    script = r'''
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import full_album_maker.main
+from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication
+from full_album_maker.foundation_window import FoundationMainWindow
 
-    app = _app()
-    window = FoundationMainWindow()
-    window.resize(1672, 900)
-    window.show()
-    window.foundation_shell.set_workspace("media")
-    _settle()
-    shell = window.foundation_shell
-    assert shell.state.workspace == "media"
-    assert shell.workspace_stack.currentWidget() is window.media_workspace
-    assert shell.context.width() in range(196, 216)
-    assert shell.inspector.width() in range(274, 301)
-    assert shell.timeline.height() in range(180, 205)
-    assert window.media_workspace._columns() == 5, (
-        window.media_workspace.width(),
-        window.media_workspace.scroll.viewport().width(),
-        shell.workspace_stack.width(),
+app = QApplication.instance() or QApplication([])
+window = FoundationMainWindow()
+window.resize(1672, 900)
+window.show()
+window.foundation_shell.set_workspace("media")
+loop = QEventLoop()
+QTimer.singleShot(140, loop.quit)
+loop.exec()
+app.processEvents()
+shell = window.foundation_shell
+assert shell.state.workspace == "media"
+assert shell.workspace_stack.currentWidget() is window.media_workspace
+assert shell.context.width() in range(196, 216)
+assert shell.inspector.width() in range(274, 301)
+assert shell.timeline.height() in range(180, 205)
+assert window.media_workspace._columns() == 5, (
+    window.media_workspace.width(),
+    window.media_workspace.scroll.viewport().width(),
+    shell.workspace_stack.width(),
+)
+window._saved_project_state = None
+window.close()
+app.processEvents()
+'''
+    env = os.environ.copy()
+    env["QT_QPA_PLATFORM"] = "offscreen"
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
-    window._saved_project_state = None
-    window.close()
-    app.processEvents()
+    assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
