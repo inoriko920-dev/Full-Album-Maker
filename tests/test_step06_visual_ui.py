@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 import full_album_maker.main  # noqa: F401  # installs production presentation layers
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
 from full_album_maker.foundation_window import FoundationMainWindow
+from full_album_maker.visual_timeline_completion_step06 import TransitionVisualAlignmentCanvas
 from full_album_maker.visual_workspace_step06 import VisualInspector, VisualSongContext
 
 
@@ -109,6 +110,7 @@ def test_production_visual_route_uses_step06_surfaces_without_route_mutation(tmp
     assert not window.visual_context_s06.isHidden()
     assert window._inspector_router.currentWidget() is window.visual_inspector_s06
     assert not window.visual_timeline_s06.isHidden()
+    assert isinstance(window.visual_timeline_s06, TransitionVisualAlignmentCanvas)
     assert window._s06_primary_song_id == doc.playlist.entries[0].song_id
     assert window.editor_workspace.document().content_signature() == signature
 
