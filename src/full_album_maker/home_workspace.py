@@ -139,18 +139,18 @@ class RecentProjectCard(QFrame):
         lay.setContentsMargins(9, 9, 9, 9)
         lay.setSpacing(5)
 
-        cover = QFrame()
-        cover.setFixedHeight(128)
-        cover.setStyleSheet(
+        self.cover = QFrame()
+        self.cover.setFixedHeight(128)
+        self.cover.setStyleSheet(
             f"background: {TOKENS.selection_soft}; border: 1px solid {TOKENS.border}; border-radius: 6px;"
         )
-        cover_lay = QVBoxLayout(cover)
+        cover_lay = QVBoxLayout(self.cover)
         cover_lay.setContentsMargins(0, 0, 0, 0)
         glyph = QLabel("♪")
         glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
         glyph.setStyleSheet(f"font-size: 32px; color: {TOKENS.primary_600};")
         cover_lay.addWidget(glyph)
-        lay.addWidget(cover)
+        lay.addWidget(self.cover)
 
         head = QHBoxLayout()
         head.setContentsMargins(0, 0, 0, 0)
@@ -171,9 +171,9 @@ class RecentProjectCard(QFrame):
 
         song_text = "— lagu" if item.song_count is None else f"{item.song_count} lagu"
         duration = "—" if item.duration_seconds is None else self._format_duration(item.duration_seconds)
-        meta = QLabel(f"♪  {song_text}      ◷  {duration}")
-        meta.setObjectName("metadata")
-        lay.addWidget(meta)
+        self.meta = QLabel(f"♪  {song_text}      ◷  {duration}")
+        self.meta.setObjectName("metadata")
+        lay.addWidget(self.meta)
 
         opened = datetime.fromtimestamp(item.last_opened).strftime("%d %b %Y")
         availability = ""
@@ -181,11 +181,18 @@ class RecentProjectCard(QFrame):
             availability = "  • Tidak ditemukan"
         elif item.availability == RecentAvailability.CORRUPT:
             availability = "  • Bermasalah"
-        last = QLabel(f"▣  Dibuka {opened}{availability}")
-        last.setObjectName("metadata")
+        self.last_opened = QLabel(f"▣  Dibuka {opened}{availability}")
+        self.last_opened.setObjectName("metadata")
         if availability:
-            last.setStyleSheet("color: #A56D00;")
-        lay.addWidget(last)
+            self.last_opened.setStyleSheet("color: #A56D00;")
+        lay.addWidget(self.last_opened)
+
+    def set_compact(self, compact: bool) -> None:
+        self.setFixedHeight(174 if compact else 244)
+        self.cover.setFixedHeight(76 if compact else 128)
+        self.last_opened.setVisible(not compact)
+        self.layout().setContentsMargins(7 if compact else 9, 7 if compact else 9, 7 if compact else 9, 7 if compact else 9)
+        self.layout().setSpacing(3 if compact else 5)
 
     @staticmethod
     def _format_duration(seconds: float) -> str:
@@ -217,36 +224,48 @@ class QuickStepCard(QFrame):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAccessibleName(f"Langkah {number}: {title}")
-        row = QHBoxLayout(self)
-        row.setContentsMargins(10, 4, 10, 4)
-        row.setSpacing(10)
-        number_label = QLabel(number)
-        number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        number_label.setFixedSize(36, 36)
-        number_label.setStyleSheet(
+        self._row = QHBoxLayout(self)
+        self._row.setContentsMargins(10, 4, 10, 4)
+        self._row.setSpacing(10)
+        self.number_label = QLabel(number)
+        self.number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.number_label.setFixedSize(36, 36)
+        self.number_label.setStyleSheet(
             f"background:{TOKENS.primary_600};color:white;border-radius:18px;font-weight:750;font-size:15px;"
         )
-        row.addWidget(number_label)
-        icon = QLabel(glyph)
-        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon.setFixedWidth(28)
-        icon.setStyleSheet(f"font-size:22px;color:{TOKENS.primary_600};font-weight:650;")
-        row.addWidget(icon)
+        self._row.addWidget(self.number_label)
+        self.icon = QLabel(glyph)
+        self.icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.icon.setFixedWidth(28)
+        self.icon.setStyleSheet(f"font-size:22px;color:{TOKENS.primary_600};font-weight:650;")
+        self._row.addWidget(self.icon)
         copy = QVBoxLayout()
         copy.setContentsMargins(0, 0, 0, 0)
         copy.setSpacing(1)
-        title_label = QLabel(title)
-        title_label.setStyleSheet("font-weight:650;")
-        subtitle_label = QLabel(subtitle)
-        subtitle_label.setObjectName("metadata")
-        subtitle_label.setWordWrap(True)
-        copy.addWidget(title_label)
-        copy.addWidget(subtitle_label)
-        row.addLayout(copy, 1)
+        self.title_label = QLabel(title)
+        self.title_label.setStyleSheet("font-weight:650;")
+        self.subtitle_label = QLabel(subtitle)
+        self.subtitle_label.setObjectName("metadata")
+        self.subtitle_label.setWordWrap(True)
+        copy.addWidget(self.title_label)
+        copy.addWidget(self.subtitle_label)
+        self._row.addLayout(copy, 1)
+        self.arrow = None
         if show_arrow:
-            arrow = QLabel("›")
-            arrow.setStyleSheet(f"font-size:32px;color:{TOKENS.text_muted};")
-            row.addWidget(arrow)
+            self.arrow = QLabel("›")
+            self.arrow.setStyleSheet(f"font-size:32px;color:{TOKENS.text_muted};")
+            self._row.addWidget(self.arrow)
+
+    def set_compact(self, compact: bool) -> None:
+        self.subtitle_label.setVisible(not compact)
+        size = 30 if compact else 36
+        self.number_label.setFixedSize(size, size)
+        self.number_label.setStyleSheet(
+            f"background:{TOKENS.primary_600};color:white;border-radius:{size // 2}px;font-weight:750;font-size:14px;"
+        )
+        self.icon.setFixedWidth(22 if compact else 28)
+        self._row.setContentsMargins(6 if compact else 10, 2 if compact else 4, 6 if compact else 10, 2 if compact else 4)
+        self._row.setSpacing(6 if compact else 10)
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -285,9 +304,11 @@ class HomeWorkspace(QWidget):
     ) -> None:
         super().__init__(parent)
         self._activate_after_stack_insert = True
+        self._vertical_compact = False
         self.setObjectName("workspaceHost")
         self.state = state or HomeViewState()
-        root = QVBoxLayout(self)
+        self._root_layout = QVBoxLayout(self)
+        root = self._root_layout
         root.setContentsMargins(TOKENS.space_4, TOKENS.space_5, TOKENS.space_4, TOKENS.space_3)
         root.setSpacing(TOKENS.space_3)
 
@@ -377,6 +398,7 @@ class HomeWorkspace(QWidget):
         quick_row = QHBoxLayout(self.quick)
         quick_row.setContentsMargins(TOKENS.space_2, 4, TOKENS.space_2, 4)
         quick_row.setSpacing(2)
+        self._quick_cards: list[QuickStepCard] = []
         quick_specs = (
             ("1", "Impor Lagu", "Tambahkan file musik, gambar, atau video ke proyek.", "▭", "media"),
             ("2", "Susun Timeline", "Atur urutan lagu, tambah visual, transisi, dan teks.", "☷", "album"),
@@ -386,6 +408,7 @@ class HomeWorkspace(QWidget):
             card = QuickStepCard(number, title_text, subtitle, glyph, show_arrow=idx < 2)
             card.clicked.connect(lambda r=route: self.quick_route_requested.emit(r))
             quick_row.addWidget(card, 1)
+            self._quick_cards.append(card)
         root.addWidget(self.quick)
 
         self.new_project_button.clicked.connect(self.create_project_requested.emit)
@@ -413,6 +436,48 @@ class HomeWorkspace(QWidget):
             QTimer.singleShot(0, activate)
         return result
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._set_vertical_compact(event.size().height() < 690)
+
+    def _set_vertical_compact(self, compact: bool) -> None:
+        compact = bool(compact)
+        if compact == self._vertical_compact:
+            self._apply_recent_density(compact)
+            return
+        self._vertical_compact = compact
+        if compact:
+            self._root_layout.setContentsMargins(12, 12, 12, 8)
+            self._root_layout.setSpacing(6)
+            self.hero.setFixedHeight(150)
+            self.error_banner.setFixedHeight(46)
+            self.recovery_banner.setFixedHeight(46)
+            self.recent_host.setFixedHeight(174)
+            self.quick.setFixedHeight(60)
+            self.hero_illustration.setMinimumWidth(240)
+            self.hero_illustration.setMaximumWidth(330)
+            self.new_project_button.setMinimumSize(150, 36)
+            self.open_project_button.setMinimumSize(150, 36)
+        else:
+            self._root_layout.setContentsMargins(TOKENS.space_4, TOKENS.space_5, TOKENS.space_4, TOKENS.space_3)
+            self._root_layout.setSpacing(TOKENS.space_3)
+            self.hero.setFixedHeight(218)
+            self.error_banner.setFixedHeight(60)
+            self.recovery_banner.setFixedHeight(60)
+            self.recent_host.setFixedHeight(244)
+            self.quick.setFixedHeight(86)
+            self.hero_illustration.setMinimumWidth(340)
+            self.hero_illustration.setMaximumWidth(470)
+            self.new_project_button.setMinimumSize(190, 44)
+            self.open_project_button.setMinimumSize(190, 44)
+        self._apply_recent_density(compact)
+        for card in self._quick_cards:
+            card.set_compact(compact)
+
+    def _apply_recent_density(self, compact: bool) -> None:
+        for card in getattr(self, "_recent_cards", []):
+            card.set_compact(compact)
+
     def _clear_recent(self) -> None:
         while self.recent_row.count():
             item = self.recent_row.takeAt(0)
@@ -439,6 +504,7 @@ class HomeWorkspace(QWidget):
             card = RecentProjectCard(project)
             card.open_requested.connect(self.recent_open_requested.emit)
             card.remove_requested.connect(self.recent_remove_requested.emit)
+            card.set_compact(self._vertical_compact)
             self.recent_row.addWidget(card, 1)
             self._recent_cards.append(card)
         if len(projects) < 4:
