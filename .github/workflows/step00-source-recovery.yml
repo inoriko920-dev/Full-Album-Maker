@@ -50,11 +50,7 @@ jobs:
             fi
           done
 
-          mkdir -p .github/workflows docs/recovery docs/legacy-source-v1.4.0
-          if [ -f "$SRC/.github/workflows/build-windows-portable.yml" ]; then
-            cp -a "$SRC/.github/workflows/build-windows-portable.yml" .github/workflows/build-windows-portable.yml
-          fi
-
+          mkdir -p docs/recovery docs/legacy-source-v1.4.0
           if [ -d "$SRC/docs" ]; then
             rm -rf docs/legacy-source-v1.4.0
             mkdir -p docs/legacy-source-v1.4.0
@@ -62,6 +58,9 @@ jobs:
           fi
           if [ -f "$SRC/README.md" ]; then
             cp -a "$SRC/README.md" docs/legacy-source-v1.4.0/README.md
+          fi
+          if [ -f "$SRC/.github/workflows/build-windows-portable.yml" ]; then
+            cp -a "$SRC/.github/workflows/build-windows-portable.yml" docs/legacy-source-v1.4.0/build-windows-portable.yml
           fi
 
           git -C "$SRC" ls-tree -r --full-tree "$SOURCE_COMMIT" > docs/recovery/SOURCE_V1_4_0_GIT_TREE.txt
@@ -75,16 +74,18 @@ jobs:
             echo "- Source commit message: \`feat: publish Full Album Maker v1.4.0 Gemini AI parity\`"
             echo "- Provenance: \`VERIFIED_SOURCE\` for files copied from this commit."
             echo "- Important limitation: portable v1.4.1 reports build commit \`809b4d130c30f12e9df272395c2dd85941931c24\`; that commit was not reachable in the public legacy repository during STEP 00. Therefore this import is an exact v1.4.0 source baseline, not a claim of exact v1.4.1 source."
+            echo "- The historical build workflow is preserved at \`docs/legacy-source-v1.4.0/build-windows-portable.yml\` instead of activating it under \`.github/workflows/\`; STEP 00 treats it as provenance/build evidence and does not alter release automation."
             echo
             echo "## Imported groups"
             echo
-            echo "\`src/\`, \`tests/\`, \`build/\`, \`assets/\`, dependency/project metadata present at the source commit, the Windows portable build workflow, and historical docs under \`docs/legacy-source-v1.4.0/\`."
+            echo "\`src/\`, \`tests/\`, \`build/\`, \`assets/\`, dependency/project metadata present at the source commit, and historical docs/build-workflow evidence under \`docs/legacy-source-v1.4.0/\`."
           } > docs/recovery/VERIFIED_SOURCE_IMPORT.md
 
           {
             echo "# sha256 | path"
             find src tests build assets -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum
-            for f in .gitignore LICENSE THIRD_PARTY_NOTICES.md pyproject.toml requirements.txt requirements-dev.txt pytest.ini setup.cfg setup.py .github/workflows/build-windows-portable.yml; do
+            find docs/legacy-source-v1.4.0 -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum
+            for f in .gitignore LICENSE THIRD_PARTY_NOTICES.md pyproject.toml requirements.txt requirements-dev.txt pytest.ini setup.cfg setup.py; do
               [ -f "$f" ] && sha256sum "$f"
             done
           } > docs/recovery/VERIFIED_SOURCE_SHA256.txt
