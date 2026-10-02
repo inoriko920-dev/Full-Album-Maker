@@ -21,6 +21,7 @@ from full_album_maker.album_feature import install_step04_album
 from full_album_maker.album_restore_fix import install_step04_album_restore_fix
 from full_album_maker.timeline_feature_step05 import install_step05_timeline
 from full_album_maker.timeline_route_fix import install_step05_timeline_route_fix
+from full_album_maker.timeline_completion_step05 import install_step05_timeline_completion
 
 
 install_feature()
@@ -42,6 +43,7 @@ install_step04_album()
 install_step04_album_restore_fix()
 install_step05_timeline()
 install_step05_timeline_route_fix()
+install_step05_timeline_completion()
 
 
 def main(argv: list[str] | None = None) -> int:
