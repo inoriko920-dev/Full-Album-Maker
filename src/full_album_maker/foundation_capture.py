@@ -40,7 +40,36 @@ def _difference(current: Path, golden: Path, out_dir: Path) -> dict[str, object]
     }
 
 
-def _compose_native_title_preview(client_pixmap, title_height_logical: int, scale: float):
+def _logical_viewport_image(client_pixmap, width: int, height: int, scale: float):
+    """Return an exact logical viewport at 100% without rescaling pixels.
+
+    Some Qt offscreen plugins honor widget minimum-size hints by making the
+    backing surface a few pixels wider than the requested top-level geometry.
+    Golden acceptance is defined by the requested logical viewport. At 100%
+    we therefore crop/pad the app capture to that viewport; content is never
+    rescaled. HiDPI captures keep their native backing-pixel dimensions.
+    """
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QColor, QImage, QPainter
+
+    source = client_pixmap.toImage()
+    source.setDevicePixelRatio(1.0)
+    if abs(float(scale) - 1.0) > 1e-9:
+        return source
+    target = QImage(
+        int(width),
+        int(height),
+        QImage.Format.Format_ARGB32_Premultiplied,
+    )
+    target.setDevicePixelRatio(1.0)
+    target.fill(QColor(TOKENS.app_bg))
+    painter = QPainter(target)
+    painter.drawImage(QPoint(0, 0), source)
+    painter.end()
+    return target
+
+
+def _compose_native_title_preview(client_source, title_height_logical: int, scale: float):
     """Add deterministic native-title evidence above the captured Qt client.
 
     Production keeps normal Windows chrome. Qt offscreen `window.grab()` captures
@@ -52,7 +81,7 @@ def _compose_native_title_preview(client_pixmap, title_height_logical: int, scal
     from PySide6.QtCore import QRect, QRectF, Qt
     from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
 
-    client = client_pixmap.toImage()
+    client = client_source.toImage() if hasattr(client_source, "toImage") else client_source
     client.setDevicePixelRatio(1.0)
     title_px = max(1, int(round(title_height_logical * scale)))
     width_px = client.width()
@@ -131,8 +160,9 @@ def capture(workspace: str, output: Path, width: int, height: int, scale: float)
     loop.exec()
     app.processEvents()
 
-    pix = window.grab()
-    framed = _compose_native_title_preview(pix, TOKENS.title_height, scale)
+    raw = window.grab()
+    client = _logical_viewport_image(raw, width, client_height, scale)
+    framed = _compose_native_title_preview(client, TOKENS.title_height, scale)
     output.parent.mkdir(parents=True, exist_ok=True)
     if not framed.save(str(output), "PNG"):
         raise RuntimeError(f"Gagal menyimpan screenshot: {output}")
