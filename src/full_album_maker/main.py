@@ -17,6 +17,7 @@ from full_album_maker.media_feature import install_step03_media
 from full_album_maker.media_feature_activation import install_step03_media_activation_guard
 from full_album_maker.media_completion import install_step03_media_completion
 from full_album_maker.media_layout_fix import install_step03_media_layout_fix
+from full_album_maker.album_feature import install_step04_album
 
 
 install_feature()
@@ -34,6 +35,7 @@ install_step03_media()
 install_step03_media_activation_guard()
 install_step03_media_completion()
 install_step03_media_layout_fix()
+install_step04_album()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,8 +45,8 @@ def main(argv: list[str] | None = None) -> int:
 
         return run_portable_smoke()
 
-    # Import after installing the legacy compatibility layers so the v1.4 window
-    # inherits the proven Editor V2 shell while extending only Gemini intents/context.
+    # Import after installing the compatibility/presentation layers so the recovered
+    # v1.4 window keeps its proven engine while the golden workspaces extend it.
     from full_album_maker.v14_window import run
 
     return run()
