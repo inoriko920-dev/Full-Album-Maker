@@ -237,12 +237,22 @@ class HomeViewState:
         )
 
     def with_capabilities(self, value: PortableStatus) -> "HomeViewState":
-        mode = HomeMode.PORTABLE_WARNING if value.has_warning else self.mode
+        mode = self.mode
+        if mode in {HomeMode.IDLE, HomeMode.NO_RECOVERY, HomeMode.FIRST_RUN, HomeMode.PORTABLE_WARNING}:
+            if value.has_warning:
+                mode = HomeMode.PORTABLE_WARNING
+            elif mode == HomeMode.PORTABLE_WARNING:
+                mode = HomeMode.FIRST_RUN if not self.recent_projects else HomeMode.NO_RECOVERY
         return replace(self, capabilities=value, mode=mode)
 
     def with_quick_defaults(self, value: QuickDefaults, *, output_valid: bool = True) -> "HomeViewState":
         value.validate()
-        mode = self.mode if output_valid else HomeMode.OUTPUT_INVALID
+        mode = self.mode
+        if mode not in {HomeMode.PROJECT_LOADING, HomeMode.OPEN_ERROR}:
+            if not output_valid:
+                mode = HomeMode.OUTPUT_INVALID
+            elif mode == HomeMode.OUTPUT_INVALID:
+                mode = HomeMode.FIRST_RUN if not self.recent_projects else HomeMode.NO_RECOVERY
         return replace(self, quick_defaults=value, mode=mode)
 
     def as_debug_dict(self) -> dict[str, Any]:
