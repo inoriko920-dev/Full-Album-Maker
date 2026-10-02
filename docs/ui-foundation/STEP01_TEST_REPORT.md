@@ -5,12 +5,12 @@ Status: **PASS — READY_WITH_LIMITATIONS**
 Authoritative validation:
 
 - branch: `ui/step-01-foundation`
-- validated candidate: `084808da876d2bfd8a72764e7951515578a1a995`
-- GitHub Actions run: `36977769859` (run #23)
+- tested SHA: `0bd0aa3769b2913900d6ba169b70bffff1d674ba`
+- GitHub Actions run: `36978076538` (run #24)
 - Linux job: **PASS**
-- Windows job: **PASS**
+- Windows Server 2025 job: **PASS**
 
-The decision is `READY_WITH_LIMITATIONS`, not `READY_FOR_STEP_02` without qualification, because the exact multi-megabyte external golden PNG binaries are not checked into the branch/CI. Structural shell landmarks, deterministic screenshot generation, responsive states, DPI states, and Windows validation pass; exact whole-window pixel overlay against all frozen external golden PNGs remains an external final comparison.
+The decision is `READY_WITH_LIMITATIONS`, not an unqualified final pixel-match claim. STEP 01 intentionally validates the shared foundation while the nine workspace bodies remain controlled placeholders. Exact multi-megabyte golden PNG binaries are frozen by SHA-256 but are not checked into this text-oriented branch/CI; final full-workspace raster parity remains a later workspace/integration gate.
 
 ## 1. Validation environments
 
@@ -18,113 +18,104 @@ The decision is `READY_WITH_LIMITATIONS`, not `READY_FOR_STEP_02` without qualif
 
 - Ubuntu 24.04.5 LTS
 - Python 3.12.14
-- PySide6 6.11.2
 - `QT_QPA_PLATFORM=offscreen`
-- `QT_SCALE_FACTOR=1` for the 100% gate, with explicit 1.25 and 1.5 DPI captures
+- 100%, 125%, 150%, 1366×768, and all-nine-route capture gates
 
 ### Windows CI
 
 - Windows Server 2025
 - Python 3.12.10
 - PySide6 6.11.2
-- `QT_QPA_PLATFORM=offscreen`
 - 100%, 125%, 150%, and 1366×768 compact-state validation
 
 ## 2. Automated results
 
-| Gate | Result | Evidence |
-|---|---|---|
-| Golden manifest integrity | PASS | Frozen viewport `1672×941`, 9 unique reference hashes |
-| Source compile | PASS | `python -m compileall -q src` |
-| STEP 01 focused tests — Linux | PASS | **15 passed** |
-| Full recovered regression — Linux | PASS | **246 passed, 88 skipped** |
-| STEP 01 focused tests — Windows | PASS | **15 passed** |
-| 9 route captures at golden viewport | PASS | Home, Media, Album, Timeline, Visual, Template, Spectrum, AI Agent, Render |
-| Deterministic repeat capture | PASS | Home repeat normalized absolute difference **0.0** |
-| 1366×768 compact gate | PASS | Compact navigation width measured at 72 px |
-| 125% DPI gate | PASS | Linux + Windows |
-| 150% DPI gate | PASS | Linux + Windows |
-| Landmark/evidence validator | PASS | `LINUX_STEP01_EVIDENCE_PASS` |
-| Windows geometry gate | PASS | `WINDOWS_STEP01_GATE_PASS` |
-| High-confidence secret scan | PASS | `SECRET_SCAN_PASS` |
-| Evidence artifact upload | PASS | Linux and Windows evidence archives uploaded |
+| Gate | Result |
+|---|---|
+| Frozen 9-reference manifest | PASS |
+| Compile `src/` | PASS |
+| STEP 01 focused tests — Linux | **15 passed** |
+| Full recovered regression — Linux | **246 passed, 88 skipped** |
+| STEP 01 focused tests — Windows | **15 passed** |
+| 9 route captures at 1672×941 | PASS |
+| Deterministic repeated Home capture | PASS — normalized absolute difference **0.0** |
+| 1366×768 compact gate | PASS — Linux + Windows |
+| 125% DPI | PASS — Linux + Windows |
+| 150% DPI | PASS — Linux + Windows |
+| Linux landmark/evidence validator | PASS — `LINUX_STEP01_EVIDENCE_PASS` |
+| Windows geometry gate | PASS — `WINDOWS_STEP01_GATE_PASS` |
+| High-confidence secret scan | PASS — `SECRET_SCAN_PASS` |
+| Portable/app-local resource-path test | PASS |
 
-## 3. Measured shell landmarks at 1672×941
+## 3. Measured shared-shell landmarks
 
-The deterministic 100% captures report these shared-shell measurements:
+At the 1672×941 / 100% foundation gate:
 
 | Landmark | Measured |
 |---|---:|
-| Native-title evidence height | 41 px (`title_bottom=40`) |
-| Command bar bottom | y=95 |
-| Navigation width | 172 px (`nav_right=171`) |
-| Right dock width | 348 px |
-| Status bar height | 28 px |
-| Home timeline | 34 px |
-| Media timeline | 194 px |
-| Album timeline | 194 px |
-| Timeline workspace timeline | 352 px |
+| Native title strip | 41 px |
+| Title + command region | 96 px |
+| Navigation rail | 172 px |
+| Right dock | 348 px |
+| Status bar | 28 px |
+| Home / Render timeline | 34 px |
+| Media / Album timeline | 194 px |
+| Timeline workspace dock | 352 px |
 | Visual timeline | 238 px |
 | Template timeline | 158 px |
 | Spectrum timeline | 252 px |
 | AI Agent timeline | 178 px |
-| Render timeline | 34 px |
 
-The 1366×768 capture reports `nav_right=71`, corresponding to the intended 72 px compact navigation rail.
+The 1366×768 capture reports a 72 px compact navigation rail with labels available through tooltips.
 
 ## 4. Acceptance criteria AC01–AC20
 
-| ID | Status | Result |
+The STEP 01 specification marks AC01, AC02, AC04, AC05, AC06, AC07, AC08, AC09, AC10, AC14, AC15, AC16, AC17 and AC18 as critical. None fail.
+
+| ID | Status | Evidence / interpretation |
 |---|---|---|
-| AC01 | PASS | White-blue app shell launches in automated Qt validation without fatal error. |
-| AC02 | PASS | 1672×941 capture is repeatable; repeated Home capture produced normalized absolute difference 0.0. |
-| AC03 | PASS | Native-title evidence and shared command-bar hierarchy are present and measured by the screenshot harness. |
-| AC04 | PASS | All 9 navigation routes exist in the exact required order; selected/focus/keyboard behavior is covered by tests. |
-| AC05 | PASS | Workspace switching preserves shared project state; production fixture test verifies the same project object remains active. |
-| AC06 | PASS | Shared `Properti | AI` right dock exists and collapse/expand behavior is tested. |
-| AC07 | PASS | Shared timeline host supports workspace-specific height and collapse/expand; preference persistence is covered. |
-| AC08 | PASS | Status bar observes `FoundationUiState` events rather than direct workspace-widget coupling. |
-| AC09 | PASS | Main colors, dimensions, spacing, radius, and breakpoints are centralized in `foundation_tokens.py`. |
-| AC10 | PASS | Reusable foundation controls and their relevant shell states are exercised by the focused suite. |
-| AC11 | PASS | STEP 01 introduces no blocking render/AI/heavy-work path on the foundation UI thread; workspace content remains controlled placeholders. |
-| AC12 | PASS | 100%, 125%, and 150% DPI screenshot states complete on Linux and Windows CI. |
-| AC13 | PASS | 1366×768 compact state passes on Linux and Windows; navigation remains usable through icon/tooltips. |
-| AC14 | PASS_WITH_LIMITATION | Structural shell landmark gates pass after tuning and deterministic overlay/diff machinery is proven. Exact whole-window comparison against the external frozen PNG binaries is not executed in CI because those binary payloads are not checked into this branch. |
-| AC15 | PASS | Final workspace contents are not hard-coded into the shell; STEP 02–10 bodies remain placeholders. |
-| AC16 | PASS | High-confidence secret scan passes; no personal path/API key is intentionally hard-coded. |
-| AC17 | PASS | Save/open adapters are covered and the full recovered regression suite passes. |
-| AC18 | PASS | Portable resource-path test confirms app-relative resource resolution. |
-| AC19 | PASS | Linux and Windows evidence packs were successfully uploaded by the authoritative CI run. |
-| AC20 | PASS | `HANDOFF_STEP01.md` records the final decision and explicit limitations. |
+| AC01 | **PASS** | White-blue production foundation window launches in focused Linux/Windows validation without fatal error. |
+| AC02 | **PASS** | Exact requested 1672×941 capture is repeatable; repeat diff is 0.0. |
+| AC03 | **PASS** | Native-title evidence + global command hierarchy are present and measured. |
+| AC04 | **PASS** | Nine routes exist in exact required order; selected/focus/keyboard behavior is tested. |
+| AC05 | **PASS** | Workspace switch reuses shared stack/project state; no project reset. |
+| AC06 | **PASS** | Shared `Properti | AI` dock exists, switches tab, collapses, and restores safely. |
+| AC07 | **PASS** | Shared timeline host collapses/expands and uses per-workspace heights; preference schema persists state. |
+| AC08 | **PASS** | Status bar observes `FoundationUiState` events for save/FFmpeg/AI/jobs/project context. |
+| AC09 | **PASS** | Foundation colors/geometry/spacing/radii/breakpoints are centralized in `foundation_tokens.py`. |
+| AC10 | **PASS** | Reusable controls and shell states are covered by the focused suite. |
+| AC11 | **PASS** | STEP 01 itself introduces no background scan/render/AI work during route/layout/status operations; heavy recovered actions remain explicit user actions. |
+| AC12 | **PASS** | 100/125/150% states complete on both CI platforms; 100% remains the golden gate. |
+| AC13 | **PASS** | 1366×768 compact state remains usable; main navigation is not permanently lost. |
+| AC14 | **PASS WITH DOCUMENTED LIMITATION** | Structural shell landmark validator passes and deterministic overlay/diff machinery is proven. Exact whole-window overlays against external finished-workspace PNGs are not claimed in CI. |
+| AC15 | **PASS** | Final workspace bodies are not hard-coded into the shared shell. |
+| AC16 | **PASS** | Secret scan passes; no API keys/personal absolute paths were introduced. |
+| AC17 | **PASS** | Open/save adapters reuse recovered behavior; the full recovered regression suite remains green. |
+| AC18 | **PASS** | Portable resources remain app-relative. |
+| AC19 | **PASS** | Required docs plus Linux/Windows evidence packs exist; external golden-binary limitation is explicit. |
+| AC20 | **PASS** | `HANDOFF_STEP01.md` records the closure decision and concrete STEP 02 entry task. |
 
 ## 5. Evidence artifacts
 
-Authoritative run `36977769859` produced:
+Run `36978076538` produced:
 
 - `step01-ui-evidence`
-  - artifact id: `11213744092`
-  - files: 28
-  - size: 1,418,167 bytes
-  - SHA-256: `000d9f812c826d2c3eaf1ad3d9a5ab1b5fb23d8a620619ee23a409bd02fbcb74`
-  - includes `ui-golden/current/`, `ui-golden/diff/`, and `ui-golden/reports/`
+  - artifact ID: `11213948740`
+  - size: `1,418,167` bytes
+  - SHA-256: `239fd0c4b6661b765edbcbbc2bf15965132910e7556e9ed4d0bdcbaa959cef19`
+  - contains all nine current foundation PNGs, 1366 capture, 125/150% captures, JSON reports, and deterministic repeat overlay/diff.
 - `step01-ui-evidence-windows`
-  - artifact id: `11213354895`
-  - files: 8
-  - size: 111,487 bytes
-  - SHA-256: `dd478dbe74ff74730a9e2c0c9cd72e6db44f4c33dc5b36e7788baf4ebb1a45a9`
-  - includes Windows 100%, 125%, 150%, and 1366×768 evidence
+  - artifact ID: `11214850767`
+  - size: `111,487` bytes
+  - SHA-256: `6ca8c179250286e783a93f3d3c677d8e9dfcae5a9d0f1c7afb21e1db5c240245`
+  - contains Windows 100/125/150% plus 1366×768 evidence and reports.
 
-## 6. Remaining limitation
+## 6. Pixel-match scope at STEP 01
 
-The exact external golden PNG payloads are frozen by SHA-256 in `docs/ui-reference/manifest.json`, but the binaries themselves are not committed through the text-oriented repository workflow. Consequently:
+The screenshot harness uses the exact requested logical viewport at 100%, never rescales a supplied golden to manufacture a match, and models native title chrome only in offscreen evidence because production uses the real Windows title bar. Whole-image diff against the completed Beranda/Media/etc. golden references is expected to be large while their centers are intentional placeholders. Therefore STEP 01 claims **shared-shell foundation parity**, not completion of STEP 02–10 workspace content.
 
-- exact all-nine golden raster overlay is **not claimed** as completed in CI;
-- the harness is ready to perform exact comparison when those binaries are supplied;
-- no golden image is resized or used as a flattened UI background;
-- this limitation does not block beginning STEP 02 because STEP 01 intentionally contains placeholder workspace bodies.
+## 7. Remaining limitations and final decision
 
-## 7. Final decision
+The exact v1.4.1 source is still unavailable; the historical FFmpeg download pin remains a later packaging/release issue; exact golden PNG binaries are external to CI; and final real-Windows full-workspace raster validation remains a later integration/release gate. These limitations are non-blocking for Beranda.
 
-**READY_WITH_LIMITATIONS**
-
-The shared foundation is stable enough for STEP 02. STEP 02 must reuse the existing shell/tokens/navigation/docks/status system rather than duplicating them, and it must not reinterpret this report as proof that final whole-window pixel parity for unfinished workspace contents is already complete.
+**Final decision: READY_WITH_LIMITATIONS.**
