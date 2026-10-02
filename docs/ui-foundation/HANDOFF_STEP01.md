@@ -3,8 +3,8 @@
 Project / repo: **Full Album Maker — `inoriko920-dev/Full-Album-Maker`**  
 Branch: `ui/step-01-foundation`  
 STEP 00 recovery baseline: `recovery/step-00-r0` @ `87860b7281c3c5e9731ccf082dac84ab14624402`  
-Authoritative tested STEP 01 SHA: `0bd0aa3769b2913900d6ba169b70bffff1d674ba`  
-Authoritative CI: run `36978076538` (#24), **SUCCESS**
+Authoritative tested STEP 01 SHA: `33aac775a1a4b500aeabea2b268b15ad9b34ad9c`  
+Authoritative CI: run `36978745032` (#34), **SUCCESS**
 
 ## 1. STEP 00 gate status
 
@@ -29,6 +29,7 @@ Primary STEP 01 ownership:
 
 - `src/full_album_maker/foundation_tokens.py`
 - `src/full_album_maker/foundation_theme.py`
+- `src/full_album_maker/foundation_font.py`
 - `src/full_album_maker/foundation_icons.py`
 - `src/full_album_maker/foundation_components.py`
 - `src/full_album_maker/foundation_shell.py`
@@ -50,9 +51,9 @@ Recovered application modules remain the implementation baseline; STEP 01 does n
 
 ## 4. Shared contracts to reuse in STEP 02+
 
-### Design tokens
+### Design tokens and font
 
-Source: `src/full_album_maker/foundation_tokens.py`.
+Source: `src/full_album_maker/foundation_tokens.py` + `foundation_font.py`.
 
 Key values:
 
@@ -66,6 +67,7 @@ Key values:
 - golden viewport: 1672×941
 - compact breakpoint: 1450 px
 - minimum supported width: 1366 px
+- visual-QA font: pinned Noto Sans, with safe system-font fallback in development when the portable font file is absent
 
 ### Workspace registry
 
@@ -132,9 +134,13 @@ Responsive:
 - 1366×768: PASS on Linux + Windows
 - compact navigation: 72 px with tooltip/accessible labels.
 
+Visual-QA font:
+
+- `FONT_GATE_PASS Noto Sans`
+
 ## 6. Tests and artifacts
 
-At tested SHA `0bd0aa3769b2913900d6ba169b70bffff1d674ba`:
+At tested SHA `33aac775a1a4b500aeabea2b268b15ad9b34ad9c`:
 
 - Linux STEP 01 focused: **15 passed**
 - Linux recovered regression: **246 passed, 88 skipped**
@@ -143,16 +149,19 @@ At tested SHA `0bd0aa3769b2913900d6ba169b70bffff1d674ba`:
 - deterministic Home repeat diff: **0.0**
 - Linux evidence validator: PASS
 - Windows geometry gate: PASS
+- Noto Sans font gate: PASS
 - secret scan: PASS
 
-Final run #24 artifacts:
+Final run #34 artifacts:
 
 - `step01-ui-evidence`
-  - ID `11213948740`
-  - SHA-256 `239fd0c4b6661b765edbcbbc2bf15965132910e7556e9ed4d0bdcbaa959cef19`
+  - ID `11214059138`
+  - size `1,355,315` bytes
+  - SHA-256 `5ff6708d490fb052f26975907391b53970bc64bc7e2109164363ae0e29baf368`
 - `step01-ui-evidence-windows`
-  - ID `11214850767`
-  - SHA-256 `6ca8c179250286e783a93f3d3c677d8e9dfcae5a9d0f1c7afb21e1db5c240245`
+  - ID `11214706528`
+  - size `327,445` bytes
+  - SHA-256 `8664c7e9c50a80d17615a1c27ffec50cf60f82a2baeb66549fb4865764c60952`
 
 See `STEP01_TEST_REPORT.md` for AC01–AC20 detail.
 
@@ -173,7 +182,7 @@ See `STEP01_TEST_REPORT.md` for AC01–AC20 detail.
 - Do not change route IDs/order.
 - Do not alter project schema, renderer contract, timeline data model or AI action contract just to implement Beranda.
 - Global Render remains a route/preflight entry point; it must not auto-start a render.
-- Preserve 1366 compact mode, DPI behavior, keyboard focus, dock state and status model.
+- Preserve Noto Sans visual-QA path, 1366 compact mode, DPI behavior, keyboard focus, dock state and status model.
 - Run focused STEP 02 tests plus the full recovered regression suite before closing Beranda.
 
 ## 9. STEP 02 first task recommendation — Beranda only
@@ -197,4 +206,4 @@ Required sequence:
 
 **FINAL STEP 01: READY_WITH_LIMITATIONS → STEP 02 MAY START.**
 
-No runtime implementation task from STEP 01 remains uncommitted. Closure-document commits after the tested SHA only record evidence/handoff and do not change the validated foundation runtime.
+No runtime implementation task from STEP 01 remains uncommitted. Closure-document commits after tested SHA `33aac775a1a4b500aeabea2b268b15ad9b34ad9c` only update evidence summaries/handoff and do not change the validated foundation runtime.
