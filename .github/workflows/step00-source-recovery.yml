@@ -37,7 +37,6 @@ jobs:
           git -C "$SRC" checkout --detach "$SOURCE_COMMIT"
           test "$(git -C "$SRC" rev-parse HEAD)" = "$SOURCE_COMMIT"
 
-          # Exact application/source-support trees. Do not copy .git or generated outputs.
           for d in src tests build assets; do
             if [ -d "$SRC/$d" ]; then
               rm -rf "$d"
@@ -82,7 +81,6 @@ jobs:
             echo "\`src/\`, \`tests/\`, \`build/\`, \`assets/\`, dependency/project metadata present at the source commit, the Windows portable build workflow, and historical docs under \`docs/legacy-source-v1.4.0/\`."
           } > docs/recovery/VERIFIED_SOURCE_IMPORT.md
 
-          # Record hashes of the recovered working copy, excluding recovery docs themselves.
           {
             echo "# sha256 | path"
             find src tests build assets -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum
@@ -91,7 +89,6 @@ jobs:
             done
           } > docs/recovery/VERIFIED_SOURCE_SHA256.txt
 
-          # Guard against accidentally importing common credential files.
           if find src tests build assets -type f \( -name '.env' -o -name '*.pem' -o -name '*.key' -o -name 'credentials.json' \) -print 2>/dev/null | grep -q .; then
             echo "Credential-like file found in recovered source; refusing to commit." >&2
             exit 1
@@ -103,7 +100,7 @@ jobs:
           set -euo pipefail
           git config user.name "STEP00 Recovery Bot"
           git config user.email "step00-recovery@users.noreply.github.com"
-          git add src tests build assets .gitignore LICENSE THIRD_PARTY_NOTICES.md pyproject.toml requirements.txt requirements-dev.txt pytest.ini setup.cfg setup.py .github/workflows/build-windows-portable.yml docs/legacy-source-v1.4.0 docs/recovery/VERIFIED_SOURCE_IMPORT.md docs/recovery/SOURCE_V1_4_0_GIT_TREE.txt docs/recovery/VERIFIED_SOURCE_SHA256.txt 2>/dev/null || true
+          git add -A
           if git diff --cached --quiet; then
             echo "No source changes to commit."
             exit 0
