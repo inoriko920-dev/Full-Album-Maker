@@ -332,7 +332,8 @@ def test_real_ffmpeg_video_visual_loop_and_freeze_compile(tmp_path: Path):
         graph = args[args.index("-filter_complex") + 1]
     else:
         graph = Path(args[args.index("-/filter_complex") + 1]).read_text(encoding="utf-8")
-    assert "trim=end_frame=1" in graph
+    assert "tpad=stop_mode=clone" in graph
+    assert "trim=end_frame=1" not in graph
 
 
 def test_v13_workspace_exposes_visual_lagu_tab(tmp_path: Path):
