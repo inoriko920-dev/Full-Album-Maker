@@ -8,13 +8,13 @@ import pytest
 from full_album_maker.custom_template_builder import CustomTemplateStore
 from full_album_maker.editor_controller import EditorController
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
+from full_album_maker.template_portability_step07 import duplicate_portable_template
 from full_album_maker.template_studio_step07 import (
     ORIGIN_BUILT_IN,
     TemplateFavoriteStore,
     TemplateStudioDraft,
     build_template_apply_commands,
     builtin_descriptors,
-    duplicate_to_custom,
     filter_templates,
     preview_template_document,
     stable_scope_song_ids,
@@ -147,7 +147,7 @@ def test_duplicate_builtin_to_custom_uses_new_portable_custom_id(tmp_path: Path)
     doc = _document(tmp_path)
     first = doc.playlist.entries[0].song_id
     store = CustomTemplateStore(tmp_path / "custom")
-    custom = duplicate_to_custom(
+    custom = duplicate_portable_template(
         doc,
         TemplateStudioDraft(template_id="spotify_clean"),
         (first,),
@@ -162,10 +162,26 @@ def test_duplicate_builtin_to_custom_uses_new_portable_custom_id(tmp_path: Path)
     assert all("font_path" not in layer.get("properties", {}) for layer in custom.layers)
 
 
+def test_asset_backed_builtin_duplicate_degrades_only_background_to_portable_solid(tmp_path: Path) -> None:
+    doc = _document(tmp_path)
+    store = CustomTemplateStore(tmp_path / "custom")
+    custom = duplicate_portable_template(
+        doc,
+        TemplateStudioDraft(template_id="photo_album"),
+        (doc.playlist.entries[0].song_id,),
+        label="Momen Bahagia",
+        store=store,
+    )
+    backgrounds = [layer for layer in custom.layers if layer.get("type") == "background"]
+    assert backgrounds
+    assert all(layer.get("properties", {}).get("mode") != "asset" for layer in backgrounds)
+    assert all("asset_id" not in layer.get("properties", {}) for layer in backgrounds)
+
+
 def test_custom_store_scan_isolates_one_corrupt_file(tmp_path: Path) -> None:
     doc = _document(tmp_path)
     store = CustomTemplateStore(tmp_path / "custom")
-    custom = duplicate_to_custom(
+    custom = duplicate_portable_template(
         doc,
         TemplateStudioDraft(template_id="photo_album"),
         (doc.playlist.entries[0].song_id,),
