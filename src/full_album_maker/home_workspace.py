@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from .foundation_components import FAMButton
@@ -205,6 +205,12 @@ class HomeWorkspace(QWidget):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        # The STEP 01 stack initially has Home selected. Replacing its current
+        # placeholder makes Qt temporarily select the next page (Media). During
+        # startup Beranda must reclaim that same selected route before saved
+        # preferences are applied. This one-shot parent-change guard does that
+        # without changing shared shell geometry or later navigation behavior.
+        self._activate_after_stack_insert = True
         self.setObjectName("workspaceHost")
         self.state = state or HomeViewState()
         root = QVBoxLayout(self)
@@ -228,7 +234,10 @@ class HomeWorkspace(QWidget):
         self.hero_title = QLabel("Mulai Full Album")
         self.hero_title.setObjectName("workspaceHeading")
         copy.addWidget(self.hero_title)
-        self.hero_subtitle = QLabel("Buat video album musik dengan mudah dan profesional\nsecara offline, cepat, dan fleksibel.")
+        self.hero_subtitle = QLabel(
+            "Buat video album musik dengan mudah dan profesional\n"
+            "secara offline, cepat, dan fleksibel."
+        )
         self.hero_subtitle.setObjectName("muted")
         self.hero_subtitle.setWordWrap(True)
         self.hero_subtitle.setMaximumWidth(520)
@@ -308,6 +317,23 @@ class HomeWorkspace(QWidget):
         if on_open_project is not None:
             self.open_project_requested.connect(on_open_project)
         self.apply_state(self.state)
+
+    def event(self, event) -> bool:
+        result = super().event(event)
+        if (
+            self._activate_after_stack_insert
+            and event.type() == QEvent.Type.ParentChange
+            and isinstance(self.parentWidget(), QStackedWidget)
+        ):
+            stack = self.parentWidget()
+            self._activate_after_stack_insert = False
+
+            def activate() -> None:
+                if stack.indexOf(self) >= 0:
+                    stack.setCurrentWidget(self)
+
+            QTimer.singleShot(0, activate)
+        return result
 
     def _clear_recent(self) -> None:
         while self.recent_row.count():
