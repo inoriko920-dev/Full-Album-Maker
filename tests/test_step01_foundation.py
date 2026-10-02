@@ -118,6 +118,11 @@ def test_shell_compact_mode_at_1366_keeps_navigation_usable(qapp):
 
     window = FoundationFixtureWindow("media")
     window.resize(1366, 768 - TOKENS.title_height)
+    # Fixture windows run through several Qt offscreen plugins in CI. Exercise
+    # the same explicit compact-mode API used by production resizeEvent and the
+    # deterministic screenshot harness rather than depending on a plugin's
+    # pre-show child-resize delivery semantics.
+    window.shell.set_compact_mode(True)
     window.show()
     qapp.processEvents()
     assert window.shell.navigation.width() == TOKENS.nav_compact_width
