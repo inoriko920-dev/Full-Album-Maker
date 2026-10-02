@@ -178,11 +178,30 @@ class TabbedEmptyHost(QWidget):
         tabs.addStretch(1)
         lay.addLayout(tabs)
         self.stack = QStackedWidget()
-        self.stack.addWidget(FAMEmptyState("Belum ada pilihan", "Pilih objek di workspace untuk melihat properti."))
-        self.stack.addWidget(FAMEmptyState("AI opsional", "AI belum dikonfigurasi. Editing manual tetap tersedia."))
+        self._properties_widget = FAMEmptyState("Belum ada pilihan", "Pilih objek di workspace untuk melihat properti.")
+        self._ai_widget = FAMEmptyState("AI opsional", "AI belum dikonfigurasi. Editing manual tetap tersedia.")
+        self.stack.addWidget(self._properties_widget)
+        self.stack.addWidget(self._ai_widget)
         lay.addWidget(self.stack, 1)
         self.properties.clicked.connect(lambda: self._select(0))
         self.ai.clicked.connect(lambda: self._select(1))
+
+    def _replace_page(self, index: int, widget: QWidget) -> None:
+        old = self.stack.widget(index)
+        self.stack.removeWidget(old)
+        old.setParent(None)
+        self.stack.insertWidget(index, widget)
+        if index == 0:
+            self._properties_widget = widget
+        else:
+            self._ai_widget = widget
+
+    def set_properties_widget(self, widget: QWidget) -> None:
+        self._replace_page(0, widget)
+        self._select(0)
+
+    def set_ai_widget(self, widget: QWidget) -> None:
+        self._replace_page(1, widget)
 
     def _select(self, index: int) -> None:
         self.properties.setChecked(index == 0)
