@@ -29,7 +29,7 @@ jobs:
       - name: Install Linux Qt runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 ffmpeg
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - name: Install project
         run: |
           python -m pip install --upgrade pip
@@ -49,6 +49,46 @@ jobs:
         run: python -m pytest -q tests/test_async_import.py tests/test_ui_media_regressions.py
       - name: Run full regression suite
         run: python -m pytest -q --disable-warnings
+      - name: Install FFmpeg for STEP03 preview smoke only
+        run: sudo apt-get install -y ffmpeg
+      - name: Validate video and audio preview generation
+        run: |
+          python - <<'PY'
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          from full_album_maker.media_library_model import MediaAsset, MediaMetadata, MediaType, stable_asset_id
+          from full_album_maker.media_preview_cache import generate_preview
+
+          root = Path(tempfile.mkdtemp(prefix='fam-step03-preview-'))
+          video = root / 'preview-source.avi'
+          audio = root / 'preview-source.wav'
+          subprocess.run([
+              'ffmpeg','-nostdin','-y','-v','error','-f','lavfi','-i',
+              'testsrc=size=160x120:rate=24:duration=1','-an','-c:v','mpeg4',str(video)
+          ], check=True)
+          subprocess.run([
+              'ffmpeg','-nostdin','-y','-v','error','-f','lavfi','-i',
+              'sine=frequency=440:sample_rate=44100:duration=1','-c:a','pcm_s16le',str(audio)
+          ], check=True)
+          assets = [
+              MediaAsset(
+                  asset_id=stable_asset_id(str(video), MediaType.VIDEO),
+                  path=str(video), display_name=video.name, media_type=MediaType.VIDEO,
+                  metadata=MediaMetadata(duration=1.0, width=160, height=120, fps=24.0),
+              ),
+              MediaAsset(
+                  asset_id=stable_asset_id(str(audio), MediaType.AUDIO),
+                  path=str(audio), display_name=audio.name, media_type=MediaType.AUDIO,
+                  metadata=MediaMetadata(duration=1.0),
+              ),
+          ]
+          for asset in assets:
+              preview = Path(generate_preview(asset))
+              assert preview.is_file() and preview.stat().st_size > 0, (asset, preview)
+          print('STEP03_PREVIEW_FFMPEG_SMOKE_PASS')
+          PY
       - name: Capture final Media evidence
         run: |
           mkdir -p step03-completion-evidence/current step03-completion-evidence/reports step03-completion-evidence/compare
