@@ -15,61 +15,61 @@ from .home_state import HomeMode, HomeViewState, RecentAvailability, RecentProje
 
 
 class HomeHeroIllustration(QWidget):
-    """Small decorative music/media motif; never a screenshot/background substitute."""
+    """Decorative media motif drawn from primitives, never from a golden screenshot."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAccessibleName("Ilustrasi dekoratif media musik")
-        self.setMinimumWidth(220)
-        self.setMaximumWidth(330)
+        self.setMinimumWidth(340)
+        self.setMaximumWidth(470)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         w, h = float(self.width()), float(self.height())
-        painter.setPen(QPen(QColor(TOKENS.accent_500 + "55"), 2))
-        base_y = h * 0.60
-        step = max(8.0, w / 26.0)
+        painter.setPen(QPen(QColor(TOKENS.accent_500 + "45"), 3))
+        base_y = h * 0.58
+        step = max(10.0, w / 32.0)
         x = max(4.0, w * 0.02)
-        for value in (10, 22, 36, 19, 45, 28, 52, 24, 38, 17, 31, 13):
-            amp = min(h * 0.34, float(value))
+        for value in (12, 28, 48, 24, 64, 36, 78, 42, 62, 31, 50, 20):
+            amp = min(h * 0.46, float(value))
             painter.drawLine(int(x), int(base_y - amp / 2), int(x), int(base_y + amp / 2))
             x += step
 
-        tile_w = min(112.0, w * 0.40)
-        tile_h = min(88.0, h * 0.62)
-        tile_x = w * 0.47
+        tile_w = min(166.0, w * 0.43)
+        tile_h = min(126.0, h * 0.70)
+        tile_x = w * 0.43
         tile_y = max(8.0, (h - tile_h) * 0.42)
         painter.setPen(QPen(QColor(TOKENS.primary_600 + "55"), 2))
         painter.setBrush(QColor(TOKENS.selection_soft))
-        painter.drawRoundedRect(QRectF(tile_x, tile_y, tile_w, tile_h), 14, 14)
-        painter.setPen(QPen(QColor(TOKENS.primary_600 + "99"), 6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawRoundedRect(QRectF(tile_x, tile_y, tile_w, tile_h), 16, 16)
+        painter.setPen(QPen(QColor(TOKENS.primary_600 + "88"), 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         stem_x = tile_x + tile_w * 0.62
-        painter.drawLine(int(stem_x), int(tile_y + tile_h * 0.24), int(stem_x), int(tile_y + tile_h * 0.68))
-        painter.drawLine(int(stem_x), int(tile_y + tile_h * 0.24), int(tile_x + tile_w * 0.79), int(tile_y + tile_h * 0.18))
-        painter.setBrush(QColor(TOKENS.primary_600 + "99"))
+        painter.drawLine(int(stem_x), int(tile_y + tile_h * 0.24), int(stem_x), int(tile_y + tile_h * 0.69))
+        painter.drawLine(int(stem_x), int(tile_y + tile_h * 0.24), int(tile_x + tile_w * 0.80), int(tile_y + tile_h * 0.18))
+        painter.setBrush(QColor(TOKENS.primary_600 + "88"))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QRectF(tile_x + tile_w * 0.46, tile_y + tile_h * 0.60, 25, 18))
+        painter.drawEllipse(QRectF(tile_x + tile_w * 0.44, tile_y + tile_h * 0.61, 35, 25))
 
-        small_w = min(68.0, w * 0.24)
-        small_h = min(58.0, h * 0.42)
-        sx = min(w - small_w - 8, tile_x + tile_w * 0.72)
+        small_w = min(94.0, w * 0.25)
+        small_h = min(78.0, h * 0.46)
+        sx = min(w - small_w - 8, tile_x + tile_w * 0.76)
         sy = min(h - small_h - 8, tile_y + tile_h * 0.55)
         painter.setPen(QPen(QColor(TOKENS.border), 1))
-        painter.setBrush(QColor(TOKENS.surface))
-        painter.drawRoundedRect(QRectF(sx, sy, small_w, small_h), 10, 10)
+        painter.setBrush(QColor("#FFFFFFCC"))
+        painter.drawRoundedRect(QRectF(sx, sy, small_w, small_h), 11, 11)
         painter.setBrush(QColor(TOKENS.accent_500 + "33"))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QRectF(sx + 11, sy + 10, 12, 12))
+        painter.drawEllipse(QRectF(sx + 13, sy + 11, 15, 15))
         mountain = [
-            (sx + 8, sy + small_h - 10),
-            (sx + small_w * 0.45, sy + small_h * 0.46),
-            (sx + small_w * 0.62, sy + small_h * 0.67),
-            (sx + small_w - 8, sy + small_h * 0.36),
+            (sx + 10, sy + small_h - 12),
+            (sx + small_w * 0.46, sy + small_h * 0.47),
+            (sx + small_w * 0.63, sy + small_h * 0.68),
+            (sx + small_w - 10, sy + small_h * 0.35),
         ]
-        painter.setPen(QPen(QColor(TOKENS.accent_500 + "66"), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setPen(QPen(QColor(TOKENS.accent_500 + "66"), 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         for left, right in zip(mountain, mountain[1:]):
             painter.drawLine(int(left[0]), int(left[1]), int(right[0]), int(right[1]))
         painter.end()
@@ -82,18 +82,30 @@ class RecoveryBanner(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("homeRecoveryBanner")
+        self.setFixedHeight(60)
         self.setStyleSheet(
             "QFrame#homeRecoveryBanner { background: #FFF8E4; border: 1px solid #F0D48A; border-radius: 8px; }"
         )
         row = QHBoxLayout(self)
         row.setContentsMargins(TOKENS.space_3, 6, TOKENS.space_2, 6)
         row.setSpacing(TOKENS.space_2)
-        icon = QLabel("●")
-        icon.setStyleSheet("color: #D69A00;")
+        icon = QLabel("!")
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon.setFixedSize(34, 34)
+        icon.setStyleSheet(
+            "background:#F2A900;color:white;border-radius:17px;font-weight:800;font-size:17px;"
+        )
         row.addWidget(icon)
-        self.text = QLabel("Autosave tersedia")
+        copy = QVBoxLayout()
+        copy.setContentsMargins(0, 0, 0, 0)
+        copy.setSpacing(0)
+        self.title = QLabel("Autosave tersedia")
+        self.title.setStyleSheet("font-weight:650;")
+        self.text = QLabel("")
         self.text.setObjectName("metadata")
-        row.addWidget(self.text, 1)
+        copy.addWidget(self.title)
+        copy.addWidget(self.text)
+        row.addLayout(copy, 1)
         self.restore = FAMButton("Pulihkan", kind="secondary")
         self.restore.setAccessibleName("Pulihkan autosave")
         self.dismiss = FAMButton("×", kind="ghost")
@@ -106,7 +118,7 @@ class RecoveryBanner(QFrame):
 
     def set_timestamp(self, timestamp: float) -> None:
         stamp = datetime.fromtimestamp(timestamp).strftime("%d %b %Y %H:%M")
-        self.text.setText(f"Autosave tersedia — terakhir disimpan {stamp}")
+        self.text.setText(f"Ditemukan data autosave dari sesi sebelumnya ({stamp}).")
 
 
 class RecentProjectCard(QFrame):
@@ -117,15 +129,18 @@ class RecentProjectCard(QFrame):
         super().__init__(parent)
         self.item = item
         self.setObjectName("famCard")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName(f"Proyek {item.display_name}")
         self.setMinimumWidth(150)
-        self.setMaximumWidth(260)
+        self.setMaximumWidth(270)
+        self.setFixedHeight(244)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(TOKENS.space_2, TOKENS.space_2, TOKENS.space_2, TOKENS.space_2)
+        lay.setContentsMargins(9, 9, 9, 9)
         lay.setSpacing(5)
 
         cover = QFrame()
-        cover.setMinimumHeight(66)
-        cover.setMaximumHeight(78)
+        cover.setFixedHeight(128)
         cover.setStyleSheet(
             f"background: {TOKENS.selection_soft}; border: 1px solid {TOKENS.border}; border-radius: 6px;"
         )
@@ -133,7 +148,7 @@ class RecentProjectCard(QFrame):
         cover_lay.setContentsMargins(0, 0, 0, 0)
         glyph = QLabel("♪")
         glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        glyph.setStyleSheet(f"font-size: 28px; color: {TOKENS.primary_600};")
+        glyph.setStyleSheet(f"font-size: 32px; color: {TOKENS.primary_600};")
         cover_lay.addWidget(glyph)
         lay.addWidget(cover)
 
@@ -145,7 +160,7 @@ class RecentProjectCard(QFrame):
         self.title.setToolTip(item.display_name)
         head.addWidget(self.title, 1)
         menu_btn = FAMButton("…", kind="ghost")
-        menu_btn.setFixedWidth(32)
+        menu_btn.setFixedSize(30, 28)
         menu_btn.setAccessibleName(f"Menu proyek {item.display_name}")
         menu = QMenu(menu_btn)
         menu.addAction("Buka", lambda: self.open_requested.emit(item.path))
@@ -156,25 +171,21 @@ class RecentProjectCard(QFrame):
 
         song_text = "— lagu" if item.song_count is None else f"{item.song_count} lagu"
         duration = "—" if item.duration_seconds is None else self._format_duration(item.duration_seconds)
-        meta = QLabel(f"{song_text}  •  {duration}")
+        meta = QLabel(f"♪  {song_text}      ◷  {duration}")
         meta.setObjectName("metadata")
         lay.addWidget(meta)
 
+        opened = datetime.fromtimestamp(item.last_opened).strftime("%d %b %Y")
+        availability = ""
         if item.availability == RecentAvailability.MISSING:
-            availability = QLabel("Tidak ditemukan")
-            availability.setObjectName("metadata")
-            availability.setStyleSheet("color: #A56D00;")
-            lay.addWidget(availability)
+            availability = "  • Tidak ditemukan"
         elif item.availability == RecentAvailability.CORRUPT:
-            availability = QLabel("Proyek bermasalah")
-            availability.setObjectName("metadata")
-            availability.setStyleSheet("color: #B43A3A;")
-            lay.addWidget(availability)
-
-        open_btn = FAMButton("Cari" if item.availability == RecentAvailability.MISSING else "Buka", kind="ghost")
-        open_btn.setAccessibleName(f"Buka proyek {item.display_name}")
-        open_btn.clicked.connect(lambda: self.open_requested.emit(item.path))
-        lay.addWidget(open_btn)
+            availability = "  • Bermasalah"
+        last = QLabel(f"▣  Dibuka {opened}{availability}")
+        last.setObjectName("metadata")
+        if availability:
+            last.setStyleSheet("color: #A56D00;")
+        lay.addWidget(last)
 
     @staticmethod
     def _format_duration(seconds: float) -> str:
@@ -182,6 +193,74 @@ class RecentProjectCard(QFrame):
         hours, rem = divmod(value, 3600)
         minutes, sec = divmod(rem, 60)
         return f"{hours}:{minutes:02d}:{sec:02d}" if hours else f"{minutes}:{sec:02d}"
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.open_requested.emit(self.item.path)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.open_requested.emit(self.item.path)
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
+class QuickStepCard(QFrame):
+    clicked = Signal()
+
+    def __init__(self, number: str, title: str, subtitle: str, glyph: str, *, show_arrow: bool = True, parent=None) -> None:
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName(f"Langkah {number}: {title}")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(10, 4, 10, 4)
+        row.setSpacing(10)
+        number_label = QLabel(number)
+        number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        number_label.setFixedSize(36, 36)
+        number_label.setStyleSheet(
+            f"background:{TOKENS.primary_600};color:white;border-radius:18px;font-weight:750;font-size:15px;"
+        )
+        row.addWidget(number_label)
+        icon = QLabel(glyph)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon.setFixedWidth(28)
+        icon.setStyleSheet(f"font-size:22px;color:{TOKENS.primary_600};font-weight:650;")
+        row.addWidget(icon)
+        copy = QVBoxLayout()
+        copy.setContentsMargins(0, 0, 0, 0)
+        copy.setSpacing(1)
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-weight:650;")
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("metadata")
+        subtitle_label.setWordWrap(True)
+        copy.addWidget(title_label)
+        copy.addWidget(subtitle_label)
+        row.addLayout(copy, 1)
+        if show_arrow:
+            arrow = QLabel("›")
+            arrow.setStyleSheet(f"font-size:32px;color:{TOKENS.text_muted};")
+            row.addWidget(arrow)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class HomeWorkspace(QWidget):
@@ -205,22 +284,16 @@ class HomeWorkspace(QWidget):
         parent=None,
     ) -> None:
         super().__init__(parent)
-        # The STEP 01 stack initially has Home selected. Replacing its current
-        # placeholder makes Qt temporarily select the next page (Media). During
-        # startup Beranda must reclaim that same selected route before saved
-        # preferences are applied. This one-shot parent-change guard does that
-        # without changing shared shell geometry or later navigation behavior.
         self._activate_after_stack_insert = True
         self.setObjectName("workspaceHost")
         self.state = state or HomeViewState()
         root = QVBoxLayout(self)
-        root.setContentsMargins(TOKENS.space_4, TOKENS.space_4, TOKENS.space_4, TOKENS.space_3)
-        root.setSpacing(TOKENS.space_2)
+        root.setContentsMargins(TOKENS.space_4, TOKENS.space_5, TOKENS.space_4, TOKENS.space_3)
+        root.setSpacing(TOKENS.space_3)
 
         self.hero = QFrame()
         self.hero.setObjectName("homeHero")
-        self.hero.setMinimumHeight(154)
-        self.hero.setMaximumHeight(172)
+        self.hero.setFixedHeight(218)
         self.hero.setStyleSheet(
             f"QFrame#homeHero {{ background: {TOKENS.selection_soft}; border: {TOKENS.border_width}px solid {TOKENS.border}; border-radius: {TOKENS.radius_card}px; }}"
         )
@@ -233,6 +306,7 @@ class HomeWorkspace(QWidget):
         copy.addStretch(1)
         self.hero_title = QLabel("Mulai Full Album")
         self.hero_title.setObjectName("workspaceHeading")
+        self.hero_title.setStyleSheet("font-size: 30px;")
         copy.addWidget(self.hero_title)
         self.hero_subtitle = QLabel(
             "Buat video album musik dengan mudah dan profesional\n"
@@ -240,15 +314,15 @@ class HomeWorkspace(QWidget):
         )
         self.hero_subtitle.setObjectName("muted")
         self.hero_subtitle.setWordWrap(True)
-        self.hero_subtitle.setMaximumWidth(520)
+        self.hero_subtitle.setMaximumWidth(560)
         copy.addWidget(self.hero_subtitle)
         buttons = QHBoxLayout()
-        buttons.setContentsMargins(0, 2, 0, 0)
+        buttons.setContentsMargins(0, 4, 0, 0)
         buttons.setSpacing(TOKENS.space_2)
         self.new_project_button = FAMButton("Proyek Baru", icon_name="new", kind="primary")
-        self.new_project_button.setMinimumWidth(142)
+        self.new_project_button.setMinimumSize(190, 44)
         self.open_project_button = FAMButton("Buka Proyek", icon_name="open")
-        self.open_project_button.setMinimumWidth(142)
+        self.open_project_button.setMinimumSize(190, 44)
         buttons.addWidget(self.new_project_button)
         buttons.addWidget(self.open_project_button)
         buttons.addStretch(1)
@@ -260,6 +334,7 @@ class HomeWorkspace(QWidget):
         root.addWidget(self.hero)
 
         self.error_banner = QFrame()
+        self.error_banner.setFixedHeight(60)
         self.error_banner.setStyleSheet("background: #FFF1F1; border: 1px solid #EDB8B8; border-radius: 8px;")
         error_row = QHBoxLayout(self.error_banner)
         error_row.setContentsMargins(TOKENS.space_3, 6, TOKENS.space_3, 6)
@@ -277,37 +352,40 @@ class HomeWorkspace(QWidget):
         recent_header.setContentsMargins(0, 0, 0, 0)
         title = QLabel("Proyek Terakhir")
         title.setObjectName("sectionHeading")
+        title.setStyleSheet("font-size: 16px;font-weight:700;")
         recent_header.addWidget(title)
         recent_header.addStretch(1)
-        self.see_all = FAMButton("Lihat Semua", kind="ghost")
+        self.see_all = FAMButton("Lihat Semua  →", kind="ghost")
         self.see_all.clicked.connect(self.show_all_recent_requested.emit)
         recent_header.addWidget(self.see_all)
         root.addLayout(recent_header)
 
         self.recent_host = QWidget()
+        self.recent_host.setFixedHeight(244)
         self.recent_row = QHBoxLayout(self.recent_host)
         self.recent_row.setContentsMargins(0, 0, 0, 0)
         self.recent_row.setSpacing(TOKENS.space_2)
-        root.addWidget(self.recent_host, 1)
+        root.addWidget(self.recent_host)
 
         quick_title = QLabel("Mulai Cepat")
         quick_title.setObjectName("sectionHeading")
+        quick_title.setStyleSheet("font-size:16px;font-weight:700;")
         root.addWidget(quick_title)
         self.quick = QFrame()
         self.quick.setObjectName("famCard")
+        self.quick.setFixedHeight(86)
         quick_row = QHBoxLayout(self.quick)
-        quick_row.setContentsMargins(TOKENS.space_2, TOKENS.space_1, TOKENS.space_2, TOKENS.space_1)
-        quick_row.setSpacing(TOKENS.space_1)
-        for number, title_text, subtitle, route in (
-            ("1", "Impor Lagu", "Masukkan file musik", "media"),
-            ("2", "Susun Timeline", "Atur urutan lagu", "album"),
-            ("3", "Render", "Hasilkan video album", "render"),
-        ):
-            button = FAMButton(f"{number}   {title_text}\n    {subtitle}", kind="ghost")
-            button.setMinimumHeight(50)
-            button.setAccessibleName(f"Langkah {number}: {title_text}")
-            button.clicked.connect(lambda _checked=False, r=route: self.quick_route_requested.emit(r))
-            quick_row.addWidget(button, 1)
+        quick_row.setContentsMargins(TOKENS.space_2, 4, TOKENS.space_2, 4)
+        quick_row.setSpacing(2)
+        quick_specs = (
+            ("1", "Impor Lagu", "Tambahkan file musik, gambar, atau video ke proyek.", "▭", "media"),
+            ("2", "Susun Timeline", "Atur urutan lagu, tambah visual, transisi, dan teks.", "☷", "album"),
+            ("3", "Render", "Pratinjau hasilnya, lalu render video album Anda.", "▶", "render"),
+        )
+        for idx, (number, title_text, subtitle, glyph, route) in enumerate(quick_specs):
+            card = QuickStepCard(number, title_text, subtitle, glyph, show_arrow=idx < 2)
+            card.clicked.connect(lambda r=route: self.quick_route_requested.emit(r))
+            quick_row.addWidget(card, 1)
         root.addWidget(self.quick)
 
         self.new_project_button.clicked.connect(self.create_project_requested.emit)
@@ -341,6 +419,7 @@ class HomeWorkspace(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        self._recent_cards: list[RecentProjectCard] = []
 
     def _render_recent(self, projects: tuple[RecentProject, ...]) -> None:
         self._clear_recent()
@@ -361,6 +440,7 @@ class HomeWorkspace(QWidget):
             card.open_requested.connect(self.recent_open_requested.emit)
             card.remove_requested.connect(self.recent_remove_requested.emit)
             self.recent_row.addWidget(card, 1)
+            self._recent_cards.append(card)
         if len(projects) < 4:
             self.recent_row.addStretch(4 - len(projects))
 
