@@ -225,7 +225,7 @@ jobs:
       - name: Validate Windows reports
         shell: pwsh
         run: |
-          python - <<'PY'
+          @'
           import json
           import pathlib
           p=pathlib.Path('ui-golden-windows')
@@ -241,7 +241,7 @@ jobs:
           assert c['scale']==1.25
           assert d['scale']==1.5
           print('WINDOWS_STEP01_GATE_PASS')
-          PY
+          '@ | python -
 
       - name: Upload Windows UI evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
