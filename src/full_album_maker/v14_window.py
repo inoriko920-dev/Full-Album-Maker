@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from uuid import uuid4
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from .ai_editor_v14 import (
     V14AIEditorExecutor,
@@ -102,5 +102,11 @@ def run() -> int:
     from .foundation_window import FoundationMainWindow
 
     window = FoundationMainWindow()
+    # The deterministic fixture draws the app name inside the client area because
+    # offscreen capture cannot include native OS chrome. The real Windows window
+    # keeps that same horizontal lead space blank and uses the native title bar.
+    app_name = window.foundation_shell.command_bar.findChild(QLabel, "appName")
+    if app_name is not None:
+        app_name.setText("")
     window.show()
     return app.exec()
