@@ -9,7 +9,8 @@ from . import media_capture as base
 
 
 def _golden_fixture_assets():
-    values = list(base.fixture_assets_original())
+    source = getattr(base, "fixture_assets_original", base.fixture_assets)
+    values = list(source())
     output = []
     for index, asset in enumerate(values):
         memberships = []
