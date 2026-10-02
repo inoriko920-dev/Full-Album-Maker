@@ -5,6 +5,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication, QMenu
 
 from full_album_maker.media_library_model import MediaAsset, MediaLibraryIndex, MediaMetadata, MediaType, stable_asset_id
@@ -13,6 +14,13 @@ from full_album_maker.media_workspace import MediaWorkspace
 
 def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
+
+
+def _settle(ms: int = 120) -> None:
+    loop = QEventLoop()
+    QTimer.singleShot(ms, loop.quit)
+    loop.exec()
+    _app().processEvents()
 
 
 def _asset(tmp_path: Path, name: str = "clip.mp4") -> MediaAsset:
@@ -63,13 +71,18 @@ def test_completion_shared_shell_media_geometry_is_route_specific():
     window.resize(1672, 900)
     window.show()
     window.foundation_shell.set_workspace("media")
-    app.processEvents()
+    _settle()
     shell = window.foundation_shell
     assert shell.state.workspace == "media"
+    assert shell.workspace_stack.currentWidget() is window.media_workspace
     assert shell.context.width() in range(196, 216)
     assert shell.inspector.width() in range(274, 301)
     assert shell.timeline.height() in range(180, 205)
-    assert window.media_workspace._columns() == 5
+    assert window.media_workspace._columns() == 5, (
+        window.media_workspace.width(),
+        window.media_workspace.scroll.viewport().width(),
+        shell.workspace_stack.width(),
+    )
     window._saved_project_state = None
     window.close()
     app.processEvents()
