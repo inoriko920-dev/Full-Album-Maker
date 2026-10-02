@@ -12,8 +12,8 @@ from .ai_editor_v14 import (
     V14EditorAIContextBuilder,
 )
 from .editor_window import EditorMainWindow
+from .foundation_theme import FOUNDATION_STYLE
 from .gemini_agent import GeminiAgent
-from .style import APP_STYLE
 
 
 class V14EditorMainWindow(EditorMainWindow):
@@ -96,7 +96,11 @@ class V14EditorMainWindow(EditorMainWindow):
 
 def run() -> int:
     app = QApplication.instance() or QApplication([])
-    app.setStyleSheet(APP_STYLE)
-    window = V14EditorMainWindow()
+    app.setStyleSheet(FOUNDATION_STYLE)
+    # Deferred import avoids a class-definition cycle. The foundation window is
+    # a compatibility wrapper around V14EditorMainWindow, not a second app layer.
+    from .foundation_window import FoundationMainWindow
+
+    window = FoundationMainWindow()
     window.show()
     return app.exec()
