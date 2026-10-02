@@ -17,11 +17,16 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 }
 $ReleaseZipName = "Full-Album-Maker-v$Version-Windows-Portable.zip"
 
+# Keep the local release path aligned with CI. A developer running this script
+# should get the same dependency family, FFmpeg digest, font fallback, capability
+# report, checksum, and extracted-ZIP smoke contract as the GitHub Actions artifact.
 python -m pip install pip==26.2.1
 Assert-NativeSuccess "Pin pip"
 python -m pip install -r build/requirements-windows.lock
 Assert-NativeSuccess "Install dependency Python terkunci"
 
+# BtbN release 398275969 / asset 595476894, observed 2026-09-29.
+# Pin by release-asset API ID, not the mutable /download/latest/ alias.
 $FfmpegAssetId = "595476894"
 $FfmpegUrl = "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/assets/$FfmpegAssetId"
 $FfmpegSha256 = "e6db684f1527f4c2280b017c7af19ebd359424eee8b35974bc35b4d7ee110989"
@@ -129,11 +134,17 @@ try {
     $env:PYTHONPATH = $null
     $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
 
-    if (Get-Command python -ErrorAction SilentlyContinue) { throw "Smoke lokal gagal mengisolasi Python global." }
-    if (Get-Command ffmpeg -ErrorAction SilentlyContinue) { throw "Smoke lokal gagal mengisolasi FFmpeg global." }
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        throw "Smoke lokal gagal mengisolasi Python global."
+    }
+    if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+        throw "Smoke lokal gagal mengisolasi FFmpeg global."
+    }
 
     $SmokeProcess = Start-Process -FilePath $SmokeApp.FullName -ArgumentList "--portable-smoke" -Wait -PassThru
-    if ($SmokeProcess.ExitCode -ne 0) { throw "Portable smoke keluar dengan kode $($SmokeProcess.ExitCode)." }
+    if ($SmokeProcess.ExitCode -ne 0) {
+        throw "Portable smoke keluar dengan kode $($SmokeProcess.ExitCode)."
+    }
 }
 finally {
     $env:PATH = $OldPathForBuild
@@ -146,9 +157,15 @@ finally {
 $SmokeReport = Join-Path $SmokeApp.DirectoryName "temp\portable-smoke.json"
 if (-not (Test-Path $SmokeReport)) { throw "portable-smoke.json tidak dibuat." }
 $Smoke = Get-Content $SmokeReport -Raw | ConvertFrom-Json
-if (-not $Smoke.ok -or $Smoke.api_key_present) { throw "Portable smoke report tidak memenuhi kontrak offline." }
-if ($Smoke.output_streams -notcontains "audio" -or $Smoke.output_streams -notcontains "video") { throw "Portable smoke output belum terverifikasi audio+video." }
-if ($Smoke.gui_title -notlike "*v$Version*") { throw "GUI portable tidak menampilkan versi release $Version. Title: $($Smoke.gui_title)" }
+if (-not $Smoke.ok -or $Smoke.api_key_present) {
+    throw "Portable smoke report tidak memenuhi kontrak offline."
+}
+if ($Smoke.output_streams -notcontains "audio" -or $Smoke.output_streams -notcontains "video") {
+    throw "Portable smoke output belum terverifikasi audio+video."
+}
+if ($Smoke.gui_title -notlike "*v$Version*") {
+    throw "GUI portable tidak menampilkan versi release $Version. Title: $($Smoke.gui_title)"
+}
 
 Write-Host "Full Album Maker v$Version"
 Write-Host "Portable ZIP siap di: $Zip"
