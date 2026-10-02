@@ -53,6 +53,7 @@ jobs:
           python -m pytest -q \
             tests/test_step06_visual_precision.py \
             tests/test_step06_visual_assignment.py \
+            tests/test_step06_visual_preview_decode.py \
             tests/test_step06_visual_ui.py
       - name: Run recovered v1.3 Visual regression
         run: python -m pytest -q tests/test_editor_v2_v13_song_visuals.py
