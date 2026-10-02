@@ -98,7 +98,9 @@ class GlobalCommandBar(QFrame):
         shortcut = QShortcut(QKeySequence("Ctrl+I"), self)
         shortcut.activated.connect(import_button.showMenu)
         self._add(row, "auto", "Auto Susun", "auto", adapter.auto_arrange, "Ctrl+Shift+A")
-        self._add(row, "preview", "Preview", "preview", adapter.preview, "Space")
+        # Do not reserve plain Space as a WindowShortcut. A global Space shortcut
+        # prevents focused nav/buttons from receiving their native keyboard click.
+        self._add(row, "preview", "Preview", "preview", adapter.preview, "Ctrl+Space")
         row.addStretch(1)
         render = FAMButton("Render", icon_name="render", kind="primary")
         render.setToolTip("Buka workspace Render (Ctrl+R)")
@@ -108,9 +110,6 @@ class GlobalCommandBar(QFrame):
         row.addWidget(render)
         render_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
         render_shortcut.activated.connect(adapter.render_route)
-        space = QShortcut(QKeySequence(Qt.Key.Key_Space), self)
-        space.setContext(Qt.ShortcutContext.WindowShortcut)
-        space.activated.connect(self._preview_from_space)
         self.refresh_enabled()
 
     def _divider(self, row: QHBoxLayout) -> None:
