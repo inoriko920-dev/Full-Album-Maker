@@ -17,15 +17,15 @@ def fixture_state():
     )
 
     recents = [
-        RecentProject("fixture-1", "C:/Fixtures/Senja di Kota Ini.json", "Senja di Kota Ini", 40, 10, 42 * 60 + 18, availability=RecentAvailability.AVAILABLE),
-        RecentProject("fixture-2", "C:/Fixtures/Jalan Pulang.json", "Jalan Pulang", 30, 12, 38 * 60 + 5, availability=RecentAvailability.AVAILABLE),
-        RecentProject("fixture-3", "C:/Fixtures/Perjalanan Kita.json", "Perjalanan Kita", 20, 11, 45 * 60 + 27, availability=RecentAvailability.AVAILABLE),
-        RecentProject("fixture-4", "C:/Fixtures/Cerita Baru.json", "Cerita Baru", 10, 9, 36 * 60 + 14, availability=RecentAvailability.AVAILABLE),
+        RecentProject("fixture-1", "C:/Fixtures/Senja di Kota Ini.json", "Senja di Kota Ini", 1736692320.0, 10, 42 * 60 + 18, availability=RecentAvailability.AVAILABLE),
+        RecentProject("fixture-2", "C:/Fixtures/Jalan Pulang.json", "Jalan Pulang", 1736519520.0, 12, 38 * 60 + 5, availability=RecentAvailability.AVAILABLE),
+        RecentProject("fixture-3", "C:/Fixtures/Perjalanan Kita.json", "Perjalanan Kita", 1736346720.0, 11, 45 * 60 + 27, availability=RecentAvailability.AVAILABLE),
+        RecentProject("fixture-4", "C:/Fixtures/Cerita Baru.json", "Cerita Baru", 1736087520.0, 9, 36 * 60 + 14, availability=RecentAvailability.AVAILABLE),
     ]
     recovery = RecoveryCandidate(
         candidate_id="fixture-recovery",
         path="C:/Fixtures/recovery/home_autosave.json",
-        timestamp=1736667120.0,
+        timestamp=1736692320.0,
         project_identity="fixture-project",
         validation_state=RecoveryValidation.VALID,
     )
@@ -70,10 +70,6 @@ def capture(output: Path, width: int = 1672, height: int = 941, scale: float = 1
     shell.workspace_stack.removeWidget(old)
     old.setParent(None)
     shell.workspace_stack.insertWidget(home_index, home)
-    # QStackedWidget selects the next page when its current page is removed.
-    # State is already "home", so FoundationUiState.set_workspace("home") is a
-    # no-op. Select the newly inserted Beranda explicitly instead of silently
-    # capturing the Media placeholder with a Beranda nav selection.
     shell.workspace_stack.setCurrentWidget(home)
     shell.inspector.content.set_properties_widget(HomeInspectorWidget(home_state))
     shell.set_workspace("home")
