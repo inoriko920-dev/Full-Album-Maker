@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from uuid import uuid4
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from .ai_editor_v14 import (
     V14AIEditorExecutor,
@@ -12,8 +12,9 @@ from .ai_editor_v14 import (
     V14EditorAIContextBuilder,
 )
 from .editor_window import EditorMainWindow
+from .foundation_font import install_foundation_font
+from .foundation_theme import FOUNDATION_STYLE
 from .gemini_agent import GeminiAgent
-from .style import APP_STYLE
 
 
 class V14EditorMainWindow(EditorMainWindow):
@@ -96,7 +97,18 @@ class V14EditorMainWindow(EditorMainWindow):
 
 def run() -> int:
     app = QApplication.instance() or QApplication([])
-    app.setStyleSheet(APP_STYLE)
-    window = V14EditorMainWindow()
+    install_foundation_font(app)
+    app.setStyleSheet(FOUNDATION_STYLE)
+    # Deferred import avoids a class-definition cycle. The foundation window is
+    # a compatibility wrapper around V14EditorMainWindow, not a second app layer.
+    from .foundation_window import FoundationMainWindow
+
+    window = FoundationMainWindow()
+    # The deterministic fixture draws the app name inside the client area because
+    # offscreen capture cannot include native OS chrome. The real Windows window
+    # keeps that same horizontal lead space blank and uses the native title bar.
+    app_name = window.foundation_shell.command_bar.findChild(QLabel, "appName")
+    if app_name is not None:
+        app_name.setText("")
     window.show()
     return app.exec()

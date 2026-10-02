@@ -62,3 +62,52 @@ The nine golden UI images were hash-verified and frozen as reference evidence on
 ## R0 readiness
 
 The source baseline is sufficiently trustworthy to begin UI foundation work **only with explicit awareness of the unresolved v1.4.1 exact-source/build gaps**. Final decision is recorded in `HANDOFF_STEP00.md`.
+
+---
+
+# STEP 01 State Extension — Foundation UI & Design System
+
+This section extends the preserved STEP 00 state; it does not rewrite the R0 provenance above.
+
+## STEP 01 branch and validated point
+
+```text
+working_branch: ui/step-01-foundation
+step00_recovery_head: 87860b7281c3c5e9731ccf082dac84ab14624402
+validated_step01_runtime_head: 084808da876d2bfd8a72764e7951515578a1a995
+authoritative_workflow_run: 36977769859
+workflow_run_number: 23
+workflow_result: success
+```
+
+## STEP 01 validation closure
+
+- Linux focused foundation tests: **15 passed**.
+- Linux full recovered regression: **246 passed, 88 skipped**.
+- Windows focused foundation tests: **15 passed**.
+- Linux all-nine 1672×941 route captures: **PASS**.
+- deterministic Home repeat diff: **0.0 normalized absolute difference**.
+- 1366×768 compact-state evidence: **PASS on Linux and Windows**.
+- 125% and 150% DPI evidence: **PASS on Linux and Windows**.
+- high-confidence secret scan: **PASS**.
+- Linux evidence validator: **PASS**.
+- Windows geometry validator: **PASS**.
+- evidence artifacts: **uploaded successfully**.
+
+## STEP 01 final decision
+
+**READY_WITH_LIMITATIONS**
+
+The shared white-blue shell, design tokens, navigation, workspace host, shared right dock, shared timeline dock, status/event model, responsive behavior, preferences, command adapters, screenshot harness, and evidence pipeline are established and validated.
+
+The exact external multi-megabyte golden PNG binaries are not checked into the branch/CI, so exact all-nine whole-window raster overlay against those original binary files is not claimed. Their hashes remain frozen in `docs/ui-reference/manifest.json`, and the harness is prepared to compare them without resizing when supplied.
+
+Workspace bodies remain deliberately deferred to STEP 02–10. STEP 02 should begin with Beranda content only and must reuse the shared STEP 01 foundation rather than rebuilding shell/navigation/docks/timeline/status.
+
+Canonical STEP 01 closure records:
+
+- `docs/ui-foundation/BASELINE.md`
+- `docs/ui-foundation/STEP01_TEST_REPORT.md`
+- `docs/ui-foundation/UI_FOUNDATION_MAP.md`
+- `docs/ui-foundation/KNOWN_LIMITATIONS.md`
+- `docs/ui-foundation/HANDOFF_STEP01.md`
