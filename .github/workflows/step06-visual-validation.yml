@@ -1,0 +1,54 @@
+name: STEP06 Visual validation
+
+on:
+  push:
+    branches:
+      - ui/step-06-visual
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-visual:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Checkout STEP06 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 ffmpeg
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run STEP06 per-song Visual contract tests
+        run: python -m pytest -q tests/test_step06_visual_precision.py
+      - name: Run recovered v1.3 Visual regression
+        run: python -m pytest -q tests/test_editor_v2_v13_song_visuals.py
+      - name: Run STEP05 Timeline regression gate
+        run: |
+          python -m pytest -q \
+            tests/test_step05_timeline_precision.py \
+            tests/test_step05_timeline_audio.py \
+            tests/test_step05_timeline_ui.py \
+            tests/test_step05_timeline_integration.py \
+            tests/test_step05_timeline_render_mix.py \
+            tests/test_step05_timeline_completion.py
+      - name: Run full recovered regression suite
+        run: python -m pytest -q --disable-warnings
