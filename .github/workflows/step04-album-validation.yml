@@ -1,0 +1,53 @@
+name: STEP04 Album validation
+
+on:
+  push:
+    branches:
+      - ui/step-04-album
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-album:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Checkout STEP04 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run STEP04 album model tests
+        run: python -m pytest -q tests/test_step04_album_model.py
+      - name: Run STEP03 regressions
+        run: |
+          python -m pytest -q \
+            tests/test_step03_media_model.py \
+            tests/test_step03_media_services.py \
+            tests/test_step03_media_ui.py \
+            tests/test_step03_completion.py \
+            tests/test_step03_preview_cache_final.py
+      - name: Run recovered media regressions
+        run: python -m pytest -q tests/test_async_import.py tests/test_ui_media_regressions.py
+      - name: Run full recovered regression suite
+        run: python -m pytest -q --disable-warnings
