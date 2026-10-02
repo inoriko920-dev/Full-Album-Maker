@@ -43,6 +43,14 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
 
+      - name: Stage pinned Noto Sans visual-QA font
+        run: |
+          mkdir -p assets/fonts
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" \
+            --output assets/fonts/NotoSans.ttf
+          test $(stat -c%s assets/fonts/NotoSans.ttf) -gt 1000000
+
       - name: Verify frozen golden manifest
         run: |
           python - <<'PY'
@@ -101,7 +109,15 @@ jobs:
           QT_SCALE_FACTOR=1.5 python -m full_album_maker.foundation_capture --workspace home --width 1672 --height 941 --scale 1.5 --output ui-golden/current/foundation-150dpi.png --report ui-golden/reports/dpi-150.json
 
       - name: Validate shell landmark reports and screenshot evidence
-        run: python tests/step01_validate_evidence.py --root ui-golden
+        run: |
+          python tests/step01_validate_evidence.py --root ui-golden
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          g=json.loads(Path('ui-golden/reports/home.json').read_text())['geometry']
+          assert 'Noto Sans' in g['font_family'], g
+          print('FONT_GATE_PASS', g['font_family'])
+          PY
 
       - name: High-confidence secret scan
         run: |
@@ -160,6 +176,14 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
 
+      - name: Stage pinned Noto Sans visual-QA font
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets\fonts | Out-Null
+          $url = "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf"
+          Invoke-WebRequest -Uri $url -OutFile assets\fonts\NotoSans.ttf
+          if ((Get-Item assets\fonts\NotoSans.ttf).Length -lt 1000000) { throw "Noto Sans QA font incomplete" }
+
       - name: Compile and run STEP01 Windows tests
         shell: pwsh
         run: |
@@ -196,7 +220,8 @@ jobs:
           assert b['nav_right'] + 1 <= 80
           assert c['scale']==1.25
           assert d['scale']==1.5
-          print('WINDOWS_STEP01_GATE_PASS')
+          assert 'Noto Sans' in a['font_family'], a
+          print('WINDOWS_STEP01_GATE_PASS', a['font_family'])
           '@ | python -
 
       - name: Upload Windows UI evidence
