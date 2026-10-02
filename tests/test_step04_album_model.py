@@ -31,13 +31,17 @@ def make_document(count: int = 100) -> ProjectDocument:
             metadata={"title": title},
         )
         doc.media.append(audio)
+        # Golden fixture contract: 12 without cover, 18 without visual, and
+        # exactly six review rows (missing cover while a visual is already set).
+        cover_id = cover.asset_id if index >= 12 else None
+        visual_id = None if 6 <= index < 24 else visual.asset_id
         doc.playlist.entries.append(
             SongInstance(
                 asset_id=audio.asset_id,
                 display_title=title,
                 source_out_tick=audio.source_duration_tick,
-                cover_asset_id=cover.asset_id if index >= 12 else None,
-                visual_asset_id=visual.asset_id if index >= 18 else None,
+                cover_asset_id=cover_id,
+                visual_asset_id=visual_id,
             )
         )
     doc.validate()
@@ -61,13 +65,15 @@ def test_100_song_album_is_paged_and_counts_are_live():
 
 
 def test_statuses_come_from_actual_cover_and_visual_state():
-    doc = make_document(20)
+    doc = make_document(30)
     values = rows(doc)
-    assert values[0].status == "Belum Ada Visual"
-    assert values[12].status == "Belum Ada Visual"
-    assert values[17].status == "Belum Ada Visual"
-    assert values[18].status == "Siap"
+    assert values[0].status == "Perlu Ditinjau"
+    assert values[5].status == "Perlu Ditinjau"
+    assert values[6].status == "Belum Ada Visual"
+    assert values[23].status == "Belum Ada Visual"
+    assert values[24].status == "Siap"
     review = rows(doc, "review")
+    assert len(review) == 6
     assert all(item.status == "Perlu Ditinjau" for item in review)
 
 
