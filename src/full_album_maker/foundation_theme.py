@@ -77,6 +77,9 @@ QPushButton#navButton:checked {{
 }}
 QPushButton#tabButton {{
     min-height: 37px;
+    min-width: 78px;
+    padding-left: 12px;
+    padding-right: 12px;
     border-radius: 0px;
     border: none;
     border-bottom: 2px solid transparent;
