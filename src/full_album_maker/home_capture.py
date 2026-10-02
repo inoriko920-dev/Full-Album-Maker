@@ -160,7 +160,10 @@ def capture(
     shell.workspace_stack.removeWidget(old)
     old.setParent(None)
     shell.workspace_stack.insertWidget(home_index, home)
-    shell.inspector.content.set_properties_widget(HomeInspectorWidget(home_state))
+    inspector = HomeInspectorWidget(home_state)
+    if fixture == "output-invalid":
+        inspector.set_output_warning("Pilih lokasi output yang dapat ditulis.")
+    shell.inspector.content.set_properties_widget(inspector)
     shell.set_workspace("home")
     shell.workspace_stack.setCurrentWidget(home)
     state.set_status(
@@ -215,6 +218,7 @@ def capture(
         "recent_cards": min(4, len(home_state.recent_projects)),
         "recent_empty": len(home_state.recent_projects) == 0,
         "output_invalid": home_state.mode.value == "HOME_OUTPUT_INVALID",
+        "output_warning_visible": bool(inspector.output_warning.text()),
     }
     window.close()
     return geometry
