@@ -7,7 +7,10 @@ def foundation_stylesheet() -> str:
     t = TOKENS
     return f"""
 * {{
-    font-family: "Noto Sans", "Segoe UI", sans-serif;
+    /* Do not force a missing font family here. Qt/Windows must use the
+       framework/system general font unless a bundled application font is
+       explicitly registered by the portable build. This prevents tofu boxes
+       on Windows offscreen/native font backends. */
     font-size: 13px;
     color: {t.text_primary};
 }}
