@@ -84,3 +84,24 @@ def test_capability_warning_does_not_destroy_recovery_or_error_primary_state():
 
     errored = state.fail("PROJECT_CORRUPT", "Rusak")
     assert errored.with_capabilities(warning).mode == HomeMode.OPEN_ERROR
+
+
+def test_replacing_selected_home_placeholder_keeps_beranda_active():
+    app = _app()
+    from full_album_maker.foundation_shell import FoundationCommandAdapter, FoundationShellWidget, FoundationUiState
+
+    shell = FoundationShellWidget(
+        state=FoundationUiState(),
+        adapter=FoundationCommandAdapter(can_save=lambda: True, can_project_action=lambda: True),
+    )
+    assert shell.state.workspace == "home"
+    home = HomeWorkspace(state=fixture_state())
+    index = shell.workspace_stack._index["home"]
+    old = shell.workspace_stack.widget(index)
+    assert shell.workspace_stack.currentWidget() is old
+    shell.workspace_stack.removeWidget(old)
+    old.setParent(None)
+    shell.workspace_stack.insertWidget(index, home)
+    app.processEvents()
+    assert shell.workspace_stack.currentWidget() is home
+    assert shell.state.workspace == "home"
