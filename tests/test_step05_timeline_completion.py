@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 
+def _install_completion() -> None:
+    from full_album_maker.timeline_completion_step05 import install_step05_timeline_completion
+
+    install_step05_timeline_completion()
+
+
 def test_completion_layer_exposes_marker_actions(qapp):
-    import full_album_maker.main  # noqa: F401
+    _install_completion()
 
     from full_album_maker.timeline_workspace_step05 import TimelineContextWidget
 
@@ -13,7 +19,7 @@ def test_completion_layer_exposes_marker_actions(qapp):
 
 
 def test_timeline_keyboard_navigation_emits_real_playhead_targets(qapp):
-    import full_album_maker.main  # noqa: F401
+    _install_completion()
 
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest
@@ -55,7 +61,7 @@ def test_timeline_keyboard_navigation_emits_real_playhead_targets(qapp):
 
 
 def test_preview_aspect_control_changes_display_frame_without_project_mutation(qapp):
-    import full_album_maker.main  # noqa: F401
+    _install_completion()
 
     from full_album_maker.timeline_workspace_step05 import TimelinePreviewWorkspace
 
