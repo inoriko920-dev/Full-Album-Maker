@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 
+from .foundation_tokens import TOKENS
+
 
 def _prepare_qt(scale: float) -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -18,7 +20,10 @@ def _difference(current: Path, golden: Path, out_dir: Path) -> dict[str, object]
     a = Image.open(current).convert("RGBA")
     b = Image.open(golden).convert("RGBA")
     if a.size != b.size:
-        b = b.resize(a.size)
+        raise ValueError(
+            f"Golden size {b.size} tidak sama dengan current {a.size}; "
+            "golden tidak boleh di-resize untuk membuat hasil terlihat cocok."
+        )
     overlay = Image.blend(b, a, 0.5)
     overlay_path = out_dir / f"{current.stem}-overlay.png"
     overlay.save(overlay_path)
@@ -35,6 +40,77 @@ def _difference(current: Path, golden: Path, out_dir: Path) -> dict[str, object]
     }
 
 
+def _compose_native_title_preview(client_pixmap, title_height_logical: int, scale: float):
+    """Add deterministic native-title evidence above the captured Qt client.
+
+    Production keeps normal Windows chrome. Qt offscreen `window.grab()` captures
+    only the client area, while the frozen 1672x941 design references include a
+    thin native title row. The harness therefore draws a neutral Windows-like
+    title strip only into evidence output; it is not an application widget and
+    cannot become a duplicate production title bar.
+    """
+    from PySide6.QtCore import QRect, QRectF, Qt
+    from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
+
+    client = client_pixmap.toImage()
+    client.setDevicePixelRatio(1.0)
+    title_px = max(1, int(round(title_height_logical * scale)))
+    width_px = client.width()
+    canvas = QImage(
+        width_px,
+        client.height() + title_px,
+        QImage.Format.Format_ARGB32_Premultiplied,
+    )
+    canvas.setDevicePixelRatio(1.0)
+    canvas.fill(QColor("#F8FBFF"))
+
+    p = QPainter(canvas)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    p.fillRect(QRect(0, 0, width_px, title_px), QColor("#F8FBFF"))
+    p.setPen(QPen(QColor(TOKENS.border), max(1, int(round(scale)))))
+    p.drawLine(0, title_px - 1, width_px, title_px - 1)
+
+    # Compact brand mark + title, matching the calm native chrome in references.
+    pad = max(8, int(round(13 * scale)))
+    logo = max(14, int(round(18 * scale)))
+    logo_y = max(4, (title_px - logo) // 2)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(TOKENS.primary_600))
+    p.drawRoundedRect(QRectF(pad, logo_y, logo, logo), 3 * scale, 3 * scale)
+    p.setPen(QColor("#FFFFFF"))
+    icon_font = QFont("Segoe UI")
+    icon_font.setPixelSize(max(8, int(round(10 * scale))))
+    icon_font.setBold(True)
+    p.setFont(icon_font)
+    p.drawText(QRectF(pad, logo_y, logo, logo), Qt.AlignmentFlag.AlignCenter, "▶")
+
+    title_font = QFont("Noto Sans")
+    title_font.setPixelSize(max(10, int(round(12 * scale))))
+    title_font.setWeight(QFont.Weight.DemiBold)
+    p.setFont(title_font)
+    p.setPen(QColor(TOKENS.text_primary))
+    title_x = pad + logo + max(7, int(round(8 * scale)))
+    p.drawText(
+        QRectF(title_x, 0, max(160, int(round(240 * scale))), title_px),
+        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+        "Full Album Maker",
+    )
+
+    # Deterministic preview of native min/max/close affordances.
+    control_w = max(34, int(round(42 * scale)))
+    control_font = QFont("Segoe UI")
+    control_font.setPixelSize(max(9, int(round(11 * scale))))
+    p.setFont(control_font)
+    p.setPen(QColor("#53627A"))
+    for offset, symbol in enumerate(("−", "□", "×")):
+        x = width_px - control_w * (3 - offset)
+        p.drawText(QRectF(x, 0, control_w, title_px), Qt.AlignmentFlag.AlignCenter, symbol)
+
+    p.drawImage(QRect(0, title_px, client.width(), client.height()), client)
+    p.end()
+    return canvas
+
+
 def capture(workspace: str, output: Path, width: int, height: int, scale: float) -> dict[str, object]:
     _prepare_qt(scale)
     from PySide6.QtCore import QEventLoop, QTimer
@@ -43,20 +119,27 @@ def capture(workspace: str, output: Path, width: int, height: int, scale: float)
     from .foundation_shell import FoundationFixtureWindow
 
     app = QApplication.instance() or QApplication([])
+    # Golden dimensions represent the outer window. Production uses native
+    # Windows chrome; offscreen evidence reserves the same logical height.
+    client_height = max(320, height - TOKENS.title_height)
     window = FoundationFixtureWindow(workspace)
-    window.resize(width, height)
+    window.resize(width, client_height)
     window.show()
     loop = QEventLoop()
     QTimer.singleShot(180, loop.quit)
     loop.exec()
     app.processEvents()
+
     pix = window.grab()
+    framed = _compose_native_title_preview(pix, TOKENS.title_height, scale)
     output.parent.mkdir(parents=True, exist_ok=True)
-    if not pix.save(str(output), "PNG"):
+    if not framed.save(str(output), "PNG"):
         raise RuntimeError(f"Gagal menyimpan screenshot: {output}")
+
     geometry = {
-        "window": [window.width(), window.height()],
-        "command_bottom": window.shell.command_bar.geometry().bottom(),
+        "window": [width, height],
+        "title_bottom": TOKENS.title_height - 1,
+        "command_bottom": TOKENS.title_height + window.shell.command_bar.geometry().bottom(),
         "nav_right": window.shell.navigation.geometry().right(),
         "right_dock_width": window.shell.inspector.width(),
         "timeline_height": window.shell.timeline.height(),
