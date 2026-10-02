@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from .media_feature import install_step03_media
 from .media_completion import install_step03_media_completion
+from .media_layout_fix import install_step03_media_layout_fix
 from . import media_capture as base
 
 
@@ -29,6 +30,7 @@ def _golden_fixture_assets():
 def main(argv: list[str] | None = None) -> int:
     install_step03_media()
     install_step03_media_completion()
+    install_step03_media_layout_fix()
     if not hasattr(base, "fixture_assets_original"):
         base.fixture_assets_original = base.fixture_assets
     base.fixture_assets = _golden_fixture_assets
