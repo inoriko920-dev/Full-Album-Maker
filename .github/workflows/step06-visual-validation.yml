@@ -29,7 +29,11 @@ jobs:
       - name: Install Linux Qt runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 ffmpeg
+          # Keep the full-regression environment aligned with STEP05.
+          # STEP06 contract tests compile FFmpeg graphs but do not execute FFmpeg.
+          # Installing Ubuntu's system FFmpeg here would activate legacy tests
+          # intended for the pinned Windows FFmpeg build and create false failures.
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - name: Install project
         run: |
           python -m pip install --upgrade pip
