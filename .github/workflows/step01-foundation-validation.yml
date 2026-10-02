@@ -161,3 +161,55 @@ jobs:
           name: step01-ui-evidence
           path: ui-golden/
           if-no-files-found: error
+
+  validate-windows-foundation:
+    runs-on: windows-2025
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Checkout STEP01 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up target Python 3.12.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.10'
+
+      - name: Install project
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+
+      - name: Compile and run STEP01 Windows tests
+        shell: pwsh
+        run: |
+          python -m compileall -q src
+          python -m pytest -q tests/test_step01_foundation.py tests/test_step01_acceptance.py
+
+      - name: Capture Windows 100 125 150 percent and compact states
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ui-golden-windows | Out-Null
+          $env:QT_SCALE_FACTOR='1'
+          python -m full_album_maker.foundation_capture --workspace home --output ui-golden-windows/foundation-home-100.png --report ui-golden-windows/home-100.json
+          python -m full_album_maker.foundation_capture --workspace media --width 1366 --height 768 --output ui-golden-windows/foundation-1366.png --report ui-golden-windows/compact-1366.json
+          $env:QT_SCALE_FACTOR='1.25'
+          python -m full_album_maker.foundation_capture --workspace home --scale 1.25 --output ui-golden-windows/foundation-home-125.png --report ui-golden-windows/home-125.json
+          $env:QT_SCALE_FACTOR='1.5'
+          python -m full_album_maker.foundation_capture --workspace home --scale 1.5 --output ui-golden-windows/foundation-home-150.png --report ui-golden-windows/home-150.json
+
+      - name: Validate Windows reports
+        shell: pwsh
+        run: |
+          python -c "import json,pathlib; p=pathlib.Path('ui-golden-windows'); a=json.loads((p/'home-100.json').read_text()); b=json.loads((p/'compact-1366.json').read_text()); assert a['geometry']['window']==[1672,941]; assert b['geometry']['window']==[1366,768]; print('WINDOWS_STEP01_GATE_PASS')"
+
+      - name: Upload Windows UI evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: step01-ui-evidence-windows
+          path: ui-golden-windows/
+          if-no-files-found: error
