@@ -153,6 +153,13 @@ def _draft_for_descriptor(self, descriptor: TemplateStudioDescriptor) -> Templat
     return draft
 
 
+def _inspector_draft(self) -> TemplateStudioDraft:
+    draft = self.template_inspector_s07.draft()
+    draft.ratio = self.template_context_s07.ratio_key
+    draft.validate()
+    return draft
+
+
 def _refresh(self) -> None:
     if not hasattr(self, "template_workspace_s07"):
         return
@@ -299,7 +306,7 @@ def _draft_changed(self) -> None:
     if not self._s07_selected_template_id:
         return
     try:
-        draft = self.template_inspector_s07.draft()
+        draft = self._s07_inspector_draft()
         self._s07_drafts[draft.template_id] = draft
         self._s07_preview()
     except Exception as exc:
@@ -309,7 +316,7 @@ def _draft_changed(self) -> None:
 def _preview(self) -> None:
     try:
         descriptor = self._s07_current_descriptor()
-        draft = self.template_inspector_s07.draft()
+        draft = self._s07_inspector_draft()
         self._s07_drafts[draft.template_id] = draft
         targets = self._s07_scope_targets()
         custom = self._s07_custom_for_descriptor(descriptor)
@@ -346,7 +353,7 @@ def _dispatch(self, commands, message: str) -> bool:
 def _apply(self) -> None:
     try:
         descriptor = self._s07_current_descriptor()
-        draft = self.template_inspector_s07.draft()
+        draft = self._s07_inspector_draft()
         targets = self._s07_scope_targets()
         custom = self._s07_custom_for_descriptor(descriptor)
         commands = build_template_apply_commands(
@@ -402,7 +409,7 @@ def _create_custom(self) -> None:
 def _duplicate(self) -> None:
     try:
         descriptor = self._s07_current_descriptor()
-        draft = self.template_inspector_s07.draft()
+        draft = self._s07_inspector_draft()
         targets = self._s07_scope_targets()
         source_custom = self._s07_custom_for_descriptor(descriptor)
         item = duplicate_portable_template(
@@ -428,7 +435,7 @@ def _save_custom(self) -> None:
         if descriptor.origin != ORIGIN_CUSTOM:
             raise ValueError("Built-in immutable. Duplikat terlebih dahulu untuk mengedit sebagai Custom.")
         existing = self._s07_store.load(descriptor.template_id)
-        draft = self.template_inspector_s07.draft()
+        draft = self._s07_inspector_draft()
         targets = self._s07_scope_targets()
         save_custom_draft(
             self.editor_workspace.document(),
@@ -486,6 +493,7 @@ def install_step07_template() -> None:
     Window._s07_load_catalog = _load_catalog
     Window._s07_descriptor_map = _descriptor_map
     Window._s07_draft_for_descriptor = _draft_for_descriptor
+    Window._s07_inspector_draft = _inspector_draft
     Window._s07_refresh = _refresh
     Window._s07_request_thumbnails = _request_thumbnails
     Window._s07_thumbnail_ready = _thumbnail_ready
