@@ -237,7 +237,11 @@ def apply_settings_to_snapshot(job: RenderJob, encoder: str):
     settings.validate()
     document.canvas.width = int(settings.width)
     document.canvas.height = int(settings.height)
-    document.canvas.fps = int(settings.fps)
+    # CanvasSettings persists FPS as an explicit rational. Writing a dynamic
+    # `fps` attribute would be ignored by the recovered compiler, which reads
+    # fps_num/fps_den and would silently keep the project default (typically 30).
+    document.canvas.fps_num = int(settings.fps)
+    document.canvas.fps_den = 1
     document.render_settings = dict(document.render_settings)
     document.render_settings["codec"] = settings.video_codec
     document.render_settings["audio_bitrate"] = _bitrate_string(settings.audio_bitrate_bps)
