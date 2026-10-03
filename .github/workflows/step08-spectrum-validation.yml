@@ -43,6 +43,11 @@ jobs:
           python -m pytest -q \
             tests/test_step08_spectrum_model.py \
             tests/test_step08_spectrum_render.py
+      - name: Run STEP08 workspace and async preview tests
+        run: |
+          python -m pytest -q \
+            tests/test_step08_spectrum_ui.py \
+            tests/test_step08_spectrum_preview_async.py
       - name: Run recovered Spectrum regression
         run: |
           python -m pytest -q \
