@@ -150,6 +150,10 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
     STEP06 keeps the recovered v1.3 composition path and adds per-song
     non-destructive visual overrides. Projects without STEP06 metadata retain the
     original shared-layer behavior through the fallback contract.
+
+    STEP09 prerequisite adds one normal Visual-domain field, ``video_speed``.
+    It changes only video timestamps in the visual filter chain. Audio events,
+    song timing, render-plan duration, and audible gain remain untouched.
     """
 
     def compile_video(
@@ -322,6 +326,13 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
                         fps=fps,
                         duration=visual_duration,
                     )
+                else:
+                    speed = float(props["video_speed"])
+                    if abs(speed - 1.0) > 1e-9:
+                        # FFmpeg video slow/fast motion is local to this visual
+                        # stream. 0.5x => timestamps doubled; master audio is not
+                        # routed through this chain.
+                        chain += f",setpts=PTS/{speed:.8f}"
                 chain += f",fps={fps:g}"
                 if asset.kind == "video" and props["freeze_end"]:
                     # Extend the decoded source by cloning its last frame. The
@@ -332,9 +343,7 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
                     "setpts=PTS-STARTPTS,format=rgba"
                 )
                 if props["transition"] == "fade" and transition > 0:
-                    chain += (
-                        f",fade=t=in:st=0:d={transition:.6f}:alpha=1"
-                    )
+                    chain += f",fade=t=in:st=0:d={transition:.6f}:alpha=1"
                 chain += f",colorchannelmixer=aa={opacity:.6f}{rotate}"
                 if start_seconds > 0:
                     chain += f",setpts=PTS+{start_seconds:.6f}/TB"
