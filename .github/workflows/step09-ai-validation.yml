@@ -38,8 +38,11 @@ jobs:
           python -m pip install -e .
       - name: Compile source
         run: python -m compileall -q src
-      - name: Run STEP09 modern slowmo prerequisite tests
-        run: python -m pytest -q tests/test_step09_slowmo_contract.py
+      - name: Run STEP09 focused core tests
+        run: |
+          python -m pytest -q \
+            tests/test_step09_slowmo_contract.py \
+            tests/test_step09_agent_core.py
       - name: Run recovered AI atomic regression
         run: |
           python -m pytest -q \
