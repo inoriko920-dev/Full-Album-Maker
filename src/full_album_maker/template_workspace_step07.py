@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from pathlib import Path
 from typing import Iterable
 
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -158,7 +158,23 @@ class TemplateThumbnailPlaceholder(QWidget):
         super().__init__(parent)
         self.name = name
         self.template_id = template_id
+        self._pixmap = QPixmap()
+        self._status = "FALLBACK"
         self.setMinimumHeight(98)
+
+    @property
+    def thumbnail_status(self) -> str:
+        return self._status
+
+    def set_image_path(self, path: str, status: str = "RENDERED") -> None:
+        pixmap = QPixmap(str(path)) if path and Path(path).is_file() else QPixmap()
+        if not pixmap.isNull():
+            self._pixmap = pixmap
+            self._status = status
+        elif status == "FALLBACK":
+            self._pixmap = QPixmap()
+            self._status = "FALLBACK"
+        self.update()
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
@@ -167,14 +183,25 @@ class TemplateThumbnailPlaceholder(QWidget):
         painter.fillRect(rect, QColor("#EAF3FF"))
         painter.setPen(QPen(QColor("#BFD6F4"), 1))
         painter.drawRoundedRect(rect, 8, 8)
-        inner = rect.adjusted(14, 12, -14, -12)
-        painter.fillRect(inner, QColor("#10234A"))
-        painter.setPen(QColor("#FFFFFF"))
-        painter.drawText(
-            inner.adjusted(10, 8, -10, -8),
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom,
-            self.name,
-        )
+        inner = rect.adjusted(6, 6, -6, -6)
+        if not self._pixmap.isNull():
+            target = inner.toRect()
+            scaled = self._pixmap.scaled(
+                target.size(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            source_x = max(0, (scaled.width() - target.width()) // 2)
+            source_y = max(0, (scaled.height() - target.height()) // 2)
+            painter.drawPixmap(target, scaled, scaled.rect().adjusted(source_x, source_y, -source_x, -source_y))
+        else:
+            painter.fillRect(inner, QColor("#10234A"))
+            painter.setPen(QColor("#FFFFFF"))
+            painter.drawText(
+                inner.adjusted(10, 8, -10, -8),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom,
+                self.name,
+            )
         painter.end()
 
 
@@ -198,7 +225,8 @@ class TemplateCard(FAMCard):
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(5)
-        root.addWidget(TemplateThumbnailPlaceholder(descriptor.name, descriptor.template_id))
+        self.thumbnail = TemplateThumbnailPlaceholder(descriptor.name, descriptor.template_id)
+        root.addWidget(self.thumbnail)
 
         top = QHBoxLayout()
         badge = QLabel("Built-in" if descriptor.origin == ORIGIN_BUILT_IN else "Custom")
@@ -338,6 +366,11 @@ class TemplateGalleryWorkspace(QFrame):
         self.empty.setText("Tidak ada template yang cocok dengan filter." if not items else "")
         if items:
             self.grid.setRowStretch((len(items) + 3) // 4, 1)
+
+    def set_thumbnail(self, template_id: str, path: str, status: str) -> None:
+        card = self._cards.get(str(template_id))
+        if card is not None:
+            card.thumbnail.set_image_path(path, status)
 
     def _select(self, template_id: str) -> None:
         if template_id == self._selected_id:
