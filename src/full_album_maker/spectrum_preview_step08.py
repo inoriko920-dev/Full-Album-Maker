@@ -7,7 +7,7 @@ from pathlib import Path
 import threading
 from typing import Callable
 
-from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 
 from .editor_models import ProjectDocument
@@ -35,7 +35,15 @@ class SpectrumPreviewCanvas(PreviewCanvas):
             props = normalize_spectrum_properties({})
         color = QColor(props["accent_color"])
         color.setAlphaF(max(0.0, min(1.0, float(layer.opacity))))
-        pen_width = max(1.0, min(10.0, float(props["thickness"]) * min(rect.width(), rect.height()) / 1080.0))
+        pen_width = max(
+            1.0,
+            min(
+                10.0,
+                float(props["thickness"])
+                * min(rect.width(), rect.height())
+                / 1080.0,
+            ),
+        )
         painter.setPen(QPen(color, pen_width))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         if props["spectrum_type"] == "circular":
@@ -59,7 +67,10 @@ class SpectrumPreviewCanvas(PreviewCanvas):
             baseline = max(2.0, rect.height() * 0.05)
             for index in range(count):
                 x = rect.left() + (index + 0.5) * rect.width() / count
-                painter.drawLine(QPointF(x, rect.bottom()), QPointF(x, rect.bottom() - baseline))
+                painter.drawLine(
+                    QPointF(x, rect.bottom()),
+                    QPointF(x, rect.bottom() - baseline),
+                )
 
 
 PreviewServiceFactory = Callable[[], AccuratePreviewService]
@@ -77,10 +88,17 @@ class SpectrumAccuratePreview(QObject):
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self.cache_root = Path(cache_root) if cache_root is not None else temp_dir() / "spectrum-preview-step08-v1"
+        self.cache_root = (
+            Path(cache_root)
+            if cache_root is not None
+            else temp_dir() / "spectrum-preview-step08-v1"
+        )
         self.cache_root.mkdir(parents=True, exist_ok=True)
         self._service_factory = service_factory or AccuratePreviewService
-        self._executor = ThreadPoolExecutor(max_workers=max(1, int(max_workers)), thread_name_prefix="fam-spectrum-preview")
+        self._executor = ThreadPoolExecutor(
+            max_workers=max(1, int(max_workers)),
+            thread_name_prefix="fam-spectrum-preview",
+        )
         self._lock = threading.Lock()
         self._generation = 0
         self._pending: dict[int, Future] = {}
@@ -92,7 +110,9 @@ class SpectrumAccuratePreview(QObject):
 
     @staticmethod
     def cache_key(document: ProjectDocument, tick: int) -> str:
-        raw = f"step08-v1|{document.content_signature()}|{max(0, int(tick))}".encode("utf-8")
+        raw = (
+            f"step08-v1|{document.content_signature()}|{max(0, int(tick))}"
+        ).encode("utf-8")
         return hashlib.sha256(raw).hexdigest()
 
     def request(self, document: ProjectDocument, tick: int) -> int:
@@ -104,13 +124,31 @@ class SpectrumAccuratePreview(QObject):
             self._generation += 1
             token = self._generation
         if destination.is_file() and destination.stat().st_size > 0:
-            self.preview_ready.emit(token, str(destination), "CACHE_HIT")
+            # Defer the cache-hit notification one event-loop turn. The caller
+            # can then store the returned generation token before handling the
+            # signal, exactly like the asynchronous render path.
+            QTimer.singleShot(
+                0,
+                lambda value=token, path=str(destination): self._emit_if_current(
+                    value,
+                    path,
+                    "CACHE_HIT",
+                ),
+            )
             return token
 
-        future = self._executor.submit(self._render, token, snapshot, tick, destination)
+        future = self._executor.submit(
+            self._render,
+            token,
+            snapshot,
+            tick,
+            destination,
+        )
         with self._lock:
             self._pending[token] = future
-        future.add_done_callback(lambda done, value=token: self._finish(value, done))
+        future.add_done_callback(
+            lambda done, value=token: self._finish(value, done)
+        )
         return token
 
     def invalidate(self) -> int:
@@ -118,7 +156,20 @@ class SpectrumAccuratePreview(QObject):
             self._generation += 1
             return self._generation
 
-    def _render(self, token: int, document: ProjectDocument, tick: int, destination: Path) -> tuple[int, str, str]:
+    def _emit_if_current(self, token: int, path: str, status: str) -> None:
+        with self._lock:
+            current = self._generation
+        if int(token) != int(current):
+            return
+        self.preview_ready.emit(int(token), str(path), str(status))
+
+    def _render(
+        self,
+        token: int,
+        document: ProjectDocument,
+        tick: int,
+        destination: Path,
+    ) -> tuple[int, str, str]:
         try:
             service = self._service_factory()
             path = service.render_frame(document, tick, destination)
@@ -130,23 +181,24 @@ class SpectrumAccuratePreview(QObject):
     def _finish(self, token: int, future: Future) -> None:
         with self._lock:
             self._pending.pop(token, None)
-            current = self._generation
         try:
             result_token, path, status = future.result()
         except Exception as exc:
             result_token, path, status = token, "", f"ERROR: {exc}"
-        if result_token != current:
-            # Stale seek/parameter result is intentionally discarded and cannot
-            # overwrite the newest preview frame.
-            return
-        self.preview_ready.emit(result_token, path, status)
+        # Worker callbacks may run outside the GUI thread, but Qt's signal
+        # delivery to GUI receivers is queued automatically. Generation is
+        # checked immediately before emission to reject stale seeks.
+        self._emit_if_current(result_token, path, status)
 
     def wait_for_idle(self, timeout: float = 10.0) -> bool:
         with self._lock:
             pending = tuple(self._pending.values())
         if not pending:
             return True
-        _done, not_done = wait(pending, timeout=max(0.0, float(timeout)))
+        _done, not_done = wait(
+            pending,
+            timeout=max(0.0, float(timeout)),
+        )
         return not not_done
 
     def close(self) -> None:
