@@ -38,7 +38,7 @@ jobs:
           python -m pip install -e .
       - name: Compile source
         run: python -m compileall -q src
-      - name: Run STEP09 focused core/provider tests
+      - name: Run STEP09 focused core/provider/workspace tests
         run: |
           python -m pytest -q \
             tests/test_step09_slowmo_contract.py \
@@ -46,7 +46,8 @@ jobs:
             tests/test_step09_provider.py \
             tests/test_step09_async_provider.py \
             tests/test_step09_history_store.py \
-            tests/test_step09_session_flow.py
+            tests/test_step09_session_flow.py \
+            tests/test_step09_workspace_ui.py
       - name: Run recovered AI atomic regression
         run: |
           python -m pytest -q \
