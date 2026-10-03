@@ -2,20 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import hashlib
 import os
 from pathlib import Path
 import shutil
 import subprocess
-import tempfile
-from typing import Callable, Iterable
+from typing import Callable
 
 from .editor_models import ProjectDocument
 from .paths import ffmpeg_path, ffprobe_path
-from .render_center_model_step10 import (
-    RenderSettings,
-    RenderSnapshot,
-    build_render_snapshot,
-)
+from .render_center_model_step10 import RenderSettings, RenderSnapshot, build_render_snapshot
 
 
 class PreflightLevel(str, Enum):
@@ -104,31 +100,16 @@ def probe_ffmpeg(
         raise RuntimeError("ffprobe tidak ditemukan.")
     try:
         version_result = run(
-            [ffmpeg, "-hide_banner", "-version"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=True,
+            [ffmpeg, "-hide_banner", "-version"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout, check=True,
         )
         enc_result = run(
-            [ffmpeg, "-hide_banner", "-encoders"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=True,
+            [ffmpeg, "-hide_banner", "-encoders"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout, check=True,
         )
         probe_result = run(
-            [ffprobe, "-hide_banner", "-version"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=True,
+            [ffprobe, "-hide_banner", "-version"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout, check=True,
         )
     except Exception as exc:
         raise RuntimeError(f"Probe FFmpeg/ffprobe gagal: {exc}") from exc
@@ -164,20 +145,14 @@ def verify_encoder_runtime(
     if encoder not in capability.encoders:
         return capability
     args = [
-        capability.ffmpeg,
-        "-hide_banner", "-loglevel", "error", "-f", "lavfi",
-        "-i", "color=size=64x64:rate=1:duration=1",
-        "-frames:v", "1", "-c:v", encoder, "-f", "null", "-",
+        capability.ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
+        "-i", "color=size=64x64:rate=1:duration=1", "-frames:v", "1",
+        "-c:v", encoder, "-f", "null", "-",
     ]
     try:
         result = run(
-            args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
+            args, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=timeout, check=False,
         )
     except Exception:
         return capability
@@ -230,9 +205,6 @@ def resolve_encoder(settings: RenderSettings, capability: FFmpegCapability) -> E
             raise RuntimeError(f"Encoder hardware {requested} belum lolos runtime probe.")
         return EncoderResolution(requested, True, False, "Hardware encoder lolos runtime probe.")
 
-    # AUTO intentionally prefers a runtime-verified hardware encoder only. A
-    # vendor name or mere presence in `-encoders` is not enough; otherwise use
-    # the deterministic software fallback and report that choice.
     if capability.has_encoder(hardware) and capability.runtime_verified(hardware):
         return EncoderResolution(hardware, True, False, "AUTO memilih hardware encoder yang lolos runtime probe.")
     if capability.has_encoder(software):
@@ -265,10 +237,77 @@ def required_media_paths(document: ProjectDocument) -> tuple[Path, ...]:
     return tuple(paths)
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def media_integrity_issues(document: ProjectDocument) -> tuple[list[str], list[str], int]:
+    """Return blocking issues, warnings, and active-source count.
+
+    Fingerprints are optional for backward compatibility. When a snapshot does
+    carry a known size/mtime/sha256, mismatch is a BLOCK because the queued
+    render would otherwise consume bytes different from the source identity the
+    project recorded. Missing fingerprints remain a visible WARN, not a fake
+    PASS claim.
+    """
+
+    assets = document.asset_map()
+    blocking: list[str] = []
+    warnings: list[str] = []
+    count = 0
+    for asset_id in sorted(_required_asset_ids(document)):
+        asset = assets.get(asset_id)
+        if asset is None or not asset.locator:
+            blocking.append(f"asset:{asset_id[:8]} tidak ditemukan")
+            continue
+        count += 1
+        path = Path(asset.locator).expanduser()
+        try:
+            if not path.is_file():
+                blocking.append(f"missing:{path.name or str(path)}")
+                continue
+            stat = path.stat()
+            if stat.st_size <= 0:
+                blocking.append(f"empty:{path.name}")
+                continue
+        except OSError:
+            blocking.append(f"unreadable:{path.name or str(path)}")
+            continue
+
+        fingerprint = dict(asset.fingerprint or {})
+        if not fingerprint:
+            warnings.append(f"no-fingerprint:{path.name}")
+            continue
+        expected_size = fingerprint.get("size")
+        if expected_size is not None:
+            try:
+                if int(expected_size) != int(stat.st_size):
+                    blocking.append(f"changed-size:{path.name}")
+                    continue
+            except (TypeError, ValueError):
+                warnings.append(f"bad-size-fingerprint:{path.name}")
+        expected_mtime = fingerprint.get("mtime_ns")
+        if expected_mtime is not None:
+            try:
+                if int(expected_mtime) != int(stat.st_mtime_ns):
+                    blocking.append(f"changed-mtime:{path.name}")
+                    continue
+            except (TypeError, ValueError):
+                warnings.append(f"bad-mtime-fingerprint:{path.name}")
+        expected_sha = str(fingerprint.get("sha256") or "").strip().casefold()
+        if expected_sha:
+            if _sha256(path).casefold() != expected_sha:
+                blocking.append(f"changed-sha256:{path.name}")
+    return blocking, warnings, count
+
+
 def estimate_output_bytes(snapshot: RenderSnapshot, settings: RenderSettings) -> int:
     seconds = snapshot.duration_tick / max(1, snapshot.timebase)
     total_bps = int(settings.video_bitrate_bps) + int(settings.audio_bitrate_bps)
-    # Container/index overhead plus variable bitrate headroom.
     return max(1, int(seconds * total_bps / 8.0 * 1.15))
 
 
@@ -318,23 +357,23 @@ def run_preflight(
 
     if snapshot is not None:
         snap_doc = snapshot.document()
-        missing: list[str] = []
-        empty: list[str] = []
-        for path in required_media_paths(snap_doc):
-            try:
-                if not path.is_file():
-                    missing.append(path.name or str(path))
-                elif path.stat().st_size <= 0:
-                    empty.append(path.name)
-            except OSError:
-                missing.append(path.name or str(path))
-        if missing or empty:
-            detail = [*(f"missing:{name}" for name in missing[:5]), *(f"empty:{name}" for name in empty[:5])]
-            checks.append(PreflightCheck("media", "Media Lengkap", PreflightLevel.BLOCK, "Media tidak siap: " + ", ".join(detail)))
+        blocking, warnings, media_count = media_integrity_issues(snap_doc)
+        if blocking:
+            checks.append(PreflightCheck("media", "Media Lengkap & Stabil", PreflightLevel.BLOCK, "Media tidak siap: " + ", ".join(blocking[:8])))
+        elif warnings:
+            checks.append(PreflightCheck("media", "Media Lengkap & Stabil", PreflightLevel.WARN, f"{media_count} source tersedia; fingerprint parsial: " + ", ".join(warnings[:5])))
         else:
-            checks.append(PreflightCheck("media", "Media Lengkap", PreflightLevel.PASS, f"{len(required_media_paths(snap_doc))} source aktif tersedia."))
+            checks.append(PreflightCheck("media", "Media Lengkap & Stabil", PreflightLevel.PASS, f"{media_count} source aktif cocok dengan fingerprint proyek."))
+
+        final_resolved = settings.final_output.resolve(strict=False)
+        source_paths = {path.resolve(strict=False) for path in required_media_paths(snap_doc)}
+        if final_resolved in source_paths:
+            checks.append(PreflightCheck("output_source", "Output vs Source", PreflightLevel.BLOCK, "Lokasi output sama dengan media source aktif."))
+        else:
+            checks.append(PreflightCheck("output_source", "Output vs Source", PreflightLevel.PASS, "Output tidak menimpa source aktif."))
     else:
-        checks.append(PreflightCheck("media", "Media Lengkap", PreflightLevel.BLOCK, "Snapshot tidak tersedia."))
+        checks.append(PreflightCheck("media", "Media Lengkap & Stabil", PreflightLevel.BLOCK, "Snapshot tidak tersedia."))
+        checks.append(PreflightCheck("output_source", "Output vs Source", PreflightLevel.BLOCK, "Snapshot tidak tersedia."))
 
     if capability is None:
         try:
@@ -356,7 +395,6 @@ def run_preflight(
     checks.append(PreflightCheck("output", "Output Folder", folder_level, folder_message))
 
     estimated = estimate_output_bytes(snapshot, settings) if snapshot is not None else 0
-    # Same-volume staged output + finalization + a conservative product reserve.
     required_free = max(512 * 1024**2, estimated * 2)
     recommended = max(20 * 1024**3, required_free * 2)
     try:
