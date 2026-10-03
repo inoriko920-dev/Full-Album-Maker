@@ -164,6 +164,18 @@ def visual_settings_for_song(
     )
 
 
+def _merge_preserved_speed(
+    current: dict[str, Any] | None,
+    requested: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep an existing speed when an older UI payload omits the new field."""
+
+    merged = dict(requested)
+    if "video_speed" not in merged and isinstance(current, dict) and "video_speed" in current:
+        merged["video_speed"] = current["video_speed"]
+    return merged
+
+
 @dataclass
 class RestoreSongVisualSettingsMap(EditorCommand):
     mapping: dict[str, dict[str, Any]]
@@ -187,8 +199,9 @@ class SetSongVisualSettings(EditorCommand):
             raise CommandError("Lagu tidak ditemukan.")
         old = visual_settings_map(document)
         fallback = song_visual_layer_properties(document)
+        requested = _merge_preserved_speed(old.get(self.song_id), dict(self.settings))
         normalized = normalize_song_visual_settings(
-            dict(self.settings), fallback_layer_properties=fallback
+            requested, fallback_layer_properties=fallback
         )
         updated = deepcopy(old)
         updated[self.song_id] = normalized
@@ -219,12 +232,12 @@ class ApplySongVisualSettings(EditorCommand):
             raise CommandError("Satu atau lebih lagu tidak ditemukan.")
         old = visual_settings_map(document)
         fallback = song_visual_layer_properties(document)
-        normalized = normalize_song_visual_settings(
-            dict(self.settings), fallback_layer_properties=fallback
-        )
         updated = deepcopy(old)
         for song_id in self.song_ids:
-            updated[song_id] = deepcopy(normalized)
+            requested = _merge_preserved_speed(old.get(song_id), dict(self.settings))
+            updated[song_id] = normalize_song_visual_settings(
+                requested, fallback_layer_properties=fallback
+            )
         document.extensions[VISUAL_SETTINGS_KEY] = updated
         return RestoreSongVisualSettingsMap(old)
 
