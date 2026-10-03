@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor, wait
+from copy import deepcopy
 import hashlib
 import json
 import os
@@ -16,7 +17,6 @@ from .custom_template_builder import CustomTemplate
 from .editor_models import ProjectDocument
 from .paths import data_dir, ffmpeg_path
 from .template_studio_step07 import (
-    ORIGIN_CUSTOM,
     TemplateStudioDescriptor,
     TemplateStudioDraft,
     preview_template_document,
@@ -47,7 +47,12 @@ def thumbnail_cache_key(
     if custom_template is not None:
         custom_template.validate()
         payload["custom_payload"] = custom_template.to_dict()
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    raw = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -118,9 +123,10 @@ Renderer = Callable[
 class TemplateThumbnailCache(QObject):
     """Non-blocking thumbnail cache with deterministic invalidation.
 
-    The gallery always has its local painted fallback. A request may later
-    replace it with a rendered PNG. Failures are reported but never block
-    selecting/applying a template.
+    Gallery cards always have a local painted fallback. A request may replace
+    it with a rendered PNG later. Render failure is memoized for the current
+    cache key so an environment without FFmpeg does not retry on every refresh.
+    A changed template/draft/document produces a new key and may try again.
     """
 
     thumbnail_ready = Signal(str, str, str)
@@ -137,9 +143,13 @@ class TemplateThumbnailCache(QObject):
         self.root = Path(root) if root is not None else data_dir() / "cache" / "template_thumbnails_v1"
         self.root.mkdir(parents=True, exist_ok=True)
         self._renderer = renderer or render_preview_thumbnail
-        self._executor = ThreadPoolExecutor(max_workers=max(1, int(max_workers)), thread_name_prefix="fam-template-thumb")
+        self._executor = ThreadPoolExecutor(
+            max_workers=max(1, int(max_workers)),
+            thread_name_prefix="fam-template-thumb",
+        )
         self._lock = threading.Lock()
         self._pending: dict[str, Future] = {}
+        self._failed_keys: set[str] = set()
 
     def path_for_key(self, key: str) -> Path:
         return self.root / f"{key}.png"
@@ -159,26 +169,34 @@ class TemplateThumbnailCache(QObject):
             return str(destination)
 
         with self._lock:
-            if key in self._pending:
+            if key in self._failed_keys or key in self._pending:
                 return None
             snapshot = document.clone()
-            custom_copy = CustomTemplate.from_dict(custom_template.to_dict()) if custom_template is not None else None
+            draft_copy = deepcopy(draft)
+            descriptor_copy = deepcopy(descriptor)
+            custom_copy = (
+                CustomTemplate.from_dict(custom_template.to_dict())
+                if custom_template is not None
+                else None
+            )
             future = self._executor.submit(
                 self._run_job,
-                key,
                 snapshot,
-                descriptor,
-                draft,
+                descriptor_copy,
+                draft_copy,
                 custom_copy,
                 destination,
             )
             self._pending[key] = future
-            future.add_done_callback(lambda done, cache_key=key: self._finish(cache_key, done))
+
+        # Register callback after releasing the lock. A test renderer can finish
+        # immediately; adding a callback while holding the same lock can invoke
+        # _finish synchronously and deadlock.
+        future.add_done_callback(lambda done, cache_key=key: self._finish(cache_key, done))
         return None
 
     def _run_job(
         self,
-        key: str,
         document: ProjectDocument,
         descriptor: TemplateStudioDescriptor,
         draft: TemplateStudioDraft,
@@ -190,19 +208,25 @@ class TemplateThumbnailCache(QObject):
                 self._renderer(document, descriptor, draft, custom_template, destination)
             )
             if not rendered.is_file() or rendered.stat().st_size <= 0:
-                raise TemplateThumbnailError("Renderer thumbnail tidak menghasilkan file yang dapat dipakai.")
+                raise TemplateThumbnailError(
+                    "Renderer thumbnail tidak menghasilkan file yang dapat dipakai."
+                )
             return descriptor.template_id, str(rendered), "RENDERED"
         except Exception:
             destination.unlink(missing_ok=True)
             return descriptor.template_id, "", "FALLBACK"
 
     def _finish(self, key: str, future: Future) -> None:
-        with self._lock:
-            self._pending.pop(key, None)
         try:
             template_id, path, status = future.result()
         except Exception:
             template_id, path, status = "", "", "FALLBACK"
+        with self._lock:
+            self._pending.pop(key, None)
+            if status == "FALLBACK":
+                self._failed_keys.add(key)
+            else:
+                self._failed_keys.discard(key)
         self.thumbnail_ready.emit(template_id, path, status)
 
     def wait_for_idle(self, timeout: float = 10.0) -> bool:
@@ -212,6 +236,10 @@ class TemplateThumbnailCache(QObject):
             return True
         _done, not_done = wait(pending, timeout=max(0.0, float(timeout)))
         return not not_done
+
+    def clear_failed(self) -> None:
+        with self._lock:
+            self._failed_keys.clear()
 
     def close(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)
