@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from PySide6.QtCore import QTimer
@@ -12,7 +13,6 @@ from .template_portability_step07 import (
     save_custom_draft,
 )
 from .template_studio_step07 import (
-    ORIGIN_BUILT_IN,
     ORIGIN_CUSTOM,
     TemplateFavoriteStore,
     TemplateStudioDescriptor,
@@ -24,6 +24,7 @@ from .template_studio_step07 import (
     preview_template_document,
     stable_scope_song_ids,
 )
+from .template_thumbnail_cache_step07 import TemplateThumbnailCache
 from .template_workspace_step07 import (
     TemplateFilterContext,
     TemplateGalleryWorkspace,
@@ -39,6 +40,7 @@ _original_init: Any = None
 def _install_widgets(self) -> None:
     self._s07_store = CustomTemplateStore()
     self._s07_favorites_store = TemplateFavoriteStore()
+    self._s07_thumbnail_cache = TemplateThumbnailCache(parent=self)
     self._s07_selected_template_id = ""
     self._s07_drafts: dict[str, TemplateStudioDraft] = {}
     self._s07_catalog: tuple[TemplateStudioDescriptor, ...] = ()
@@ -78,8 +80,10 @@ def _connect_widgets(self) -> None:
     self.template_inspector_s07.duplicate_requested.connect(self._s07_duplicate)
     self.template_inspector_s07.save_custom_requested.connect(self._s07_save_custom)
     self.template_inspector_s07.reset_requested.connect(self._s07_reset)
+    self._s07_thumbnail_cache.thumbnail_ready.connect(self._s07_thumbnail_ready)
     self.foundation_state.workspace_changed.connect(self._s07_route)
     self.editor_workspace.documentChanged.connect(self._s07_document_changed)
+    self.destroyed.connect(lambda *_args: self._s07_thumbnail_cache.close())
 
 
 def _hide_prior_surfaces(self) -> None:
@@ -137,6 +141,18 @@ def _descriptor_map(self) -> dict[str, TemplateStudioDescriptor]:
     return {item.template_id: item for item in self._s07_catalog}
 
 
+def _draft_for_descriptor(self, descriptor: TemplateStudioDescriptor) -> TemplateStudioDraft:
+    ratio = self.template_context_s07.ratio_key
+    draft = self._s07_drafts.get(descriptor.template_id)
+    if draft is None:
+        draft = TemplateStudioDraft(template_id=descriptor.template_id, ratio=ratio)
+        self._s07_drafts[descriptor.template_id] = draft
+    else:
+        draft.ratio = ratio
+    draft.validate()
+    return draft
+
+
 def _refresh(self) -> None:
     if not hasattr(self, "template_workspace_s07"):
         return
@@ -163,13 +179,49 @@ def _refresh(self) -> None:
     if self._s07_selected_template_id:
         descriptor = self._s07_descriptor_map().get(self._s07_selected_template_id)
         if descriptor is not None:
-            draft = self._s07_drafts.setdefault(
-                descriptor.template_id,
-                TemplateStudioDraft(template_id=descriptor.template_id),
+            self.template_inspector_s07.set_template(
+                descriptor,
+                self._s07_draft_for_descriptor(descriptor),
             )
-            self.template_inspector_s07.set_template(descriptor, draft)
     self._s07_refresh_timeline()
+    self._s07_request_thumbnails(visible)
     self.foundation_shell.refresh_commands()
+
+
+def _request_thumbnails(self, descriptors) -> None:
+    if not self.isVisible():
+        return
+    if os.environ.get("FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER", "").strip() == "1":
+        return
+    document = self.editor_workspace.document()
+    if not document.playlist.entries:
+        return
+    for descriptor in descriptors:
+        try:
+            draft = self._s07_draft_for_descriptor(descriptor)
+            custom = self._s07_custom_for_descriptor(descriptor)
+            cached = self._s07_thumbnail_cache.request(
+                document,
+                descriptor,
+                draft,
+                custom_template=custom,
+            )
+            if cached:
+                self.template_workspace_s07.set_thumbnail(
+                    descriptor.template_id,
+                    cached,
+                    "CACHE_HIT",
+                )
+        except Exception:
+            self.template_workspace_s07.set_thumbnail(
+                descriptor.template_id,
+                "",
+                "FALLBACK",
+            )
+
+
+def _thumbnail_ready(self, template_id: str, path: str, status: str) -> None:
+    self.template_workspace_s07.set_thumbnail(template_id, path, status)
 
 
 def _refresh_timeline(self) -> None:
@@ -197,11 +249,10 @@ def _select_template(self, template_id: str) -> None:
     if descriptor is None:
         return
     self._s07_selected_template_id = descriptor.template_id
-    draft = self._s07_drafts.setdefault(
-        descriptor.template_id,
-        TemplateStudioDraft(template_id=descriptor.template_id),
+    self.template_inspector_s07.set_template(
+        descriptor,
+        self._s07_draft_for_descriptor(descriptor),
     )
-    self.template_inspector_s07.set_template(descriptor, draft)
     self._s07_refresh()
 
 
@@ -398,7 +449,10 @@ def _reset(self) -> None:
         descriptor = self._s07_current_descriptor()
     except Exception:
         return
-    draft = TemplateStudioDraft(template_id=descriptor.template_id)
+    draft = TemplateStudioDraft(
+        template_id=descriptor.template_id,
+        ratio=self.template_context_s07.ratio_key,
+    )
     self._s07_drafts[descriptor.template_id] = draft
     self.template_inspector_s07.set_template(descriptor, draft)
     self.template_workspace_s07.clear_preview()
@@ -431,7 +485,10 @@ def install_step07_template() -> None:
     Window._s07_document_changed = _document_changed
     Window._s07_load_catalog = _load_catalog
     Window._s07_descriptor_map = _descriptor_map
+    Window._s07_draft_for_descriptor = _draft_for_descriptor
     Window._s07_refresh = _refresh
+    Window._s07_request_thumbnails = _request_thumbnails
+    Window._s07_thumbnail_ready = _thumbnail_ready
     Window._s07_refresh_timeline = _refresh_timeline
     Window._s07_select_template = _select_template
     Window._s07_current_descriptor = _current_descriptor
