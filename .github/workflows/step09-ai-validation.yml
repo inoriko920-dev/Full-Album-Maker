@@ -1,0 +1,66 @@
+name: STEP09 AI Agent validation
+
+on:
+  push:
+    branches:
+      - ui/step-09-ai-agent
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-ai:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+    steps:
+      - name: Checkout STEP09 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run STEP09 modern slowmo prerequisite tests
+        run: python -m pytest -q tests/test_step09_slowmo_contract.py
+      - name: Run recovered AI atomic regression
+        run: |
+          python -m pytest -q \
+            tests/test_editor_v2_s09_ai_editor.py \
+            tests/test_editor_v2_v14_action_registry.py \
+            tests/test_editor_v2_v14_ai_parity.py
+      - name: Run provider and key-pool regression
+        run: |
+          python -m pytest -q \
+            tests/test_gemini_intents.py \
+            tests/test_gemini_schema_compat.py \
+            tests/test_key_pool.py \
+            tests/test_key_pool_hardening.py \
+            tests/test_key_pool_retries.py
+      - name: Run STEP08 Spectrum regression gate
+        run: |
+          python -m pytest -q \
+            tests/test_step08_spectrum_model.py \
+            tests/test_step08_spectrum_render.py \
+            tests/test_step08_spectrum_persistence.py \
+            tests/test_step08_spectrum_ui.py
+      - name: Run full recovered regression suite
+        timeout-minutes: 6
+        run: python -m pytest -q --disable-warnings
