@@ -33,7 +33,7 @@ def _snapshot(state: AgentState) -> AgentSessionSnapshot:
 
 
 def test_task_canvas_button_enablement_is_driven_by_agent_state() -> None:
-    _app()
+    app = _app()
     canvas = AITaskCanvas()
     canvas.set_prompt("perintah")
 
@@ -60,10 +60,12 @@ def test_task_canvas_button_enablement_is_driven_by_agent_state() -> None:
 
     canvas.apply_session(_snapshot(AgentState.COMPLETED), can_undo_ai=True)
     assert canvas.undo_button.isEnabled() is True
+    canvas.deleteLater()
+    app.processEvents()
 
 
 def test_context_dock_exposes_explicit_permission_grant_and_masks_key_value() -> None:
-    _app()
+    app = _app()
     dock = AIContextDock()
     dock.set_context(project_name="Album Kenangan", song_count=20, media_count=396)
     dock.set_provider("gemini", key_ready=True)
@@ -76,6 +78,8 @@ def test_context_dock_exposes_explicit_permission_grant_and_masks_key_value() ->
     assert "AIza" not in dock.key_status.text()
     dock.permissions["visual.write"].setChecked(False)
     assert "visual.write" not in dock.permission_values()
+    dock.deleteLater()
+    app.processEvents()
 
 
 def test_production_ai_route_and_mock_plan_preview_are_non_destructive(tmp_path: Path) -> None:
