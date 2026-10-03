@@ -68,6 +68,11 @@ def _settings_from_dict(value: dict) -> RenderSettings:
 
 def job_to_dict(job: RenderJob) -> dict:
     job.metrics.validate()
+    safe_logs: list[str] = []
+    for line in job.log_lines[-500:]:
+        safe = sanitize_render_log(line)
+        if safe:
+            safe_logs.append(safe)
     return {
         "job_id": job.job_id,
         "attempt_id": job.attempt_id,
@@ -81,7 +86,7 @@ def job_to_dict(job: RenderJob) -> dict:
         "error_code": sanitize_render_log(job.error_code, max_length=100),
         "error_message": sanitize_render_log(job.error_message),
         "verified_output": job.verified_output,
-        "log_lines": [sanitize_render_log(line) for line in job.log_lines[-500:] if sanitize_render_log(line)],
+        "log_lines": safe_logs,
     }
 
 
@@ -98,7 +103,12 @@ def job_from_dict(value: dict) -> RenderJob:
         eta_seconds=None if metrics_raw.get("eta_seconds") is None else float(metrics_raw["eta_seconds"]),
     )
     metrics.validate()
-    job = RenderJob(
+    safe_logs: list[str] = []
+    for line in (value.get("log_lines") or [])[-500:]:
+        safe = sanitize_render_log(str(line))
+        if safe:
+            safe_logs.append(safe)
+    return RenderJob(
         snapshot=_snapshot_from_dict(value["snapshot"]),
         settings=_settings_from_dict(value["settings"]),
         job_id=str(value["job_id"]),
@@ -111,13 +121,8 @@ def job_from_dict(value: dict) -> RenderJob:
         error_code=sanitize_render_log(str(value.get("error_code", "")), max_length=100),
         error_message=sanitize_render_log(str(value.get("error_message", ""))),
         verified_output=str(value.get("verified_output", "")),
-        log_lines=[
-            sanitize_render_log(str(line))
-            for line in (value.get("log_lines") or [])[-500:]
-            if sanitize_render_log(str(line))
-        ],
+        log_lines=safe_logs,
     )
-    return job
 
 
 class RenderQueueStore:
@@ -157,9 +162,14 @@ class RenderQueueStore:
         for job in jobs:
             if job.state not in _ACTIVE_ON_CRASH:
                 continue
+            # Recovery is intentionally not a normal state transition: the old
+            # process no longer exists, so claiming resume semantics would be false.
             job.state = RenderJobState.INTERRUPTED
             job.error_code = "INTERRUPTED_ON_RESTART"
-            job.error_message = "Aplikasi berhenti sebelum attempt render selesai; resume otomatis tidak diklaim aman."
+            job.error_message = (
+                "Aplikasi berhenti sebelum attempt render selesai; resume otomatis "
+                "tidak diklaim aman. Gunakan Retry untuk attempt baru."
+            )
             if not job.finished_at:
                 from .render_center_model_step10 import utc_now_iso
                 job.finished_at = utc_now_iso()
@@ -193,41 +203,33 @@ class RenderQueueStore:
 
 
 class RenderQueue:
-    """Single-active-slot queue; execution remains owned by RenderExecutor."""
+    """Persistent single-active-slot queue; execution is owned by RenderExecutor."""
 
     def __init__(self, store: RenderQueueStore | None = None) -> None:
         self.store = store or RenderQueueStore()
         self.jobs, _ = self.store.recover()
 
     def enqueue(self, job: RenderJob) -> RenderJob:
-        if job.state != RenderJobState.DRAFT:
-            raise ValueError("Hanya DRAFT job yang dapat dimasukkan queue.")
-        if any(item.job_id == job.job_id and item.attempt_id == job.attempt_id for item in self.jobs):
+        """Queue only a job that has already passed real preflight."""
+        if job.state != RenderJobState.READY:
+            raise ValueError("Job harus READY dari preflight nyata sebelum masuk queue.")
+        if any(
+            item.job_id == job.job_id and item.attempt_id == job.attempt_id
+            for item in self.jobs
+        ):
             raise ValueError("Attempt render sudah ada di queue/history.")
-        job.transition(RenderJobState.PREFLIGHTING)
-        # Queue creation does not claim READY by itself; caller must run preflight.
-        job.transition(RenderJobState.READY)
         job.transition(RenderJobState.QUEUED)
         self.jobs.append(job)
         self._trim_and_save()
         return job
 
-    def append_preflighted(self, job: RenderJob) -> RenderJob:
-        if job.state == RenderJobState.READY:
-            job.transition(RenderJobState.QUEUED)
-        if job.state != RenderJobState.QUEUED:
-            raise ValueError("Job harus READY/QUEUED setelah preflight sebelum masuk queue.")
-        if any(item.job_id == job.job_id and item.attempt_id == job.attempt_id for item in self.jobs):
-            raise ValueError("Attempt render sudah ada di queue/history.")
-        self.jobs.append(job)
-        self._trim_and_save()
-        return job
-
     def next_queued(self) -> RenderJob | None:
-        active = [job for job in self.jobs if job.state in _ACTIVE_ON_CRASH]
-        if active:
+        if any(job.state in _ACTIVE_ON_CRASH for job in self.jobs):
             return None
-        return next((job for job in self.jobs if job.state == RenderJobState.QUEUED), None)
+        return next(
+            (job for job in self.jobs if job.state == RenderJobState.QUEUED),
+            None,
+        )
 
     def update(self, job: RenderJob) -> None:
         for index, current in enumerate(self.jobs):
@@ -240,15 +242,18 @@ class RenderQueue:
 
     def retry(self, job_id: str, attempt_id: str) -> RenderJob:
         source = next(
-            (job for job in self.jobs if job.job_id == job_id and job.attempt_id == attempt_id),
+            (
+                job
+                for job in self.jobs
+                if job.job_id == job_id and job.attempt_id == attempt_id
+            ),
             None,
         )
         if source is None:
             raise ValueError("Render job/attempt tidak ditemukan.")
         retry = source.retry()
-        retry.transition(RenderJobState.PREFLIGHTING)
-        retry.transition(RenderJobState.READY)
-        retry.transition(RenderJobState.QUEUED)
+        # Retry is deliberately DRAFT: it must pass preflight again before
+        # enqueue, because source/disk/encoder/output may have changed.
         self.jobs.append(retry)
         self._trim_and_save()
         return retry
