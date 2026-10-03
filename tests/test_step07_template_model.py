@@ -20,7 +20,7 @@ from full_album_maker.template_studio_step07 import (
     stable_scope_song_ids,
 )
 from full_album_maker.template_system import current_template_id, template_choices
-from full_album_maker.visual_precision import visual_settings_map
+from full_album_maker.visual_precision import SetSongVisualSettings, visual_settings_map
 
 
 def _document(tmp_path: Path, songs: int = 3) -> ProjectDocument:
@@ -63,22 +63,26 @@ def test_builtin_presentation_wraps_without_renaming_recovered_engine_ids() -> N
     assert "9:16" in descriptors[0].ratios
 
 
-def test_favorite_store_is_separate_persistent_and_corruption_safe(tmp_path: Path) -> None:
+def test_favorite_store_is_separate_persistent_and_survives_restart(tmp_path: Path) -> None:
     path = tmp_path / "favorites.json"
     store = TemplateFavoriteStore(path)
     assert store.load() == set()
     store.set_favorite("spotify_clean", True)
     store.set_favorite("dark_cinematic", True)
     assert store.load() == {"spotify_clean", "dark_cinematic"}
-    store.set_favorite("spotify_clean", False)
-    assert store.load() == {"dark_cinematic"}
+
+    restarted = TemplateFavoriteStore(path)
+    assert restarted.load() == {"spotify_clean", "dark_cinematic"}
+    restarted.set_favorite("spotify_clean", False)
+    assert TemplateFavoriteStore(path).load() == {"dark_cinematic"}
     raw = json.loads(path.read_text(encoding="utf-8"))
     assert raw["template_ids"] == ["dark_cinematic"]
+
     path.write_text("{broken", encoding="utf-8")
-    assert store.load() == set()
+    assert TemplateFavoriteStore(path).load() == set()
 
 
-def test_filter_search_category_and_favorite_are_metadata_only() -> None:
+def test_filter_search_category_ratio_sort_and_favorite_are_metadata_only() -> None:
     items = builtin_descriptors()
     romantic = filter_templates(items, category="Romantis")
     assert {item.template_id for item in romantic} >= {"cafe_acoustic", "romantic_bokeh"}
@@ -86,6 +90,10 @@ def test_filter_search_category_and_favorite_are_metadata_only() -> None:
     assert [item.template_id for item in searched] == ["dark_cinematic"]
     favorite = filter_templates(items, origin="FAVORITE", favorites={"photo_album"})
     assert [item.template_id for item in favorite] == ["photo_album"]
+    portrait = filter_templates(items, ratio="9:16")
+    assert len(portrait) == len(items)
+    alphabetical = filter_templates(items, sort="Nama A-Z")
+    assert [item.name for item in alphabetical] == sorted(item.name for item in items)
 
 
 def test_preview_is_disposable_and_does_not_mutate_source_or_history(tmp_path: Path) -> None:
@@ -106,7 +114,25 @@ def test_preview_is_disposable_and_does_not_mutate_source_or_history(tmp_path: P
     assert any(layer.name == "Template Dark Overlay" for layer in preview.layers)
 
 
-def test_selected_scope_preserves_playlist_order_and_is_one_undo_transaction(tmp_path: Path) -> None:
+def test_current_scope_is_atomic_and_targets_only_active_song(tmp_path: Path) -> None:
+    doc = _document(tmp_path, songs=3)
+    ids = [song.song_id for song in doc.playlist.entries]
+    targets = stable_scope_song_ids(doc, "current", current_song_id=ids[1])
+    assert targets == (ids[1],)
+
+    controller = EditorController(doc)
+    after = controller.dispatch(
+        build_template_apply_commands(
+            controller.snapshot(),
+            TemplateStudioDraft(template_id="spotify_clean"),
+            targets,
+        )
+    )
+    assert set(visual_settings_map(after)) == {ids[1]}
+    assert after.revision == doc.revision + 1
+
+
+def test_selected_scope_preserves_order_and_supports_one_undo_redo_transaction(tmp_path: Path) -> None:
     doc = _document(tmp_path, songs=4)
     controller = EditorController(doc)
     ids = [song.song_id for song in doc.playlist.entries]
@@ -118,6 +144,7 @@ def test_selected_scope_preserves_playlist_order_and_is_one_undo_transaction(tmp
 
     commands = build_template_apply_commands(controller.snapshot(), draft, targets)
     after = controller.dispatch(commands)
+    after_signature = after.content_signature()
 
     assert after.revision == doc.revision + 1
     assert [song.song_id for song in after.playlist.entries] == ids
@@ -129,6 +156,31 @@ def test_selected_scope_preserves_playlist_order_and_is_one_undo_transaction(tmp
     assert restored.content_signature() == before
     assert current_template_id(restored) == ""
     assert visual_settings_map(restored) == {}
+    assert controller.can_redo is True
+
+    redone = controller.redo()
+    assert redone.content_signature() == after_signature
+    assert current_template_id(redone) == "dark_cinematic"
+    assert set(visual_settings_map(redone)) == set(targets)
+
+
+def test_all_scope_targets_every_song_without_reorder_or_partial_apply(tmp_path: Path) -> None:
+    doc = _document(tmp_path, songs=5)
+    ids = [song.song_id for song in doc.playlist.entries]
+    targets = stable_scope_song_ids(doc, "all")
+    assert targets == tuple(ids)
+
+    controller = EditorController(doc)
+    after = controller.dispatch(
+        build_template_apply_commands(
+            controller.snapshot(),
+            TemplateStudioDraft(template_id="cafe_acoustic"),
+            targets,
+        )
+    )
+    assert [song.song_id for song in after.playlist.entries] == ids
+    assert set(visual_settings_map(after)) == set(ids)
+    assert after.revision == doc.revision + 1
 
 
 def test_scope_prevalidation_rejects_stale_selected_id_without_mutation(tmp_path: Path) -> None:
@@ -143,10 +195,83 @@ def test_scope_prevalidation_rejects_stale_selected_id_without_mutation(tmp_path
     assert doc.content_signature() == before
 
 
-def test_duplicate_builtin_to_custom_uses_new_portable_custom_id(tmp_path: Path) -> None:
+def test_invalid_typography_degrades_by_rejection_before_project_mutation(tmp_path: Path) -> None:
+    doc = _document(tmp_path)
+    before = doc.content_signature()
+    draft = TemplateStudioDraft(
+        template_id="spotify_clean",
+        typography="missing-machine-font",
+    )
+    with pytest.raises(ValueError, match="Typography"):
+        build_template_apply_commands(
+            doc,
+            draft,
+            (doc.playlist.entries[0].song_id,),
+        )
+    assert doc.content_signature() == before
+
+
+def test_applied_template_survives_project_roundtrip_and_remains_manually_editable(tmp_path: Path) -> None:
+    doc = _document(tmp_path, songs=3)
+    controller = EditorController(doc)
+    first = doc.playlist.entries[0].song_id
+    applied = controller.dispatch(
+        build_template_apply_commands(
+            controller.snapshot(),
+            TemplateStudioDraft(template_id="spotify_clean"),
+            (first,),
+        )
+    )
+
+    reopened = ProjectDocument.from_dict(applied.to_dict())
+    assert current_template_id(reopened) == "spotify_clean"
+    assert first in visual_settings_map(reopened)
+    assert reopened.content_signature() == applied.content_signature()
+
+    edit_controller = EditorController(reopened)
+    edited = edit_controller.dispatch(
+        SetSongVisualSettings(
+            first,
+            {
+                "transition": "cut",
+                "transition_seconds": 0.0,
+                "image_motion": "static",
+                "pan_zoom": False,
+            },
+        )
+    )
+    assert visual_settings_map(edited)[first]["transition"] == "cut"
+    assert current_template_id(edited) == "spotify_clean"
+    assert edited.revision == reopened.revision + 1
+
+
+def test_resetting_draft_is_draft_only_and_keeps_project_unchanged(tmp_path: Path) -> None:
+    doc = _document(tmp_path)
+    before = doc.content_signature()
+    changed = TemplateStudioDraft(
+        template_id="spotify_clean",
+        title_layout="right",
+        cover_position="left",
+        background_style="solid_dark",
+        spacing="relaxed",
+        overlay_opacity=0.25,
+    )
+    changed.validate()
+    reset = TemplateStudioDraft(template_id=changed.template_id, ratio=changed.ratio)
+    reset.validate()
+    assert reset.title_layout == "left"
+    assert reset.cover_position == "full"
+    assert reset.background_style == "photo_dark_overlay"
+    assert reset.spacing == "normal"
+    assert reset.overlay_opacity == 0.60
+    assert doc.content_signature() == before
+
+
+def test_duplicate_builtin_to_custom_uses_new_portable_custom_id_and_survives_restart(tmp_path: Path) -> None:
     doc = _document(tmp_path)
     first = doc.playlist.entries[0].song_id
-    store = CustomTemplateStore(tmp_path / "custom")
+    root = tmp_path / "custom"
+    store = CustomTemplateStore(root)
     custom = duplicate_portable_template(
         doc,
         TemplateStudioDraft(template_id="spotify_clean"),
@@ -157,7 +282,7 @@ def test_duplicate_builtin_to_custom_uses_new_portable_custom_id(tmp_path: Path)
     )
     assert custom.template_id.startswith("custom:")
     assert custom.label == "Salinan Senja di Kota Ini"
-    loaded = store.load(custom.template_id)
+    loaded = CustomTemplateStore(root).load(custom.template_id)
     assert loaded.to_dict() == custom.to_dict()
     assert all("font_path" not in layer.get("properties", {}) for layer in custom.layers)
 
