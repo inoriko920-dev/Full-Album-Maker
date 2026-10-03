@@ -28,6 +28,7 @@ from full_album_maker.visual_timeline_completion_step06 import install_step06_vi
 from full_album_maker.template_feature_step07 import install_step07_template
 from full_album_maker.spectrum_feature_step08 import install_step08_spectrum
 from full_album_maker.ai_feature_step09 import install_step09_ai_agent
+from full_album_maker.render_queue_presentation_step10 import install_step10_queue_presentation
 from full_album_maker.render_feature_step10 import install_step10_render
 
 
@@ -57,6 +58,7 @@ install_step06_visual_timeline_completion()
 install_step07_template()
 install_step08_spectrum()
 install_step09_ai_agent()
+install_step10_queue_presentation()
 install_step10_render()
 
 
