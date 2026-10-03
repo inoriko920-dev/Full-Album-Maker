@@ -101,6 +101,7 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         os.environ["FAM_STEP09_PROVIDER"] = "mock"
 
+        from PySide6.QtCore import QEventLoop, QTimer
         from PySide6.QtWidgets import QApplication
         import full_album_maker.main  # installs production layers through STEP09
         from full_album_maker.ai_agent_core_step09 import AgentState
@@ -108,6 +109,12 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
         from full_album_maker.foundation_window import FoundationMainWindow
 
         app = QApplication.instance() or QApplication([])
+
+        def run_events(milliseconds=120):
+            loop = QEventLoop()
+            QTimer.singleShot(milliseconds, loop.quit)
+            loop.exec()
+
         with tempfile.TemporaryDirectory(prefix="s09-ui-") as root:
             root = Path(root)
             doc = ProjectDocument.new_empty("Album Kenangan")
@@ -150,8 +157,7 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
             before_undo = window.editor_workspace.session.can_undo
 
             window.foundation_shell.set_workspace("ai_agent")
-            for _ in range(6):
-                app.processEvents()
+            run_events(80)
             assert window.foundation_state.workspace == "ai_agent"
             assert window.foundation_shell.workspace_stack.currentWidget() is window.ai_workspace_s09
             assert not window.ai_conversations_s09.isHidden()
@@ -165,8 +171,7 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
             window._s09_send(prompt)
             assert window._s09_async is not None
             assert window._s09_async.wait_for_idle(timeout=5.0) is True
-            for _ in range(12):
-                app.processEvents()
+            run_events(180)
             state = window._s09_ensure_session().snapshot()
             assert state.state == AgentState.PLAN_READY, state
             assert state.plan is not None
@@ -176,8 +181,7 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
             assert window.editor_workspace.session.can_undo == before_undo
 
             window._s09_preview()
-            for _ in range(6):
-                app.processEvents()
+            run_events(80)
             state = window._s09_ensure_session().snapshot()
             assert state.state == AgentState.PREVIEW_READY, state
             assert state.preview is not None
@@ -191,7 +195,7 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
                 window._s09_async.close()
             window.hide()
             window.deleteLater()
-            app.processEvents()
+            run_events(30)
     '''
     env = dict(os.environ)
     env["FAM_STEP09_PROVIDER"] = "mock"
