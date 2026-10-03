@@ -4,7 +4,7 @@ from concurrent.futures import Future, ThreadPoolExecutor, wait
 from copy import deepcopy
 import threading
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Qt, Signal, Slot
 
 from .ai_agent_core_step09 import AgentContextSnapshot, ProviderInterpretation
 from .ai_provider_step09 import AgentPlanProvider
@@ -17,11 +17,18 @@ class AsyncAgentProvider(QObject):
     advances the generation so an old completion cannot update UI state. Project
     mutation is impossible here because providers receive only a frozen context,
     never an EditorController.
+
+    Future callbacks run on executor threads. They never emit the public UI
+    signals directly. Completion is first queued back to this QObject's thread,
+    then result/error/busy signals are emitted from that owner thread. This keeps
+    production receivers such as FoundationMainWindow deterministic while
+    preserving the existing stale-generation guard.
     """
 
     result_ready = Signal(int, object)
     request_failed = Signal(int, str)
     busy_changed = Signal(bool)
+    _completion_ready = Signal(int, object, str)
 
     def __init__(
         self,
@@ -40,6 +47,10 @@ class AsyncAgentProvider(QObject):
         self._generation = 0
         self._pending: dict[int, Future] = {}
         self._closed = False
+        self._completion_ready.connect(
+            self._deliver_completion,
+            Qt.ConnectionType.QueuedConnection,
+        )
 
     @property
     def generation(self) -> int:
@@ -114,20 +125,39 @@ class AsyncAgentProvider(QObject):
             return token, None, f"{type(exc).__name__}: {exc}"
 
     def _finish(self, token: int, future: Future) -> None:
+        """Executor-thread callback: bookkeeping only, then queue to UI thread."""
         with self._lock:
             self._pending.pop(token, None)
-            current = self._generation
-            still_busy = bool(self._pending)
         try:
             result_token, result, error = future.result()
         except Exception as exc:
             result_token, result, error = token, None, f"{type(exc).__name__}: {exc}"
+        self._completion_ready.emit(result_token, result, error)
+
+    @Slot(int, object, str)
+    def _deliver_completion(
+        self,
+        result_token: int,
+        result: ProviderInterpretation | None,
+        error: str,
+    ) -> None:
+        """Owner-thread delivery for public Qt signals and stale-result checks."""
+        with self._lock:
+            current = self._generation
+            still_busy = bool(self._pending)
+            closed = self._closed
         if not still_busy:
             self.busy_changed.emit(False)
-        if result_token != current:
+        if closed or result_token != current:
             return
         if error:
             self.request_failed.emit(result_token, error)
+            return
+        if result is None:
+            self.request_failed.emit(
+                result_token,
+                "Provider STEP09 selesai tanpa ProviderInterpretation.",
+            )
             return
         self.result_ready.emit(result_token, result)
 
