@@ -11,6 +11,9 @@ from .song_visuals import normalize_song_visual_properties
 VISUAL_SETTINGS_KEY = "song_visual_settings_v1"
 MOTIONS = {"static", "ken_burns", "zoom_in", "zoom_out", "pan_left", "pan_right"}
 TRANSITIONS = {"cut", "fade", "slide", "slide_left", "slide_right"}
+MIN_VIDEO_SPEED = 0.25
+MAX_VIDEO_SPEED = 4.0
+DEFAULT_VIDEO_SPEED = 1.0
 
 
 def _number(value: Any, label: str) -> float:
@@ -35,6 +38,10 @@ def normalize_song_visual_settings(
     Older recovered projects stored a single style on the shared `song_visual`
     layer. Those values remain the fallback so STEP06 is additive and does not
     silently rewrite older projects.
+
+    STEP09 prerequisite: ``video_speed`` is a normal Visual-domain property,
+    not an AI-only shortcut. It changes only decoded video presentation and
+    never audio timing. Older projects default to 1.0x.
     """
 
     fallback = normalize_song_visual_properties(fallback_layer_properties or {})
@@ -79,6 +86,15 @@ def normalize_song_visual_settings(
     if loop_video and freeze_end:
         raise ValueError("Loop Video dan Freeze di Akhir tidak boleh aktif bersamaan.")
 
+    video_speed = _number(
+        source.get("video_speed", DEFAULT_VIDEO_SPEED),
+        "Kecepatan Video",
+    )
+    if not MIN_VIDEO_SPEED <= video_speed <= MAX_VIDEO_SPEED:
+        raise ValueError(
+            f"Kecepatan Video harus {MIN_VIDEO_SPEED:g}x..{MAX_VIDEO_SPEED:g}x."
+        )
+
     transition = str(source.get("transition", fallback["transition"]))
     if transition not in TRANSITIONS:
         raise ValueError("Transisi Visual belum didukung.")
@@ -104,6 +120,7 @@ def normalize_song_visual_settings(
         "image_motion": image_motion,
         "loop_video": loop_video,
         "freeze_end": freeze_end,
+        "video_speed": video_speed,
         # Kept for recovered renderer/API compatibility.
         "video_playback": "loop" if loop_video else "freeze" if freeze_end else "none",
         "transition": transition,
@@ -142,7 +159,9 @@ def visual_settings_for_song(
         if fallback_layer_properties is not None
         else song_visual_layer_properties(document)
     )
-    return normalize_song_visual_settings(mapping.get(song_id), fallback_layer_properties=fallback)
+    return normalize_song_visual_settings(
+        mapping.get(song_id), fallback_layer_properties=fallback
+    )
 
 
 @dataclass
@@ -206,6 +225,61 @@ class ApplySongVisualSettings(EditorCommand):
         updated = deepcopy(old)
         for song_id in self.song_ids:
             updated[song_id] = deepcopy(normalized)
+        document.extensions[VISUAL_SETTINGS_KEY] = updated
+        return RestoreSongVisualSettingsMap(old)
+
+
+@dataclass
+class SetSongVideoSpeed(EditorCommand):
+    """Set presentation speed for one or more assigned video visuals.
+
+    This command is deliberately Visual-domain only. It does not touch audio,
+    playlist timing, song duration, or source media. Every target must already
+    point at a video asset; mixed image/video requests fail before mutation.
+    """
+
+    song_ids: tuple[str, ...]
+    speed: float
+
+    def __init__(self, song_ids: Iterable[str], speed: float) -> None:
+        unique: list[str] = []
+        for song_id in song_ids:
+            value = str(song_id)
+            if value and value not in unique:
+                unique.append(value)
+        self.song_ids = tuple(unique)
+        self.speed = float(speed)
+
+    def apply(self, document: ProjectDocument) -> EditorCommand:
+        if not self.song_ids:
+            raise CommandError("Pilih minimal satu lagu untuk slowmo Visual.")
+        if not MIN_VIDEO_SPEED <= self.speed <= MAX_VIDEO_SPEED:
+            raise CommandError(
+                f"Kecepatan Video harus {MIN_VIDEO_SPEED:g}x..{MAX_VIDEO_SPEED:g}x."
+            )
+        songs = document.song_map()
+        assets = document.asset_map()
+        for song_id in self.song_ids:
+            song = songs.get(song_id)
+            if song is None:
+                raise CommandError("Satu atau lebih lagu tidak ditemukan.")
+            asset = assets.get(song.visual_asset_id or "")
+            if asset is None or asset.kind != "video":
+                raise CommandError(
+                    "Slowmo Visual hanya dapat diterapkan pada lagu yang memiliki sumber Video."
+                )
+
+        old = visual_settings_map(document)
+        fallback = song_visual_layer_properties(document)
+        updated = deepcopy(old)
+        for song_id in self.song_ids:
+            current = normalize_song_visual_settings(
+                updated.get(song_id), fallback_layer_properties=fallback
+            )
+            current["video_speed"] = self.speed
+            updated[song_id] = normalize_song_visual_settings(
+                current, fallback_layer_properties=fallback
+            )
         document.extensions[VISUAL_SETTINGS_KEY] = updated
         return RestoreSongVisualSettingsMap(old)
 
