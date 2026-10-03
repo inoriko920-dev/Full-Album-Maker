@@ -6,6 +6,7 @@ import time
 from PySide6.QtWidgets import QApplication
 
 from full_album_maker.editor_models import ProjectDocument
+from full_album_maker.render_service_v2 import ffmpeg_process_args
 from full_album_maker.spectrum_preview_step08 import SpectrumAccuratePreview
 from full_album_maker.spectrum_workspace_step08 import SpectrumInspector, inspector_state
 from full_album_maker.spectrum_feature import make_spectrum_layer
@@ -129,3 +130,24 @@ def test_seek_cache_key_changes_with_tick_and_never_reuses_smoothed_state() -> N
     first = SpectrumAccuratePreview.cache_key(document, 100)
     second = SpectrumAccuratePreview.cache_key(document, 200)
     assert first != second
+
+
+def test_non_windows_ffmpeg_bridges_generic_filter_option_file_to_legacy_script_option(tmp_path: Path) -> None:
+    script = tmp_path / "filter-complex.txt"
+    script.write_text("[0:a]anull[aout]\n", encoding="utf-8")
+    source = ("ffmpeg", "-/filter_complex", str(script), "-map", "[aout]", "out.wav")
+    normalized = ffmpeg_process_args(source, platform_name="posix")
+    assert normalized == (
+        "ffmpeg",
+        "-filter_complex_script",
+        str(script),
+        "-map",
+        "[aout]",
+        "out.wav",
+    )
+
+
+def test_windows_keeps_recovered_generic_filter_option_file_syntax(tmp_path: Path) -> None:
+    script = tmp_path / "filter-complex.txt"
+    source = ("ffmpeg.exe", "-/filter_complex", str(script), "out.mp4")
+    assert ffmpeg_process_args(source, platform_name="nt") == source
