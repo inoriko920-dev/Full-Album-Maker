@@ -98,7 +98,6 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
         import os
         from pathlib import Path
         import tempfile
-        import time
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         os.environ["FAM_STEP09_PROVIDER"] = "mock"
 
@@ -151,7 +150,8 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
             before_undo = window.editor_workspace.session.can_undo
 
             window.foundation_shell.set_workspace("ai_agent")
-            app.processEvents()
+            for _ in range(6):
+                app.processEvents()
             assert window.foundation_state.workspace == "ai_agent"
             assert window.foundation_shell.workspace_stack.currentWidget() is window.ai_workspace_s09
             assert not window.ai_conversations_s09.isHidden()
@@ -163,12 +163,10 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
 
             prompt = "Pilih 20 lagu, beri visual yang cocok, slowmo footage 0,5x, lalu susun timeline."
             window._s09_send(prompt)
-            deadline = time.monotonic() + 5.0
-            while time.monotonic() < deadline:
+            assert window._s09_async is not None
+            assert window._s09_async.wait_for_idle(timeout=5.0) is True
+            for _ in range(12):
                 app.processEvents()
-                if window._s09_ensure_session().snapshot().state != AgentState.INTERPRETING:
-                    break
-                time.sleep(0.01)
             state = window._s09_ensure_session().snapshot()
             assert state.state == AgentState.PLAN_READY, state
             assert state.plan is not None
@@ -178,7 +176,8 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None
             assert window.editor_workspace.session.can_undo == before_undo
 
             window._s09_preview()
-            app.processEvents()
+            for _ in range(6):
+                app.processEvents()
             state = window._s09_ensure_session().snapshot()
             assert state.state == AgentState.PREVIEW_READY, state
             assert state.preview is not None
