@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+from .spectrum_feature import smoothing_to_averaging
+
 
 MIN_INTERNAL_SIDE = 64
 MAX_INTERNAL_SIDE = 512
@@ -62,33 +64,40 @@ def circular_spectrum_filter(
     frequency_scale: str,
     amplitude_scale: str,
     inner_ratio: float,
+    band_count: int | None = None,
+    thickness: float | None = None,
+    smoothing: float | None = None,
 ) -> str:
     """Return a transparent audio visualizer chain that wraps showfreqs into a ring.
 
-    The expensive atan2/hypot polar remap is intentionally capped at 512x512.
-    The resulting square is then scaled with aspect preservation and padded into
-    the requested transform box. This keeps a true circle even when the user
-    gives the layer a rectangular box.
-
-    The frequency image is intentionally converted to grayscale before polar
-    sampling. FFmpeg's luma sampler is stable across the pinned Windows build and
-    avoids RGB-plane sampling differences. After remapping, black is keyed to
-    transparency and the white energy map is recolored to the user's spectrum
-    color with colorchannelmixer.
+    Recovered calls that omit STEP08 parameters keep the exact v1.2 chain. When
+    STEP08 values are supplied, band_count becomes the real frequency-image
+    horizontal resolution, smoothing maps to showfreqs time averaging, and
+    thickness controls radial width in final project pixels before the bounded
+    polar remap is scaled to the requested layer box.
     """
 
     geometry = circular_geometry(width, height, inner_ratio)
     side = geometry.internal_side
-    inner = OUTER_RADIUS_RATIO * geometry.inner_ratio
+
+    if thickness is None:
+        inner = OUTER_RADIUS_RATIO * geometry.inner_ratio
+    else:
+        value = float(thickness)
+        if value <= 0:
+            raise ValueError("Ketebalan Circular Spectrum harus > 0.")
+        target_min = max(2.0, float(min(width, height)))
+        # Radial width expressed in final project pixels. Clamp so the ring can
+        # never invert or consume the whole radius.
+        band_ratio = max(1.0 / target_min, min(OUTER_RADIUS_RATIO - 0.04, value / target_min))
+        inner = OUTER_RADIUS_RATIO - band_ratio
     band = OUTER_RADIUS_RATIO - inner
     if band <= 0:
         raise ValueError("Radius Circular Spectrum menghasilkan ketebalan nol.")
     red, green, blue = _color_factors(color)
 
     radius = "hypot(X-W/2,Y-H/2)"
-    angle_x = (
-        "clip((atan2(Y-H/2,X-W/2)+PI)/(2*PI)*(W-1),0,W-1)"
-    )
+    angle_x = "clip((atan2(Y-H/2,X-W/2)+PI)/(2*PI)*(W-1),0,W-1)"
     source_y = (
         "clip(H-1-("
         + radius
@@ -100,15 +109,23 @@ def circular_spectrum_filter(
         f"lum({angle_x},{source_y}),0)"
     )
 
+    if band_count is None and smoothing is None and thickness is None:
+        frequency_source = f"showfreqs=s={side}x{side}:mode=bar:fscale={frequency_scale}:ascale={amplitude_scale}:colors=white,"
+    else:
+        bands = max(16, min(512, int(band_count if band_count is not None else side)))
+        averaging = smoothing_to_averaging(0.0 if smoothing is None else float(smoothing))
+        frequency_source = (
+            f"showfreqs=s={bands}x{side}:mode=bar:fscale={frequency_scale}:"
+            f"ascale={amplitude_scale}:averaging={averaging}:colors=white,"
+            f"scale={side}:{side}:flags=neighbor,"
+        )
+
     return (
-        f"showfreqs=s={side}x{side}:mode=bar:"
-        f"fscale={frequency_scale}:ascale={amplitude_scale}:colors=white,"
-        "format=gray,"
-        f"geq=lum='{radial_luma}':interpolation=bilinear,"
-        "format=rgba,colorkey=0x000000:0.02:0.0,"
-        f"colorchannelmixer=rr={red:.6f}:gg={green:.6f}:bb={blue:.6f},"
-        f"scale={geometry.target_width}:{geometry.target_height}:"
-        "force_original_aspect_ratio=decrease,"
-        f"pad={geometry.target_width}:{geometry.target_height}:"
-        "(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba"
+        frequency_source
+        + "format=gray,"
+        + f"geq=lum='{radial_luma}':interpolation=bilinear,"
+        + "format=rgba,colorkey=0x000000:0.02:0.0,"
+        + f"colorchannelmixer=rr={red:.6f}:gg={green:.6f}:bb={blue:.6f},"
+        + f"scale={geometry.target_width}:{geometry.target_height}:force_original_aspect_ratio=decrease,"
+        + f"pad={geometry.target_width}:{geometry.target_height}:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba"
     )
