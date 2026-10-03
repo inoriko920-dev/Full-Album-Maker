@@ -30,6 +30,7 @@ from full_album_maker.spectrum_feature_step08 import install_step08_spectrum
 from full_album_maker.ai_feature_step09 import install_step09_ai_agent
 from full_album_maker.render_queue_presentation_step10 import install_step10_queue_presentation
 from full_album_maker.render_feature_step10 import install_step10_render
+from full_album_maker.integration_feature_step11 import install_step11_integration
 
 
 install_feature()
@@ -60,6 +61,7 @@ install_step08_spectrum()
 install_step09_ai_agent()
 install_step10_queue_presentation()
 install_step10_render()
+install_step11_integration()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -70,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         return run_portable_smoke()
 
     # Import after installing the compatibility/presentation layers so the recovered
-    # v1.4 window keeps its proven engine while the golden workspaces extend it.
+    # v1.4 window keeps its proven engine while the integrated workspaces extend it.
     from full_album_maker.v14_window import run
 
     return run()
