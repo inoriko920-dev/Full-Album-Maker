@@ -26,6 +26,7 @@ from full_album_maker.visual_feature_step06 import install_step06_visual
 from full_album_maker.visual_preview_decode_step06 import install_step06_visual_preview_decode
 from full_album_maker.visual_timeline_completion_step06 import install_step06_visual_timeline_completion
 from full_album_maker.template_feature_step07 import install_step07_template
+from full_album_maker.spectrum_feature_step08 import install_step08_spectrum
 
 
 install_feature()
@@ -52,6 +53,7 @@ install_step06_visual()
 install_step06_visual_preview_decode()
 install_step06_visual_timeline_completion()
 install_step07_template()
+install_step08_spectrum()
 
 
 def main(argv: list[str] | None = None) -> int:
