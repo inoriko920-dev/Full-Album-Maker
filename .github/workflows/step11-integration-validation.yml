@@ -1,0 +1,60 @@
+name: STEP11 Integration validation
+
+on:
+  push:
+    branches:
+      - integration/step-11-project-state
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-integration:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+    steps:
+      - name: Checkout STEP11 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run STEP11 focused integration core
+        run: python -m pytest -q tests/test_step11_integration_core.py
+      - name: Run STEP10 Render regression gate
+        run: |
+          python -m pytest -q \
+            tests/test_step10_render_model.py \
+            tests/test_step10_render_preflight.py \
+            tests/test_step10_render_queue.py \
+            tests/test_step10_render_executor.py \
+            tests/test_step10_render_ui.py
+      - name: Run STEP09 AI regression gate
+        run: |
+          python -m pytest -q \
+            tests/test_step09_ai_model.py \
+            tests/test_step09_ai_actions.py \
+            tests/test_step09_ai_security.py \
+            tests/test_step09_ai_ui.py
+      - name: Run full recovered regression suite
+        timeout-minutes: 6
+        run: python -m pytest -q --disable-warnings
