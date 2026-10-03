@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
+import os
 from pathlib import Path
 
-import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
+import pytest
 
+import full_album_maker.custom_template_builder as custom_builder
 from full_album_maker.custom_template_builder import CustomTemplateStore
 from full_album_maker.editor_controller import EditorController
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
@@ -98,6 +101,35 @@ def test_custom_template_stays_usable_when_original_project_resource_disappears(
     )
     assert applied.revision == doc.revision + 1
     assert any(layer.origin == "template" for layer in applied.layers)
+
+
+def test_custom_save_failure_keeps_previous_file_and_retry_succeeds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    doc, _cover_path = _document(tmp_path)
+    store = CustomTemplateStore(tmp_path / "templates")
+    original = duplicate_portable_template(
+        doc,
+        TemplateStudioDraft(template_id="spotify_clean"),
+        (doc.playlist.entries[0].song_id,),
+        label="Atomic Original",
+        store=store,
+    )
+    path = store._path_for_id(original.template_id)
+    previous_bytes = path.read_bytes()
+    updated = replace(original, label="Atomic Updated")
+    real_replace = custom_builder.os.replace
+
+    def fail_replace(_source, _destination):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(custom_builder.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="simulated replace failure"):
+        store.save(updated)
+    assert path.read_bytes() == previous_bytes
+    assert not list(path.parent.glob(path.name + ".*.tmp"))
+
+    monkeypatch.setattr(custom_builder.os, "replace", real_replace)
+    store.save(updated)
+    assert CustomTemplateStore(tmp_path / "templates").load(updated.template_id).label == "Atomic Updated"
 
 
 def test_preview_does_not_touch_source_controller_undo_history(tmp_path: Path) -> None:
