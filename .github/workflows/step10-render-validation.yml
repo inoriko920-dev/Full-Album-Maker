@@ -32,8 +32,7 @@ jobs:
         run: |
           sudo apt-get update
           # Do not install distro FFmpeg in the baseline gate. Real STEP10
-          # FFmpeg/ffprobe integration is added as an isolated targeted gate
-          # after executor/output-verification is implemented.
+          # FFmpeg/ffprobe integration runs in an isolated targeted job later.
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - name: Install project
         run: |
@@ -42,11 +41,12 @@ jobs:
           python -m pip install -e .
       - name: Compile source
         run: python -m compileall -q src
-      - name: Run STEP10 focused model and preflight tests
+      - name: Run STEP10 focused render tests
         run: |
           python -m pytest -q \
             tests/test_step10_render_model.py \
-            tests/test_step10_render_preflight.py
+            tests/test_step10_render_preflight.py \
+            tests/test_step10_render_executor.py
       - name: Run STEP09 AI Agent regression gate
         run: |
           python -m pytest -q \
