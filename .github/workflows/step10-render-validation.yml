@@ -60,10 +60,11 @@ jobs:
       - name: Run recovered render lifecycle regression
         run: |
           python -m pytest -q \
-            tests/test_atomic_bundle.py \
+            tests/test_atomic_render_bundle.py \
             tests/test_render_lifecycle.py \
-            tests/test_editor_v2_s10_render.py \
-            tests/test_editor_v2_s11_render_parity.py \
+            tests/test_editor_v2_render.py \
+            tests/test_renderer_integration.py \
+            tests/test_safety_and_renderer.py \
             tests/test_editor_v2_s11_spectrum_free_audio.py
       - name: Run full recovered regression suite
         timeout-minutes: 7
