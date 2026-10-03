@@ -19,11 +19,7 @@ from .render_center_model_step10 import (
     RenderMetrics,
     RenderSettings,
 )
-from .render_preflight_step10 import (
-    FFmpegCapability,
-    PreflightReport,
-    run_preflight,
-)
+from .render_preflight_step10 import FFmpegCapability, PreflightReport, run_preflight
 from .spectrum_render_step08 import Step08FFmpegCompiler
 
 
@@ -64,7 +60,6 @@ MetricCallback = Callable[[RenderMetrics], None]
 LogCallback = Callable[[str], None]
 Run = Callable[..., subprocess.CompletedProcess]
 
-
 _SECRETISH = re.compile(
     r"(?i)(api[_-]?key|authorization|bearer|token|secret|password)\s*[:=]\s*([^\s,;]+)"
 )
@@ -72,6 +67,9 @@ _SECRETISH = re.compile(
 
 def sanitize_render_log(line: str, *, max_length: int = 1500) -> str:
     text = str(line or "").replace("\x00", "").strip()
+    # Bearer values sometimes appear as `Authorization: Bearer abc`; redact the
+    # complete credential token rather than relying on the generic key=value form.
+    text = re.sub(r"(?i)authorization\s*:\s*bearer\s+\S+", "Authorization: Bearer [REDACTED]", text)
     text = _SECRETISH.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
     if len(text) > max_length:
         text = text[: max_length - 14] + "…[TRUNCATED]"
@@ -126,8 +124,12 @@ def verify_output(
     except Exception as exc:
         raise Step10RenderError(f"ffprobe output gagal dijalankan: {exc}") from exc
     if int(getattr(completed, "returncode", 1)) != 0:
-        detail = sanitize_render_log(getattr(completed, "stderr", "") or getattr(completed, "stdout", ""))
-        raise Step10RenderError("ffprobe menolak output staged." + (f" {detail}" if detail else ""))
+        detail = sanitize_render_log(
+            getattr(completed, "stderr", "") or getattr(completed, "stdout", "")
+        )
+        raise Step10RenderError(
+            "ffprobe menolak output staged." + (f" {detail}" if detail else "")
+        )
     try:
         payload = json.loads(getattr(completed, "stdout", "") or "{}")
     except json.JSONDecodeError as exc:
@@ -136,8 +138,14 @@ def verify_output(
     streams = payload.get("streams", [])
     if not isinstance(streams, list):
         raise Step10RenderError("ffprobe tidak mengembalikan daftar stream.")
-    video = next((item for item in streams if isinstance(item, dict) and item.get("codec_type") == "video"), None)
-    audio = next((item for item in streams if isinstance(item, dict) and item.get("codec_type") == "audio"), None)
+    video = next(
+        (item for item in streams if isinstance(item, dict) and item.get("codec_type") == "video"),
+        None,
+    )
+    audio = next(
+        (item for item in streams if isinstance(item, dict) and item.get("codec_type") == "audio"),
+        None,
+    )
     if video is None:
         raise Step10RenderError("Output staged tidak memiliki video stream.")
     if audio is None:
@@ -147,21 +155,35 @@ def verify_output(
     height = int(video.get("height") or 0)
     if (width, height) != (int(settings.width), int(settings.height)):
         raise Step10RenderError(
-            f"Resolusi output {width}x{height} tidak sama dengan target {settings.width}x{settings.height}."
+            f"Resolusi output {width}x{height} tidak sama dengan target "
+            f"{settings.width}x{settings.height}."
         )
 
     video_codec = str(video.get("codec_name") or "").casefold()
     expected_video = "h264" if settings.video_codec == "h264" else "hevc"
     if video_codec != expected_video:
-        raise Step10RenderError(f"Codec video output {video_codec or '-'} tidak sama dengan target {expected_video}.")
+        raise Step10RenderError(
+            f"Codec video output {video_codec or '-'} tidak sama dengan target {expected_video}."
+        )
     audio_codec = str(audio.get("codec_name") or "").casefold()
     if audio_codec != "aac":
         raise Step10RenderError(f"Codec audio output {audio_codec or '-'} bukan AAC.")
+    try:
+        sample_rate = int(audio.get("sample_rate") or 0)
+    except (TypeError, ValueError):
+        sample_rate = 0
+    if sample_rate != int(settings.sample_rate):
+        raise Step10RenderError(
+            f"Sample rate output {sample_rate or '-'} tidak sama dengan target {settings.sample_rate}."
+        )
 
     format_data = payload.get("format") if isinstance(payload.get("format"), dict) else {}
-    duration_candidates = [format_data.get("duration"), video.get("duration"), audio.get("duration")]
+    format_name = str(format_data.get("format_name") or "").casefold()
+    if settings.container == "mp4" and "mp4" not in format_name:
+        raise Step10RenderError(f"Container output bukan MP4 ({format_name or 'unknown'}).")
+
     duration = 0.0
-    for candidate in duration_candidates:
+    for candidate in (format_data.get("duration"), video.get("duration"), audio.get("duration")):
         try:
             parsed = float(candidate)
         except (TypeError, ValueError):
@@ -174,12 +196,15 @@ def verify_output(
     tolerance = max(0.75, expected * 0.015)
     if abs(duration - expected) > tolerance:
         raise Step10RenderError(
-            f"Durasi output {duration:.3f}s berbeda dari snapshot {expected:.3f}s lebih dari toleransi {tolerance:.3f}s."
+            f"Durasi output {duration:.3f}s berbeda dari snapshot {expected:.3f}s "
+            f"lebih dari toleransi {tolerance:.3f}s."
         )
 
     fps = _fps_value(video.get("avg_frame_rate") or video.get("r_frame_rate"))
     if fps <= 0 or abs(fps - float(settings.fps)) > 0.6:
-        raise Step10RenderError(f"FPS output {fps:.3f} tidak sama dengan target {settings.fps}.")
+        raise Step10RenderError(
+            f"FPS output {fps:.3f} tidak sama dengan target {settings.fps}."
+        )
 
     return OutputVerification(
         path=str(target),
@@ -223,22 +248,28 @@ def apply_settings_to_snapshot(job: RenderJob, encoder: str):
     return document
 
 
-def apply_encoder_settings(args: tuple[str, ...], settings: RenderSettings, encoder: str) -> tuple[str, ...]:
+def apply_encoder_settings(
+    args: tuple[str, ...], settings: RenderSettings, encoder: str
+) -> tuple[str, ...]:
     values = list(args)
     if "-c:v" not in values:
         raise Step10RenderError("Compiler recovered tidak menghasilkan opsi video encoder.")
     video_index = values.index("-c:v")
     values[video_index + 1] = str(encoder)
-
-    # Keep a single deterministic target bitrate option near the encoder.
     while "-b:v" in values:
         index = values.index("-b:v")
         del values[index : index + 2]
-    values[video_index + 2:video_index + 2] = ["-b:v", _bitrate_string(settings.video_bitrate_bps)]
+    video_index = values.index("-c:v")
+    values[video_index + 2:video_index + 2] = [
+        "-b:v", _bitrate_string(settings.video_bitrate_bps)
+    ]
 
     if "-c:a" in values:
         while "-b:a" in values:
             index = values.index("-b:a")
+            del values[index : index + 2]
+        while "-ar" in values:
+            index = values.index("-ar")
             del values[index : index + 2]
         audio_index = values.index("-c:a")
         values[audio_index + 2:audio_index + 2] = [
@@ -252,9 +283,7 @@ def add_progress_protocol(args: tuple[str, ...]) -> tuple[str, ...]:
     values = list(args)
     if not values:
         raise Step10RenderError("Argumen FFmpeg kosong.")
-    # Global progress output is machine-readable and coexists with stderr logs.
-    insert_at = 1
-    values[insert_at:insert_at] = ["-nostats", "-progress", "pipe:1"]
+    values[1:1] = ["-nostats", "-progress", "pipe:1"]
     return tuple(values)
 
 
@@ -295,11 +324,12 @@ class Step10ProcessRunner:
                 if on_log:
                     on_log(line)
 
-        thread = threading.Thread(target=drain_stderr, name="fam-render-stderr", daemon=True)
+        thread = threading.Thread(
+            target=drain_stderr, name="fam-render-stderr", daemon=True
+        )
         thread.start()
         values: dict[str, str] = {}
         last = RenderMetrics()
-        started = time.monotonic()
         try:
             for raw in process.stdout:
                 if cancel_event is not None and cancel_event.is_set():
@@ -320,35 +350,40 @@ class Step10ProcessRunner:
                 if key.strip() != "progress":
                     continue
                 rendered = 0.0
-                if values.get("out_time_us"):
-                    try:
-                        rendered = float(values["out_time_us"]) / 1_000_000.0
-                    except ValueError:
-                        rendered = 0.0
-                elif values.get("out_time_ms"):
-                    try:
-                        # FFmpeg progress historically names this *_ms but emits microseconds.
-                        rendered = float(values["out_time_ms"]) / 1_000_000.0
-                    except ValueError:
-                        rendered = 0.0
-                percent = max(0.0, min(100.0, rendered / max(0.001, duration_seconds) * 100.0))
+                for time_key in ("out_time_us", "out_time_ms"):
+                    if values.get(time_key):
+                        try:
+                            # FFmpeg progress reports these fields in microseconds
+                            # despite the historical out_time_ms label.
+                            rendered = float(values[time_key]) / 1_000_000.0
+                        except ValueError:
+                            rendered = 0.0
+                        break
+                percent = max(
+                    0.0,
+                    min(100.0, rendered / max(0.001, duration_seconds) * 100.0),
+                )
                 try:
                     fps = max(0.0, float(values.get("fps", "0") or 0))
                 except ValueError:
                     fps = 0.0
-                speed_text = values.get("speed", "0x").rstrip("x")
                 try:
-                    speed = max(0.0, float(speed_text or 0))
+                    speed = max(
+                        0.0,
+                        float((values.get("speed", "0x") or "0x").rstrip("x") or 0),
+                    )
                 except ValueError:
                     speed = 0.0
-                elapsed = max(0.001, time.monotonic() - started)
-                average_fps = max(0.0, fps) if fps else 0.0
-                eta = max(0.0, (duration_seconds - rendered) / speed) if speed > 0 else None
+                eta = (
+                    max(0.0, (duration_seconds - rendered) / speed)
+                    if speed > 0
+                    else None
+                )
                 last = RenderMetrics(
                     percent=100.0 if values.get("progress") == "end" else percent,
-                    rendered_seconds=min(max(0.0, rendered), max(duration_seconds, rendered)),
+                    rendered_seconds=max(0.0, rendered),
                     fps=fps,
-                    average_fps=average_fps,
+                    average_fps=fps,
                     speed=speed,
                     eta_seconds=eta,
                 )
@@ -365,7 +400,8 @@ class Step10ProcessRunner:
                 with stderr_lock:
                     detail = "\n".join(stderr_lines[-8:])
                 raise Step10RenderError(
-                    f"FFmpeg keluar dengan kode {return_code}." + (f"\n{detail}" if detail else "")
+                    f"FFmpeg keluar dengan kode {return_code}."
+                    + (f"\n{detail}" if detail else "")
                 )
             return last
         finally:
@@ -392,7 +428,9 @@ class RenderExecutor:
     def _claim(self, attempt_id: str) -> None:
         with self._lock:
             if self._active_attempt is not None:
-                raise Step10RenderError("Renderer sedang menjalankan attempt lain; double-start ditolak.")
+                raise Step10RenderError(
+                    "Renderer sedang menjalankan attempt lain; double-start ditolak."
+                )
             self._active_attempt = attempt_id
 
     def _release(self, attempt_id: str) -> None:
@@ -411,35 +449,39 @@ class RenderExecutor:
         self._claim(job.attempt_id)
         staged: Path | None = None
         try:
-            if job.state not in {RenderJobState.DRAFT, RenderJobState.BLOCKED, RenderJobState.READY, RenderJobState.QUEUED}:
-                raise Step10RenderError(f"Job state {job.state.value} tidak dapat dimulai.")
-            if job.state == RenderJobState.DRAFT:
-                job.transition(RenderJobState.PREFLIGHTING)
-            elif job.state == RenderJobState.BLOCKED:
-                job.transition(RenderJobState.PREFLIGHTING)
+            if job.state not in {
+                RenderJobState.DRAFT,
+                RenderJobState.BLOCKED,
+                RenderJobState.READY,
+                RenderJobState.QUEUED,
+            }:
+                raise Step10RenderError(
+                    f"Job state {job.state.value} tidak dapat dimulai."
+                )
 
-            # Critical preflight is always re-run from the immutable job snapshot,
-            # never from the mutable live editor document.
+            # Every launch path explicitly returns to PREFLIGHTING. A previously
+            # READY/QUEUED job is never trusted without this critical recheck.
+            job.transition(RenderJobState.PREFLIGHTING)
             preflight = run_preflight(
                 job.snapshot.document(),
                 job.settings,
                 capability=self.capability,
             )
             if preflight.blocked or preflight.snapshot is None or preflight.encoder is None:
-                if job.state == RenderJobState.PREFLIGHTING:
-                    job.transition(RenderJobState.BLOCKED)
-                else:
-                    job.error_code = "PREFLIGHT_BLOCKED"
-                    job.error_message = "; ".join(
-                        check.message for check in preflight.checks if check.level.value == "BLOCK"
-                    )
-                raise Step10RenderError("Critical preflight BLOCK; render tidak dimulai.")
-            if job.state == RenderJobState.PREFLIGHTING:
-                job.transition(RenderJobState.READY)
-            if job.state == RenderJobState.READY:
-                job.transition(RenderJobState.STARTING)
-            elif job.state == RenderJobState.QUEUED:
-                job.transition(RenderJobState.STARTING)
+                job.error_code = "PREFLIGHT_BLOCKED"
+                job.error_message = "; ".join(
+                    check.message
+                    for check in preflight.checks
+                    if check.level.value == "BLOCK"
+                )
+                job.transition(RenderJobState.BLOCKED)
+                raise Step10RenderError(
+                    "Critical preflight BLOCK; render tidak dimulai."
+                )
+            job.error_code = ""
+            job.error_message = ""
+            job.transition(RenderJobState.READY)
+            job.transition(RenderJobState.STARTING)
 
             final = job.settings.final_output
             final.parent.mkdir(parents=True, exist_ok=True)
@@ -475,27 +517,32 @@ class RenderExecutor:
 
                 self.runner.run(
                     args,
-                    duration_seconds=job.snapshot.duration_tick / max(1, job.snapshot.timebase),
+                    duration_seconds=(
+                        job.snapshot.duration_tick / max(1, job.snapshot.timebase)
+                    ),
                     cancel_event=cancel_event,
                     on_metrics=metrics,
                     on_log=lambda line: self._record_log(job, line, on_log),
                 )
 
             if cancel_event is not None and cancel_event.is_set():
-                raise Step10RenderCancelled("Render dibatalkan sebelum verifikasi output.")
+                raise Step10RenderCancelled(
+                    "Render dibatalkan sebelum verifikasi output."
+                )
             job.transition(RenderJobState.FINALIZING)
             verification = self.verifier(
                 staged,
                 settings=job.settings,
-                expected_duration_seconds=job.snapshot.duration_tick / max(1, job.snapshot.timebase),
+                expected_duration_seconds=(
+                    job.snapshot.duration_tick / max(1, job.snapshot.timebase)
+                ),
                 ffprobe=self.capability.ffprobe,
             )
             if not verification.verified:
-                raise Step10RenderError("Output verifier tidak memberi status VERIFIED.")
+                raise Step10RenderError(
+                    "Output verifier tidak memberi status VERIFIED."
+                )
 
-            # Atomic publication occurs only after content verification. Existing
-            # finals are protected by the preflight overwrite policy and the
-            # bundle publisher's journal/rollback semantics.
             publish_bundle_transactional([(staged, final)])
             staged = None
             job.verified_output = str(final)
@@ -518,7 +565,13 @@ class RenderExecutor:
         except Step10RenderCancelled as exc:
             job.error_code = "CANCELLED"
             job.error_message = sanitize_render_log(str(exc))
-            if job.state in {RenderJobState.STARTING, RenderJobState.RUNNING, RenderJobState.PAUSED}:
+            if job.state in {
+                RenderJobState.PREFLIGHTING,
+                RenderJobState.READY,
+                RenderJobState.STARTING,
+                RenderJobState.RUNNING,
+                RenderJobState.PAUSED,
+            }:
                 job.transition(RenderJobState.CANCELLED)
             raise
         except Exception as exc:
@@ -526,7 +579,11 @@ class RenderExecutor:
                 job.error_code = "RENDER_FAILED"
             if not job.error_message:
                 job.error_message = sanitize_render_log(str(exc))
-            if job.state in {RenderJobState.STARTING, RenderJobState.RUNNING, RenderJobState.FINALIZING}:
+            if job.state in {
+                RenderJobState.STARTING,
+                RenderJobState.RUNNING,
+                RenderJobState.FINALIZING,
+            }:
                 job.transition(RenderJobState.FAILED)
             raise
         finally:
@@ -538,7 +595,9 @@ class RenderExecutor:
             self._release(job.attempt_id)
 
     @staticmethod
-    def _record_log(job: RenderJob, line: str, callback: LogCallback | None) -> None:
+    def _record_log(
+        job: RenderJob, line: str, callback: LogCallback | None
+    ) -> None:
         safe = sanitize_render_log(line)
         if not safe:
             return
