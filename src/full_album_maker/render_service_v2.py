@@ -24,6 +24,27 @@ class RenderCancelledV2(RenderErrorV2):
     pass
 
 
+def ffmpeg_process_args(args: tuple[str, ...] | list[str], *, platform_name: str | None = None) -> tuple[str, ...]:
+    """Normalize FFmpeg option-file syntax for the host process.
+
+    The recovered Windows compiler externalizes large filter graphs as
+    `-/filter_complex <file>` to stay below CreateProcess command-line limits.
+    FFmpeg 6.1 on Linux predates that generic option-file spelling but supports
+    the equivalent `-filter_complex_script <file>`. Keep Windows behavior
+    unchanged and bridge only non-Windows execution. The graph file itself is
+    untouched, so preview/final semantics remain identical.
+    """
+
+    normalized = [str(value) for value in args]
+    host = os.name if platform_name is None else str(platform_name)
+    if host != "nt":
+        normalized = [
+            "-filter_complex_script" if value == "-/filter_complex" else value
+            for value in normalized
+        ]
+    return tuple(normalized)
+
+
 class FFmpegProcessRunner:
     def run(
         self,
@@ -33,7 +54,7 @@ class FFmpegProcessRunner:
         log: Callable[[str], None] | None = None,
     ) -> None:
         proc = subprocess.Popen(
-            list(args),
+            list(ffmpeg_process_args(args)),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
