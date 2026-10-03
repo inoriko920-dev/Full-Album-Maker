@@ -10,6 +10,7 @@ from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInst
 from full_album_maker.render_center_model_step10 import (
     RenderJob,
     RenderJobState,
+    RenderSettings,
     build_render_snapshot,
     settings_from_preset,
 )
@@ -109,16 +110,35 @@ def _verified(staged, *, settings, expected_duration_seconds, ffprobe):
 
 def test_snapshot_settings_apply_only_to_frozen_clone(tmp_path: Path) -> None:
     doc = _document(tmp_path)
-    job = RenderJob(
-        build_render_snapshot(doc),
-        settings_from_preset("youtube_1440p", filename="clone", output_folder=str(tmp_path)),
+    settings = RenderSettings(
+        filename="clone",
+        output_folder=str(tmp_path),
+        width=2560,
+        height=1440,
+        fps=24,
+        video_codec="h264",
+        video_bitrate_bps=24_000_000,
+        audio_codec="aac",
+        audio_bitrate_bps=320_000,
+        sample_rate=48_000,
+        hardware_mode="software",
+        container="mp4",
+        overwrite=False,
+        preset_id="custom",
     )
+    job = RenderJob(build_render_snapshot(doc), settings)
     doc.playlist.entries[0].display_title = "Live Edit After Queue"
     doc.revision += 1
     render_doc = apply_settings_to_snapshot(job, "libx264")
     assert render_doc.playlist.entries[0].display_title == "Before Enqueue"
-    assert (render_doc.canvas.width, render_doc.canvas.height, render_doc.canvas.fps) == (2560, 1440, 30)
+    assert (render_doc.canvas.width, render_doc.canvas.height) == (2560, 1440)
+    assert (render_doc.canvas.fps_num, render_doc.canvas.fps_den) == (24, 1)
     assert render_doc.render_settings["resolved_encoder"] == "libx264"
+    # The frozen snapshot remains unchanged; RenderSettings are applied only to
+    # the per-attempt document reconstructed for the compiler.
+    frozen = job.snapshot.document()
+    assert (frozen.canvas.width, frozen.canvas.height) == (1920, 1080)
+    assert (frozen.canvas.fps_num, frozen.canvas.fps_den) == (30, 1)
     assert doc.playlist.entries[0].display_title == "Live Edit After Queue"
 
 
