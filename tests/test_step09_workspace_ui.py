@@ -1,90 +1,100 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
 import sys
 import textwrap
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+def _run_qt_script(source: str, *, timeout: int = 40) -> None:
+    env = dict(os.environ)
+    env["QT_QPA_PLATFORM"] = "offscreen"
+    env.setdefault("QT_SCALE_FACTOR", "1")
+    result = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(source)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=timeout,
+    )
+    assert result.returncode == 0, (result.stdout + "\n" + result.stderr)
 
-from full_album_maker.ai_agent_core_step09 import AgentState, PermissionGrant
-from full_album_maker.ai_session_step09 import AgentSessionSnapshot
-from full_album_maker.ai_workspace_step09 import AIContextDock, AITaskCanvas
 
+def test_task_canvas_and_context_dock_contracts_are_process_isolated() -> None:
+    _run_qt_script(
+        r'''
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+        from full_album_maker.ai_agent_core_step09 import AgentState, PermissionGrant
+        from full_album_maker.ai_session_step09 import AgentSessionSnapshot
+        from full_album_maker.ai_workspace_step09 import AIContextDock, AITaskCanvas
 
-def _app() -> QApplication:
-    return QApplication.instance() or QApplication([])
+        app = QApplication.instance() or QApplication([])
 
+        def snapshot(state):
+            return AgentSessionSnapshot(
+                state=state,
+                prompt="Pilih 20 lagu",
+                message="Rencana siap",
+                clarification="",
+                plan=None,
+                preview=None,
+                execution=None,
+                error="",
+            )
 
-def _snapshot(state: AgentState) -> AgentSessionSnapshot:
-    return AgentSessionSnapshot(
-        state=state,
-        prompt="Pilih 20 lagu",
-        message="Rencana siap",
-        clarification="",
-        plan=None,
-        preview=None,
-        execution=None,
-        error="",
+        canvas = AITaskCanvas()
+        canvas.set_prompt("perintah")
+        canvas.apply_session(snapshot(AgentState.IDLE), can_undo_ai=False)
+        assert canvas.send_button.isEnabled() is True
+        assert canvas.preview_button.isEnabled() is False
+        assert canvas.execute_button.isEnabled() is False
+        assert canvas.cancel_button.isEnabled() is False
+
+        canvas.apply_session(snapshot(AgentState.PLAN_READY), can_undo_ai=False)
+        assert canvas.preview_button.isEnabled() is True
+        assert canvas.execute_button.isEnabled() is False
+        assert canvas.cancel_button.isEnabled() is True
+
+        canvas.apply_session(snapshot(AgentState.PREVIEW_READY), can_undo_ai=False)
+        assert canvas.preview_button.isEnabled() is False
+        assert canvas.execute_button.isEnabled() is True
+        assert canvas.cancel_button.isEnabled() is True
+
+        canvas.apply_session(snapshot(AgentState.EXECUTING), can_undo_ai=False)
+        assert canvas.send_button.isEnabled() is False
+        assert canvas.execute_button.isEnabled() is False
+        assert canvas.cancel_button.isEnabled() is False
+
+        canvas.apply_session(snapshot(AgentState.COMPLETED), can_undo_ai=True)
+        assert canvas.undo_button.isEnabled() is True
+
+        dock = AIContextDock()
+        dock.set_context(project_name="Album Kenangan", song_count=20, media_count=396)
+        dock.set_provider("gemini", key_ready=True)
+        grant = PermissionGrant(dock.permission_values())
+        assert grant.allows(dock.permission_values())
+        assert dock.project.text() == "Project Aktif: Album Kenangan"
+        assert dock.songs.text() == "Lagu yang Dipilih: 20"
+        assert dock.media.text() == "Media yang Boleh Dipakai: 396 dari project"
+        assert dock.key_status.text() == "Status Key: Aktif"
+        assert "AIza" not in dock.key_status.text()
+        dock.permissions["visual.write"].setChecked(False)
+        assert "visual.write" not in dock.permission_values()
+
+        canvas.hide()
+        dock.hide()
+        canvas.deleteLater()
+        dock.deleteLater()
+        app.processEvents()
+        ''',
+        timeout=25,
     )
 
 
-def test_task_canvas_button_enablement_is_driven_by_agent_state() -> None:
-    app = _app()
-    canvas = AITaskCanvas()
-    canvas.set_prompt("perintah")
-
-    canvas.apply_session(_snapshot(AgentState.IDLE), can_undo_ai=False)
-    assert canvas.send_button.isEnabled() is True
-    assert canvas.preview_button.isEnabled() is False
-    assert canvas.execute_button.isEnabled() is False
-    assert canvas.cancel_button.isEnabled() is False
-
-    canvas.apply_session(_snapshot(AgentState.PLAN_READY), can_undo_ai=False)
-    assert canvas.preview_button.isEnabled() is True
-    assert canvas.execute_button.isEnabled() is False
-    assert canvas.cancel_button.isEnabled() is True
-
-    canvas.apply_session(_snapshot(AgentState.PREVIEW_READY), can_undo_ai=False)
-    assert canvas.preview_button.isEnabled() is False
-    assert canvas.execute_button.isEnabled() is True
-    assert canvas.cancel_button.isEnabled() is True
-
-    canvas.apply_session(_snapshot(AgentState.EXECUTING), can_undo_ai=False)
-    assert canvas.send_button.isEnabled() is False
-    assert canvas.execute_button.isEnabled() is False
-    assert canvas.cancel_button.isEnabled() is False
-
-    canvas.apply_session(_snapshot(AgentState.COMPLETED), can_undo_ai=True)
-    assert canvas.undo_button.isEnabled() is True
-    canvas.deleteLater()
-    app.processEvents()
-
-
-def test_context_dock_exposes_explicit_permission_grant_and_masks_key_value() -> None:
-    app = _app()
-    dock = AIContextDock()
-    dock.set_context(project_name="Album Kenangan", song_count=20, media_count=396)
-    dock.set_provider("gemini", key_ready=True)
-    grant = PermissionGrant(dock.permission_values())
-    assert grant.allows(dock.permission_values())
-    assert dock.project.text() == "Project Aktif: Album Kenangan"
-    assert dock.songs.text() == "Lagu yang Dipilih: 20"
-    assert dock.media.text() == "Media yang Boleh Dipakai: 396 dari project"
-    assert dock.key_status.text() == "Status Key: Aktif"
-    assert "AIza" not in dock.key_status.text()
-    dock.permissions["visual.write"].setChecked(False)
-    assert "visual.write" not in dock.permission_values()
-    dock.deleteLater()
-    app.processEvents()
-
-
-def test_production_ai_route_and_mock_plan_preview_are_non_destructive(tmp_path: Path) -> None:
-    script = textwrap.dedent(
-        r'''
+def test_production_ai_route_and_mock_plan_preview_are_non_destructive() -> None:
+    script = r'''
         import os
         from pathlib import Path
         import tempfile
@@ -183,16 +193,7 @@ def test_production_ai_route_and_mock_plan_preview_are_non_destructive(tmp_path:
             window.hide()
             window.deleteLater()
             app.processEvents()
-        '''
-    )
+    '''
     env = dict(os.environ)
-    env["QT_QPA_PLATFORM"] = "offscreen"
     env["FAM_STEP09_PROVIDER"] = "mock"
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=40,
-    )
-    assert result.returncode == 0, (result.stdout + "\n" + result.stderr)
+    _run_qt_script(script, timeout=40)
