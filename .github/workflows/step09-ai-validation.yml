@@ -43,7 +43,8 @@ jobs:
           python -m pytest -q \
             tests/test_step09_slowmo_contract.py \
             tests/test_step09_agent_core.py \
-            tests/test_step09_provider.py
+            tests/test_step09_provider.py \
+            tests/test_step09_async_provider.py
       - name: Run recovered AI atomic regression
         run: |
           python -m pytest -q \
