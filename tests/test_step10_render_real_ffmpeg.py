@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 import wave
 
+import pytest
+
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
+from full_album_maker.paths import ffmpeg_path, ffprobe_path
 from full_album_maker.render_center_model_step10 import RenderJob, RenderSettings, build_render_snapshot
 from full_album_maker.render_executor_step10 import RenderExecutor
 from full_album_maker.render_preflight_step10 import probe_ffmpeg
@@ -19,6 +22,9 @@ def _write_silence_wav(path: Path, seconds: int = 2, sample_rate: int = 48_000) 
 
 
 def test_real_ffmpeg_renders_then_ffprobe_verifies_before_final_publish(tmp_path: Path) -> None:
+    if not ffmpeg_path() or not ffprobe_path():
+        pytest.skip("Real FFmpeg/ffprobe smoke hanya dijalankan pada targeted runtime job.")
+
     source = tmp_path / "source.wav"
     _write_silence_wav(source)
     stat = source.stat()
