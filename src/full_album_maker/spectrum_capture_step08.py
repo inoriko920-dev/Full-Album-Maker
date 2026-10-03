@@ -202,17 +202,22 @@ def capture(output: Path, width: int, height: int, scale: float, evidence_dir: P
     window.foundation_shell.set_workspace("spectrum")
     window._s08_selected_layer_id = spectrum_id
     window._s08_refresh(request_preview=False)
-    # Keep capture deterministic: use the synchronously rendered real-audio frame
-    # and invalidate any earlier async request spawned by route activation.
-    window._s08_preview_worker.invalidate()
-    window._s08_preview_token = window._s08_preview_worker.generation
-    window.spectrum_workspace_s08.set_preview_result(str(loud), "DETERMINISTIC_LOUD")
     window.show()
 
+    # Let initial route/layout signals settle first. A route activation may have
+    # already queued an accurate-preview request, so the deterministic evidence
+    # frame must be installed *after* this event loop, not before it.
     loop = QEventLoop()
     QTimer.singleShot(250, loop.quit)
     loop.exec()
     app.processEvents()
+
+    # Invalidate every older async result, then pin the synchronously rendered
+    # real-audio loud frame immediately before capture. No later event processing
+    # occurs before grab(), so a stale worker cannot overwrite this evidence.
+    window._s08_preview_worker.invalidate()
+    window._s08_preview_token = window._s08_preview_worker.generation
+    window.spectrum_workspace_s08.set_preview_result(str(loud), "DETERMINISTIC_LOUD")
 
     live_document = window.editor_workspace.document()
     signature_after = live_document.content_signature()
@@ -253,6 +258,8 @@ def capture(output: Path, width: int, height: int, scale: float, evidence_dir: P
         "center_y_px": geometry.center_y_px,
         "size_ratio": geometry.size_ratio,
         "preview_status": window.spectrum_workspace_s08.preview_status.text(),
+        "accurate_frame_installed": True,
+        "accurate_frame_source": "deterministic_real_audio_loud_probe",
         "audio_probe": {
             "silence_sha256": _sha(silence),
             "loud_sha256": _sha(loud),
