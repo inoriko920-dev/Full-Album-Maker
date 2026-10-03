@@ -130,9 +130,11 @@ jobs:
           assert abs(main['smoothing'] - 0.65) < 1e-9, main
           assert abs(main['reactive_scale'] - 1.20) < 1e-9, main
           assert main['accent_color'] == '#1B8DFF', main
-          assert abs(main['center_x_px'] - 960.0) < 1e-6, main
+          # UI-07 golden-tuned fixture intentionally places the circular spectrum
+          # left of the canvas center to balance the 10-song playlist at right.
+          assert abs(main['center_x_px'] - 835.2) < 1e-6, main
           assert abs(main['center_y_px'] - 540.0) < 1e-6, main
-          assert abs(main['size_ratio'] - 0.78) < 1e-6, main
+          assert abs(main['size_ratio'] - 0.70) < 1e-6, main
           assert main['preview_status'] == 'Audio reaktif', main
           assert main['content_unchanged_by_route_and_preview'] is True, main
           probe = main['audio_probe']
@@ -147,6 +149,9 @@ jobs:
           assert compact['timeline_visible'] is True, compact
           assert compact['right_dock_width'] in range(290, 311), compact
           assert compact['preset_card_count'] == 9, compact
+          assert abs(compact['center_x_px'] - 835.2) < 1e-6, compact
+          assert abs(compact['center_y_px'] - 540.0) < 1e-6, compact
+          assert abs(compact['size_ratio'] - 0.70) < 1e-6, compact
           assert compact['content_unchanged_by_route_and_preview'] is True, compact
           print('STEP08_SPECTRUM_GEOMETRY_AUDIO_PASS')
           PY
