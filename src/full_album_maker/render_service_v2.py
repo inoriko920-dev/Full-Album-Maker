@@ -13,7 +13,7 @@ from .editor_models import ProjectDocument
 from .paths import ffmpeg_path, output_dir
 from .render_graph import RenderCompileError
 from .render_plan import RenderPlan
-from .v13_render_graph import V13FFmpegCompiler
+from .spectrum_render_step08 import Step08FFmpegCompiler
 
 
 class RenderErrorV2(RuntimeError):
@@ -183,7 +183,7 @@ class EditorRenderService:
                 dir=dest.parent,
             ) as folder:
                 work = Path(folder)
-                compiled = V13FFmpegCompiler(self.ffmpeg).compile_video(
+                compiled = Step08FFmpegCompiler(self.ffmpeg).compile_video(
                     snapshot,
                     staged,
                     work,
