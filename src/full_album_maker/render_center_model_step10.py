@@ -35,8 +35,11 @@ class RenderJobState(str, Enum):
 _ALLOWED_TRANSITIONS: dict[RenderJobState, frozenset[RenderJobState]] = {
     RenderJobState.DRAFT: frozenset({RenderJobState.PREFLIGHTING, RenderJobState.CANCELLED}),
     RenderJobState.PREFLIGHTING: frozenset({RenderJobState.READY, RenderJobState.BLOCKED, RenderJobState.CANCELLED}),
-    RenderJobState.READY: frozenset({RenderJobState.QUEUED, RenderJobState.STARTING, RenderJobState.RUNNING, RenderJobState.CANCELLED}),
-    RenderJobState.QUEUED: frozenset({RenderJobState.STARTING, RenderJobState.RUNNING, RenderJobState.CANCELLED}),
+    # READY/QUEUED may return to PREFLIGHTING for the mandatory critical
+    # recheck immediately before start. This prevents stale media/disk/encoder
+    # state from being treated as still ready.
+    RenderJobState.READY: frozenset({RenderJobState.PREFLIGHTING, RenderJobState.QUEUED, RenderJobState.STARTING, RenderJobState.RUNNING, RenderJobState.CANCELLED}),
+    RenderJobState.QUEUED: frozenset({RenderJobState.PREFLIGHTING, RenderJobState.STARTING, RenderJobState.RUNNING, RenderJobState.CANCELLED}),
     RenderJobState.STARTING: frozenset({RenderJobState.RUNNING, RenderJobState.FAILED, RenderJobState.CANCELLED}),
     RenderJobState.RUNNING: frozenset({RenderJobState.PAUSED, RenderJobState.FINALIZING, RenderJobState.FAILED, RenderJobState.CANCELLED, RenderJobState.INTERRUPTED}),
     RenderJobState.PAUSED: frozenset({RenderJobState.RUNNING, RenderJobState.CANCELLED, RenderJobState.INTERRUPTED}),
@@ -228,12 +231,9 @@ class RenderSnapshot:
         return ProjectDocument.from_dict(json.loads(self.project_json))
 
     def render_plan(self) -> RenderPlan:
-        payload = json.loads(self.render_plan_json)
-        # RenderPlan currently has no from_dict helper; callers needing the
-        # compiled object should regenerate it from document(), which also
-        # revalidates resolver semantics. The persisted JSON is audit evidence.
+        # Regenerate the typed plan from the frozen document. render_plan_json
+        # remains immutable audit evidence and can be compared independently.
         return compile_render_plan(self.document())
-
 
 
 def build_render_snapshot(document: ProjectDocument) -> RenderSnapshot:
