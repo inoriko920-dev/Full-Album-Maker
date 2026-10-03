@@ -32,8 +32,6 @@ def _write_fixture_wav(path: Path, *, seconds: float = 8.0, sample_rate: int = 4
             if t < 2.0:
                 value = 0.0
             else:
-                # Two fixed tones plus a slow deterministic envelope create a
-                # real, repeatable frequency image without random input.
                 envelope = 0.55 + 0.35 * math.sin(math.tau * 0.7 * t) ** 2
                 value = envelope * (
                     0.58 * math.sin(math.tau * 220.0 * t)
@@ -42,6 +40,51 @@ def _write_fixture_wav(path: Path, *, seconds: float = 8.0, sample_rate: int = 4
             sample = max(-32767, min(32767, int(round(value * 32767.0))))
             payload.extend(struct.pack("<h", sample))
         handle.writeframes(bytes(payload))
+
+
+def _write_fixture_image(path: Path, *, cover: bool = False) -> None:
+    """Create deterministic scenic reference art without external assets."""
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    width, height = (760, 760) if cover else (1920, 1080)
+    image = Image.new("RGB", (width, height), "#14263E")
+    pixels = image.load()
+    for y in range(height):
+        ratio = y / max(1, height - 1)
+        if cover:
+            top, bottom = (80, 92, 126), (22, 38, 55)
+        else:
+            top, bottom = (118, 121, 148), (17, 39, 55)
+        r = int(top[0] * (1 - ratio) + bottom[0] * ratio)
+        g = int(top[1] * (1 - ratio) + bottom[1] * ratio)
+        b = int(top[2] * (1 - ratio) + bottom[2] * ratio)
+        for x in range(width):
+            pixels[x, y] = (r, g, b)
+
+    draw = ImageDraw.Draw(image, "RGBA")
+    horizon = int(height * (0.57 if cover else 0.60))
+    mountain = []
+    for x in range(0, width + 1, max(4, width // 80)):
+        wave = math.sin(x / width * math.tau * 1.7) * 0.055 + math.sin(x / width * math.tau * 4.6) * 0.022
+        mountain.append((x, horizon - int(height * wave)))
+    mountain += [(width, height), (0, height)]
+    draw.polygon(mountain, fill=(13, 31, 43, 235))
+    draw.ellipse((int(width * 0.72), int(height * 0.20), int(width * 0.78), int(height * 0.26)), fill=(255, 201, 155, 95))
+
+    if cover:
+        frame = int(width * 0.055)
+        draw.rounded_rectangle((frame, frame, width - frame, height - frame), radius=24, outline=(255, 255, 255, 95), width=3)
+        try:
+            font = ImageFont.truetype("DejaVuSerif-Italic.ttf", 76)
+            small = ImageFont.truetype("DejaVuSans.ttf", 22)
+        except OSError:
+            font = ImageFont.load_default()
+            small = ImageFont.load_default()
+        draw.text((width * 0.18, height * 0.25), "Senja", font=font, fill=(255, 255, 255, 240))
+        draw.text((width * 0.29, height * 0.39), "di Kota Ini", font=font, fill=(255, 255, 255, 240))
+        draw.text((width * 0.38, height * 0.82), "ALBUM MUSIK", font=small, fill=(232, 239, 247, 210))
+    image.save(path, "PNG")
 
 
 def _fixture_document(root: Path):
@@ -55,7 +98,12 @@ def _fixture_document(root: Path):
     document.canvas.height = 1080
 
     wav = root / "Senja-di-Kota-Ini-Full-Album.wav"
+    background_path = root / "Background.png"
+    cover_path = root / "Cover.png"
     _write_fixture_wav(wav)
+    _write_fixture_image(background_path)
+    _write_fixture_image(cover_path, cover=True)
+
     audio = MediaAsset(
         kind="audio",
         locator=str(wav),
@@ -63,15 +111,32 @@ def _fixture_document(root: Path):
         source_duration_tick=8 * TIMEBASE,
         metadata={"title": "Senja di Kota Ini", "artist": "FULL ALBUM"},
     )
-    document.media.append(audio)
-    document.playlist.entries.append(
-        SongInstance(
-            asset_id=audio.asset_id,
-            display_title="Senja di Kota Ini",
-            display_artist="FULL ALBUM",
-            source_out_tick=8 * TIMEBASE,
-        )
+    background_asset = MediaAsset(kind="image", locator=str(background_path), original_name=background_path.name)
+    cover_asset = MediaAsset(kind="image", locator=str(cover_path), original_name=cover_path.name)
+    document.media.extend([audio, background_asset, cover_asset])
+
+    titles = (
+        "Senja di Kota Ini",
+        "Jalan Pulang",
+        "Perjalanan Kita",
+        "Cerita Baru",
+        "Langit yang Sama",
+        "Rumah di Hatiku",
+        "Sekali Lagi",
+        "Waktu dan Kita",
+        "Sampai Nanti",
+        "Di Ujung Jalan",
     )
+    for title in titles:
+        document.playlist.entries.append(
+            SongInstance(
+                asset_id=audio.asset_id,
+                display_title=title,
+                display_artist="FULL ALBUM",
+                source_out_tick=8 * TIMEBASE,
+                cover_asset_id=cover_asset.asset_id,
+            )
+        )
 
     track = next(item for item in document.tracks if item.kind == "visual")
     background = Layer(
@@ -80,33 +145,33 @@ def _fixture_document(root: Path):
         name="Overlay",
         order=0,
         time_binding=TimeBinding(kind="album"),
-        properties={"mode": "solid", "color": "#14283D"},
+        asset_refs=[background_asset.asset_id],
+        properties={"mode": "asset", "fit": "fill", "playback": "loop", "motion": "static"},
     )
-    logo = Layer(
+    cover = Layer(
         track_id=track.track_id,
-        type="text",
+        type="song_cover",
         name="Logo",
         order=1,
         time_binding=TimeBinding(kind="album"),
-        transform=Transform(x=0.38, y=0.31, width=0.24, height=0.18),
-        properties={
-            "text": "Senja\ndi Kota Ini",
-            "font_size": 50,
-            "color": "#FFFFFF",
-            "align": "center",
-        },
+        transform=Transform(x=0.29, y=0.29, width=0.25, height=0.44),
+        properties={"fit": "fill", "fallback_asset_id": cover_asset.asset_id},
     )
-    title = Layer(
+    playlist = Layer(
         track_id=track.track_id,
-        type="song_title",
+        type="playlist_visual",
         name="Judul",
         order=2,
         time_binding=TimeBinding(kind="album"),
-        transform=Transform(x=0.68, y=0.18, width=0.27, height=0.28),
+        transform=Transform(x=0.65, y=0.25, width=0.30, height=0.58),
         properties={
-            "template": "{title}\n{artist}",
-            "font_size": 38,
-            "color": "#FFFFFF",
+            "max_items": 10,
+            "font_size": 28,
+            "color": "#F0F4FA",
+            "active_color": "#FFFFFF",
+            "background_opacity": 0.03,
+            "show_artist": False,
+            "numbered": True,
         },
     )
     spectrum = make_spectrum_layer(track.track_id, 3, preset_id="minimal_bars")
@@ -125,8 +190,8 @@ def _fixture_document(root: Path):
         }
     )
     spectrum.opacity = 0.90
-    spectrum.transform = centered_transform(document, "circular", size_ratio=0.78)
-    document.layers.extend([background, logo, title, spectrum])
+    spectrum.transform = Transform(x=0.20, y=0.15, width=0.47, height=0.70)
+    document.layers.extend([background, cover, playlist, spectrum])
     document.validate()
     return document, spectrum.layer_id
 
@@ -149,8 +214,6 @@ def _pixel_difference(a: Path, b: Path) -> dict[str, float | int]:
     extrema = max(channel[1] for channel in stat.extrema)
     changed = 0
     if bbox is not None:
-        # Bounded deterministic metric; exact FFmpeg rasterization can vary by
-        # platform, so acceptance checks presence of real activity, not one hash.
         gray = diff.convert("L")
         changed = sum(1 for value in gray.getdata() if value > 2)
     return {
@@ -164,8 +227,6 @@ def _pixel_difference(a: Path, b: Path) -> dict[str, float | int]:
 def capture(output: Path, width: int, height: int, scale: float, evidence_dir: Path) -> dict[str, object]:
     os.environ["FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER"] = "1"
     _prepare_qt(scale)
-
-    # Production installers must be active before FoundationMainWindow is built.
     import full_album_maker.main  # noqa: F401
 
     from PySide6.QtCore import QEventLoop, QTimer
@@ -204,17 +265,11 @@ def capture(output: Path, width: int, height: int, scale: float, evidence_dir: P
     window._s08_refresh(request_preview=False)
     window.show()
 
-    # Let initial route/layout signals settle first. A route activation may have
-    # already queued an accurate-preview request, so the deterministic evidence
-    # frame must be installed *after* this event loop, not before it.
     loop = QEventLoop()
     QTimer.singleShot(250, loop.quit)
     loop.exec()
     app.processEvents()
 
-    # Invalidate every older async result, then pin the synchronously rendered
-    # real-audio loud frame immediately before capture. No later event processing
-    # occurs before grab(), so a stale worker cannot overwrite this evidence.
     window._s08_preview_worker.invalidate()
     window._s08_preview_token = window._s08_preview_worker.generation
     window.spectrum_workspace_s08.set_preview_result(str(loud), "DETERMINISTIC_LOUD")
