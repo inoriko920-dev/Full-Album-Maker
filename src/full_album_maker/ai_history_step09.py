@@ -22,8 +22,12 @@ _SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"AIza[0-9A-Za-z_-]{16,}"), "<api-key-redacted>"),
     (re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+\-/=]{8,}"), "Bearer <redacted>"),
     (re.compile(r"(?i)(api[_ -]?key\s*[:=]\s*)[^\s,;]+"), r"\1<redacted>"),
-    (re.compile(r"(?i)(authorization\s*[:=]\s*)[^\n]+"), r"\1<redacted>"),
-    (re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/])(?:[^\s<>\"']+)") , "<path-redacted>"),
+    # Redact only the authorization credential itself. History text is
+    # normalized to one line before sanitizing; consuming the rest of that line
+    # would hide later filesystem paths instead of letting the path rules mark
+    # them explicitly as <path-redacted>.
+    (re.compile(r"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+"), r"\1<redacted>"),
+    (re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/])(?:[^\s<>\"']+)"), "<path-redacted>"),
     (re.compile(r"(?<![A-Za-z0-9])/(?:home|Users|mnt|tmp|var|opt|private)/[^\s<>\"']+"), "<path-redacted>"),
 )
 
