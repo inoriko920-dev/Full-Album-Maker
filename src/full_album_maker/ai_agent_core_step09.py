@@ -7,7 +7,7 @@ import json
 import re
 from typing import Any, Iterable
 
-from .ai_editor_v14 import V14AIEditorContextBuilder
+from .ai_editor_v14 import V14EditorAIContextBuilder
 from .editor_models import ProjectDocument
 
 
@@ -248,7 +248,7 @@ def build_agent_context_snapshot(
     allowed_media = _stable_unique(allowed_media_ids, media)
     contexts = _stable_unique(enabled_contexts)
 
-    payload = V14AIEditorContextBuilder().build(
+    payload = V14EditorAIContextBuilder().build(
         document,
         selected_layer_ids=selected_layers,
         user_text=str(user_text)[:MAX_PROMPT_CHARS],
