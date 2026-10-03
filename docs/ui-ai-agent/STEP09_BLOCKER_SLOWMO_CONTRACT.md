@@ -1,118 +1,129 @@
-# STEP 09 — AI Agent Workspace — BLOCKER S09-02
+# STEP 09 — AI Agent Workspace — S09-02 SLOWMO RESOLUTION RECORD
 
-## Status
+## Current status
 
-**STEP 09 implementation is intentionally STOPPED at S09-02.**
+**RESOLVED.**
 
-Reason: the required STEP 09 golden instruction includes `slowmo footage 0,5x`, but the recovered modern Editor V2/V1.4 action contract has no stable `ProjectDocument` / Timeline / Visual slow-motion action owner. The STEP 09 execution document explicitly says this request must not be implemented through direct property writes merely to make the golden prompt appear to work.
+This file preserves the original S09-02 blocker as an audit trail. The blocker was valid when STEP09 first audited the recovered action surface: the modern `ProjectDocument` / Visual domain did not yet own a stable slow-motion action, and implementing AI-only direct property writes would have violated the ASTRA contract.
 
-This blocker record is documentation only. No STEP 09 production source implementation has been added on this branch.
+The blocker has since been resolved by adding and validating a normal Visual-domain playback-speed contract **before** exposing it to AI Agent execution.
+
+STEP09 may therefore continue and the mandatory golden instruction containing `slowmo footage 0,5x` is now truthfully executable through a normal domain command.
 
 ## Repository baseline
 
 - Repository: `inoriko920-dev/Full-Album-Maker`
-- STEP 08 final branch: `ui/step-08-spectrum`
-- STEP 08 final HEAD used as STEP 09 baseline: `a1efea56efe182ba578a176ede3f9b49dee85e55`
-- STEP 09 branch: `ui/step-09-ai-agent`
-- STEP 08 final workflow on the baseline: `STEP08 Spectrum validation`, run `37137930205`, conclusion `success`
-- STEP 08 handoff status: `READY_WITH_LIMITATIONS`; its limitations do not block AI use of Timeline/Visual/Template/Spectrum action contracts.
+- STEP08 final branch: `ui/step-08-spectrum`
+- STEP08 baseline used by STEP09: `a1efea56efe182ba578a176ede3f9b49dee85e55`
+- STEP09 branch: `ui/step-09-ai-agent`
+- STEP09 implementation/evidence SHA proving the resolution: `1015c69953dce399565577ea871ac6f8d65cdb10`
+- STEP09 final evidence workflow: `STEP09 AI Agent validation`, run `37143767514`, conclusion `success`
 
-## S09-02 recovered action audit
+## Why the initial blocker was correct
 
-Recovered owners inspected:
+At the first S09-02 audit:
 
-- `src/full_album_maker/agent_actions.py`
-- `src/full_album_maker/ai_editor.py`
-- `src/full_album_maker/ai_editor_v14.py`
-- `src/full_album_maker/visual_precision.py`
-- `src/full_album_maker/song_visuals.py`
-- `tests/test_editor_v2_v14_ai_parity.py`
-- STEP 08 handoff `docs/ui-spectrum/BASELINE_STEP08.md`
+- legacy `set_slowmo` existed only on the old `Project` / `ProjectController` path;
+- the modern `ProjectDocument` / `EditorController` Visual contract had no persisted playback-speed field;
+- the recovered modern AI action registry therefore had no safe slowmo owner;
+- inventing an AI-specific property write would have bypassed normal validation, persistence, renderer parity, and Undo ownership.
 
-### What is already safe/reusable
+Stopping at that point was required by the STEP09 execution document.
 
-The recovered modern AI editor has important STEP 09 prerequisites already:
+## Resolution implemented
 
-1. `AgentAction` uses a fixed allowlist; unknown action names are rejected.
-2. `EditorAIContextBuilder` / `V14EditorAIContextBuilder` build bounded context without exposing source paths or API keys.
-3. Layer/song/media resolution uses stable IDs and fails closed on ambiguity.
-4. `AIEditorExecutor.execute()` verifies project identity and expected revision.
-5. It simulates all action commands on a cloned `ProjectDocument` before committing.
-6. All accumulated `EditorCommand` objects are committed through one `EditorController.dispatch(commands, expected_revision=...)` call.
-7. Therefore normal Editor V2/V1.4 project mutations can be one revision / one normal Undo transaction.
-8. Duplicate `action_id` is ignored rather than applied twice.
-9. Existing modern V1.4 action contracts cover song cover/visual assignment, deterministic auto-match, song visual style, timeline mode, song timing/crossfade and circular Spectrum.
+### 1. Visual domain now owns `video_speed`
 
-These findings mean the general transaction architecture itself is **not** the blocker.
+`src/full_album_maker/visual_precision.py` extends the existing per-song Visual settings contract with:
 
-## Exact blocker
+- `video_speed`
+- default `1.0x`
+- supported bounds `0.25x..4.0x`
+- backward-compatible persistence inside the existing Visual extension map
+- preservation of an existing speed when older STEP06 UI payloads omit the field.
 
-`agent_actions.py` contains `set_slowmo` only inside `LEGACY_ACTIONS`.
+No project schema version bump or AI-only data store is used.
 
-That legacy action is executed by `AppIntentExecutor`, which operates on the legacy `Project` / `ProjectController` model.
+### 2. Normal editor command owns the mutation
 
-The modern AI path used by STEP 09 is `AIEditorExecutor` / `V14AIEditorExecutor` over `ProjectDocument` and `EditorController`.
+`SetSongVideoSpeed` is a normal `EditorCommand`.
 
-`V14_EDITOR_TOOLS` exposes modern actions for:
+It:
 
-- cover / visual assignment
-- visual style
-- circular Spectrum
-- timeline mode
-- per-song Free Timeline timing / crossfade
+- accepts stable `song_id` targets;
+- validates every target before mutation;
+- requires each target song to already reference a video asset;
+- rejects mixed image/video scopes before any project change;
+- writes only Visual presentation speed;
+- does not alter audio timing, playlist timing, song source ranges, or source files;
+- returns the normal inverse state through the existing Visual settings restore command;
+- therefore participates in standard `EditorController` Undo/Redo transactions.
 
-but it does **not** expose a modern slow-motion/playback-speed action.
+### 3. Renderer owns the real effect
 
-`V14AIEditorExecutor._commands_for_action()` also has no handler for `set_slowmo`. Falling through to the parent `AIEditorExecutor` does not make it valid because that executor handles Editor V2 actions, not legacy `set_slowmo`.
+`src/full_album_maker/v13_render_graph.py` consumes the persisted Visual speed as video presentation timing using FFmpeg `setpts` semantics.
 
-The STEP 06 Visual contract confirms there is no speed field. Its persisted per-song settings cover:
+For the mandatory `0.5x` fixture the validated render graph contains:
 
-- fit / crop / position / scale
-- image motion / pan-zoom
-- video loop / freeze
-- visual transition
+`setpts=PTS/0.50000000`
 
-but no video playback speed or slow-motion multiplier.
+The audible song path does **not** receive `atempo` and the audio render-plan start/end ticks remain unchanged.
 
-The recovered v1.4 AI parity tests likewise exercise modern cover, visual, visual-style, circular Spectrum, timeline mode and timing; they do not establish a slow-motion contract.
+### 4. AI registry only calls the domain action
 
-## Why SOL must stop here
+`src/full_album_maker/ai_action_registry_step09.py` exposes:
 
-The STEP 09 ASTRA execution document explicitly states:
+`set_song_video_speed`
 
-- if slowmo `0,5x` has no stable recovered STEP 05/06 action contract, the plan cannot be READY;
-- do not create a direct property write only to make the golden prompt appear to work;
-- missing stable slowmo/timeline/template/spectrum action ownership is a review trigger/blocker;
-- AI must use normal controller/domain actions and must not bypass transaction/Undo contracts.
+The resolver validates AI scope and numeric input, then creates `SetSongVideoSpeed`.
 
-Continuing to S09-03+ while pretending the full deterministic golden instruction can become executable would violate that contract.
+The AI layer does not write `ProjectDocument.extensions` directly.
 
-## Required resolution before STEP 09 can continue
+### 5. Provider contract is explicit
 
-ASTRA/product decision is required for one of these safe paths:
+`src/full_album_maker/ai_provider_step09.py` exposes the Gemini/mock function contract:
 
-### Option A — add a real modern slowmo contract first (recommended if slowmo must remain in the golden instruction)
+- `song_ids`: stable IDs
+- `speed`: number in `0.25..4.0`
 
-Define and validate a normal domain owner in the appropriate Timeline/Visual layer, for example a persisted per-video/per-song playback-rate contract with:
+The system instruction explicitly says slowmo must use `set_song_video_speed` and must not alter audio timing to simulate the effect.
 
-- explicit target semantics (which footage/clip/song visual is slowed)
-- stable IDs
-- supported numeric bounds including `0.5x`
-- renderer/preview parity
-- lock and permission checks
-- project persistence
-- one-command Undo/Redo inverse
-- dry-run/change-summary support
-- tests proving no change to audible song timing unless explicitly intended
+## Validation evidence
 
-Only after that normal editor action is stable should STEP 09 expose it through the AI action registry.
+`tests/test_step09_slowmo_contract.py` proves:
 
-### Option B — revise the STEP 09 golden instruction/scope
+1. `0.5x` persists through the normal Visual settings contract.
+2. The change is one normal Undo transaction and Redo restores it.
+3. Timeline song start/end ticks remain identical before and after slowmo.
+4. Audio source-in/source-out values remain unchanged.
+5. Mixed image/video targets fail before mutation.
+6. Later STEP06 Visual edits that omit `video_speed` preserve the existing speed.
+7. Project `to_dict()` / `from_dict()` round-trip keeps `video_speed` without a schema bump.
+8. Renderer emits video `setpts` for `0.5x`.
+9. Renderer does not add audio `atempo` for the slowmo action.
+10. Explicit bounds reject unsupported speed values.
 
-Remove the slowmo requirement from the mandatory READY fixture and keep slowmo explicitly unsupported in STEP 09. The AI planner must then surface it as unsupported rather than silently omitting or fabricating execution.
+The STEP09 final workflow run `37143767514` passed the complete focused group containing these tests.
 
-## Gate decision
+## Golden-plan proof
 
-**Current STEP 09 gate: `NOT_READY` / `BLOCKED_AT_S09_02`.**
+The deterministic STEP09 golden evidence uses the instruction:
 
-No S09-03 state-machine/schema/provider/UI implementation should be started until the slowmo contract decision is resolved, because the documented mandatory golden plan cannot truthfully reach READY in the current recovered action architecture.
+> Pilih 20 lagu, pasangkan visual yang cocok, slowmo footage 0,5x, lalu susun timeline.
+
+At `PREVIEW_READY` the mock provider produced:
+
+- 20 `set_song_visual` actions;
+- 1 `set_song_video_speed` action at `0.5x` targeting the 20 songs;
+- 1 `auto_arrange_timeline` action;
+- 22 total actions / 22 resolved domain commands.
+
+The golden capture also proves Send + Preview did not mutate the live project before explicit execution.
+
+## Final blocker decision
+
+**The S09-02 slowmo blocker is closed.**
+
+It must not be reintroduced as an active STEP09 limitation unless the Visual playback-speed domain contract is later removed or broken.
+
+This resolution does **not** authorize direct AI writes. Future AI capabilities must continue to use validated normal editor/domain commands through the whitelist + transaction engine.
