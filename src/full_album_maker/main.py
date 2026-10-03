@@ -31,6 +31,7 @@ from full_album_maker.ai_feature_step09 import install_step09_ai_agent
 from full_album_maker.render_queue_presentation_step10 import install_step10_queue_presentation
 from full_album_maker.render_feature_step10 import install_step10_render
 from full_album_maker.integration_feature_step11 import install_step11_integration
+from full_album_maker.integration_completion_step11 import install_step11_integration_completion
 
 
 install_feature()
@@ -62,6 +63,7 @@ install_step09_ai_agent()
 install_step10_queue_presentation()
 install_step10_render()
 install_step11_integration()
+install_step11_integration_completion()
 
 
 def main(argv: list[str] | None = None) -> int:
