@@ -46,7 +46,8 @@ jobs:
           python -m pytest -q \
             tests/test_step10_render_model.py \
             tests/test_step10_render_preflight.py \
-            tests/test_step10_render_executor.py
+            tests/test_step10_render_executor.py \
+            tests/test_step10_render_queue.py
       - name: Run STEP09 AI Agent regression gate
         run: |
           python -m pytest -q \
