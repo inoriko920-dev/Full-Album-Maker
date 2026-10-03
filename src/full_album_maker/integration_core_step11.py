@@ -164,32 +164,28 @@ class SelectionStore:
                 raise ValueError("Selection range end tidak boleh sebelum start.")
         self._snapshot = snapshot
         if emit and snapshot != old:
-            self._hub.emit(
-                DomainEvent(
-                    DomainEventType.SELECTION_CHANGED,
-                    self._project_token,
-                    int(revision),
-                    {
-                        "song_ids": snapshot.song_ids,
-                        "media_ids": snapshot.media_ids,
-                        "clip_ids": snapshot.clip_ids,
-                        "layer_ids": snapshot.layer_ids,
-                        "primary_song_id": snapshot.primary_song_id,
-                        "primary_layer_id": snapshot.primary_layer_id,
-                        "time_tick": snapshot.time_tick,
-                    },
-                )
-            )
+            self._hub.emit(DomainEvent(
+                DomainEventType.SELECTION_CHANGED,
+                self._project_token,
+                int(revision),
+                {
+                    "song_ids": snapshot.song_ids,
+                    "media_ids": snapshot.media_ids,
+                    "clip_ids": snapshot.clip_ids,
+                    "layer_ids": snapshot.layer_ids,
+                    "primary_song_id": snapshot.primary_song_id,
+                    "primary_layer_id": snapshot.primary_layer_id,
+                    "time_tick": snapshot.time_tick,
+                },
+            ))
         return snapshot
 
     def prune(self, document: ProjectDocument, *, emit: bool = True) -> SelectionSnapshot:
-        songs = set(document.song_map())
-        media = set(document.asset_map())
-        layers = set(document.layer_map())
+        songs, media, layers = set(document.song_map()), set(document.asset_map()), set(document.layer_map())
         old = self._snapshot
-        song_ids = tuple(value for value in old.song_ids if value in songs)
-        media_ids = tuple(value for value in old.media_ids if value in media)
-        layer_ids = tuple(value for value in old.layer_ids if value in layers)
+        song_ids = tuple(x for x in old.song_ids if x in songs)
+        media_ids = tuple(x for x in old.media_ids if x in media)
+        layer_ids = tuple(x for x in old.layer_ids if x in layers)
         duration_tick = TimelineResolver().resolve(document).duration_tick
         snapshot = SelectionSnapshot(
             song_ids=song_ids,
@@ -206,14 +202,12 @@ class SelectionStore:
         )
         self._snapshot = snapshot
         if emit and snapshot != old:
-            self._hub.emit(
-                DomainEvent(
-                    DomainEventType.SELECTION_CHANGED,
-                    self._project_token,
-                    document.revision,
-                    {"pruned": True, "song_ids": song_ids, "media_ids": media_ids, "layer_ids": layer_ids},
-                )
-            )
+            self._hub.emit(DomainEvent(
+                DomainEventType.SELECTION_CHANGED,
+                self._project_token,
+                document.revision,
+                {"pruned": True, "song_ids": song_ids, "media_ids": media_ids, "layer_ids": layer_ids},
+            ))
         return snapshot
 
 
@@ -254,30 +248,30 @@ def project_token(document: ProjectDocument, project_path: str = "") -> str:
 
 
 def classify_document_changes(before: ProjectDocument, after: ProjectDocument) -> tuple[DomainEventType, ...]:
+    """Derive coalesced event categories from the authoritative serializer."""
+
+    before_data, after_data = before.to_dict(), after.to_dict()
     events: list[DomainEventType] = []
-    if [(x.asset_id, x.kind, x.locator) for x in before.media] != [(x.asset_id, x.kind, x.locator) for x in after.media]:
+    if before_data["media"] != after_data["media"]:
         events.append(DomainEventType.MEDIA_CHANGED)
     if (
-        [x.to_dict() for x in before.playlist.entries] != [x.to_dict() for x in after.playlist.entries]
-        or before.album_title != after.album_title
-        or before.album_cover_asset_id != after.album_cover_asset_id
+        before_data["playlist"] != after_data["playlist"]
+        or before_data.get("album_title") != after_data.get("album_title")
+        or before_data.get("extensions", {}).get("album_cover_asset_id")
+        != after_data.get("extensions", {}).get("album_cover_asset_id")
     ):
         events.append(DomainEventType.ALBUM_CHANGED)
-    if (
-        {x.layer_id: x.to_dict() for x in before.layers} != {x.layer_id: x.to_dict() for x in after.layers}
-        or before.timeline_mode != after.timeline_mode
-    ):
+    if before_data["layers"] != after_data["layers"] or before_data.get("extensions", {}).get("timeline_mode") != after_data.get("extensions", {}).get("timeline_mode"):
         events.append(DomainEventType.TIMELINE_CHANGED)
-    if [(x.song_id, x.visual_asset_id, x.cover_asset_id) for x in before.playlist.entries] != [
-        (x.song_id, x.visual_asset_id, x.cover_asset_id) for x in after.playlist.entries
+
+    before_songs = before_data["playlist"]["entries"]
+    after_songs = after_data["playlist"]["entries"]
+    if [(x["song_id"], x.get("visual_asset_id"), x.get("cover_asset_id")) for x in before_songs] != [
+        (x["song_id"], x.get("visual_asset_id"), x.get("cover_asset_id")) for x in after_songs
     ]:
         events.append(DomainEventType.VISUAL_CHANGED)
-    if [x.to_dict() for x in before.layers if x.origin == "template"] != [
-        x.to_dict() for x in after.layers if x.origin == "template"
-    ]:
+    if [x for x in before_data["layers"] if x.get("origin") == "template"] != [x for x in after_data["layers"] if x.get("origin") == "template"]:
         events.append(DomainEventType.TEMPLATE_APPLIED)
-    if [x.to_dict() for x in before.layers if x.type == "spectrum"] != [
-        x.to_dict() for x in after.layers if x.type == "spectrum"
-    ]:
+    if [x for x in before_data["layers"] if x.get("type") == "spectrum"] != [x for x in after_data["layers"] if x.get("type") == "spectrum"]:
         events.append(DomainEventType.SPECTRUM_CHANGED)
     return tuple(dict.fromkeys(events))
