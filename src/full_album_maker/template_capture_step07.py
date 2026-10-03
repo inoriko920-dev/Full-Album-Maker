@@ -19,7 +19,7 @@ def _fixture_document(root: Path):
 
     from .editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
 
-    document = ProjectDocument.new_empty("Perjalanan Kita")
+    document = ProjectDocument.new_empty("Video Full Album")
     document.album_title = "Perjalanan Kita"
 
     cover_path = root / "cover-perjalanan.png"
@@ -39,8 +39,6 @@ def _fixture_document(root: Path):
         "Jalan Pulang",
         "Perjalanan Kita",
         "Cerita Baru",
-        "Kisah Kita",
-        "Album Kenangan",
     )
     for index, title in enumerate(titles):
         audio_path = root / f"lagu-{index + 1}.mp3"
@@ -135,6 +133,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "timeline_height": shell.timeline.height(),
         "status_height": shell.status_bar.height(),
         "card_count": len(window.template_workspace_s07._cards),
+        "song_count": len(live_document.playlist.entries),
         "selected_template_id": descriptor.template_id,
         "selected_template_name": descriptor.name,
         "origin_filter": window.template_context_s07.origin_key,
