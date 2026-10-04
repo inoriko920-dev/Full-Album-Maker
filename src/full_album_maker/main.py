@@ -45,6 +45,7 @@ from full_album_maker.post_release_ai_preview_timeline_surface import install_po
 from full_album_maker.post_release_ai_composer_adjustment import install_post_release_ai_composer_adjustment
 from full_album_maker.post_release_ai_ruler_adjustment import install_post_release_ai_ruler_adjustment
 from full_album_maker.post_release_template_layout_adjustment import install_post_release_template_layout_adjustment
+from full_album_maker.post_release_template_card_adjustment import install_post_release_template_card_adjustment
 
 
 install_feature()
@@ -90,6 +91,7 @@ install_post_release_ai_preview_timeline_surface()
 install_post_release_ai_composer_adjustment()
 install_post_release_ai_ruler_adjustment()
 install_post_release_template_layout_adjustment()
+install_post_release_template_card_adjustment()
 
 
 def main(argv: list[str] | None = None) -> int:
