@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Show the STEP09 dry-run result on the AI timeline without mutating project state.
+"""Show the STEP09 dry-run result on a compact AI preview timeline.
 
 PlanPreview already contains the exact domain commands proven by the transaction
 engine. We replay those commands against a clone solely for presentation, then
@@ -8,7 +8,35 @@ feed that clone to the existing TimelinePrecisionPanel. The authoritative
 ProjectDocument, revision, undo stack, and AI execution state remain untouched.
 """
 
+from PySide6.QtWidgets import QPushButton
+
 _installed = False
+
+
+def _compact_ai_timeline(panel) -> None:
+    if getattr(panel, "_post_release_ai_compact", False):
+        return
+
+    # AI Agent already has the shared timeline command strip above this panel.
+    # Hide the duplicate STEP05 toolbar and use tighter lane geometry so all
+    # preview lanes remain visible inside the shorter AI workspace timeline.
+    panel.mode.hide()
+    panel.playhead_label.hide()
+    for name in ("split", "delete_gap", "ripple", "snap", "marker"):
+        widget = getattr(panel, name, None)
+        if widget is not None:
+            widget.hide()
+    for button in panel.findChildren(QPushButton):
+        button.hide()
+
+    canvas = panel.canvas
+    canvas.RULER = 18
+    canvas.ROW = 18
+    canvas.LEFT = 118
+    compact_height = canvas.RULER + canvas.ROW * 7 + 3
+    canvas.setMinimumHeight(compact_height)
+    panel.layout().setSpacing(0)
+    panel._post_release_ai_compact = True
 
 
 def install_post_release_ai_timeline_preview_adjustment() -> None:
@@ -26,6 +54,9 @@ def install_post_release_ai_timeline_preview_adjustment() -> None:
         original_refresh(self)
         if getattr(self.foundation_state, "workspace", "") != "ai_agent":
             return
+
+        _compact_ai_timeline(self.ai_timeline_s09)
+
         session = getattr(self, "_s09_agent_session", None)
         if session is None:
             return
