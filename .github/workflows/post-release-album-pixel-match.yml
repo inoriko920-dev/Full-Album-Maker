@@ -1,0 +1,85 @@
+name: Post-release Album pixel-match
+
+on:
+  push:
+    branches:
+      - ui/post-release-pixel-match
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  album-fidelity:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+      FAM_STEP09_PROVIDER: mock
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run Album regression
+        run: |
+          python -m pytest -q \
+            tests/test_step04_album_model.py \
+            tests/test_step04_album_ui.py \
+            tests/test_step04_album_integration.py \
+            tests/test_step04_album_acceptance.py
+      - name: Capture Album fidelity candidate
+        run: |
+          mkdir -p post-release-album-evidence/current post-release-album-evidence/reports
+          python -m full_album_maker.album_capture \
+            --state golden \
+            --output post-release-album-evidence/current/album-g03-candidate.png \
+            --report post-release-album-evidence/reports/album-g03-candidate.json
+      - name: Validate Album geometry and contracts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path('post-release-album-evidence/reports/album-g03-candidate.json').read_text(encoding='utf-8')
+          )['geometry']
+          assert report['window'] == [1672, 941], report
+          assert report['workspace'] == 'album' and report['album_active'] is True, report
+          assert report['context_visible'] is True and report['inspector_active'] is True, report
+          assert report['timeline_visible'] is True, report
+          assert report['context_width'] in range(286, 299), report
+          assert report['right_dock_width'] in range(322, 335), report
+          assert report['status_height'] in range(26, 31), report
+          assert report['table_rows'] == 10, report
+          assert report['song_count'] == 100, report
+          assert report['selected_count'] == 12, report
+          assert report['bulk_heading'] == 'Alat Massal (12 lagu dipilih)', report
+          assert report['page_label'] == 'Halaman 1 dari 10', report
+          print('POST_RELEASE_ALBUM_GEOMETRY_PASS')
+          PY
+      - name: Upload Album fidelity evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: post-release-album-evidence
+          path: post-release-album-evidence/
+          if-no-files-found: error
