@@ -3,10 +3,9 @@ from __future__ import annotations
 """Small UI-06 inspector density refinement.
 
 The production TemplateInspector widgets remain authoritative.  This layer only
-frees enough vertical room for the section heading and Title Layout row and
-renders the existing scope QComboBox as three visible radio choices like the
-approved reference.  Scope values still live in the original QComboBox so all
-STEP07 apply semantics remain unchanged.
+aligns the preview/field density and renders the existing scope QComboBox as
+three visible radio choices like the approved reference. Scope values still
+live in the original QComboBox so all STEP07 apply semantics remain unchanged.
 """
 
 from PySide6.QtWidgets import QHBoxLayout, QRadioButton, QWidget
@@ -31,8 +30,8 @@ def install_post_release_template_inspector_density() -> None:
 
         preview = getattr(self, "_post_template_preview", None)
         if preview is not None:
-            preview.setMinimumHeight(126)
-            preview.setMaximumHeight(132)
+            preview.setMinimumHeight(152)
+            preview.setMaximumHeight(152)
 
         self.heading.setMinimumHeight(22)
         self.heading.setMaximumHeight(26)
