@@ -25,6 +25,17 @@ def install_post_release_template_layout_adjustment() -> None:
 
     def template_route_sizes(self: FoundationShellWidget, route: str) -> None:
         previous_sizes(self, route)
+
+        # UI-06 starts the expanded inspector directly at Properti / AI. Keep the
+        # shared collapse header everywhere else, and also keep it when Template
+        # is collapsed so the user can still expand the dock.
+        hide_template_header = (
+            route == "template"
+            and not self._responsive_compact
+            and not self.inspector.collapsed
+        )
+        self.inspector.header.setVisible(not hide_template_header)
+
         if route != "template" or self._responsive_compact:
             return
 
