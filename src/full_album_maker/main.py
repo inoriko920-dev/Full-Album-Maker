@@ -51,6 +51,7 @@ from full_album_maker.post_release_template_inspector_adjustment import install_
 from full_album_maker.post_release_template_header_adjustment import install_post_release_template_header_adjustment
 from full_album_maker.post_release_template_card_density_adjustment import install_post_release_template_card_density_adjustment
 from full_album_maker.post_release_template_inspector_density import install_post_release_template_inspector_density
+from full_album_maker.post_release_template_thumbnail_lift import install_post_release_template_thumbnail_lift
 
 
 install_feature()
@@ -102,6 +103,7 @@ install_post_release_template_inspector_adjustment()
 install_post_release_template_header_adjustment()
 install_post_release_template_card_density_adjustment()
 install_post_release_template_inspector_density()
+install_post_release_template_thumbnail_lift()
 
 
 def main(argv: list[str] | None = None) -> int:
