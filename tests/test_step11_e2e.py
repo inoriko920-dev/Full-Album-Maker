@@ -128,6 +128,7 @@ def _ai_plan(doc: ProjectDocument, song_id: str, video_id: str):
 def test_full_cross_workspace_edit_undo_redo_save_reopen_and_render_snapshot(tmp_path: Path) -> None:
     doc, image_id, video_id = _fixture(tmp_path)
     baseline_hash = normalized_project_hash(doc)
+    baseline_signature = doc.content_signature()
     baseline_order = tuple(song.song_id for song in doc.playlist.entries)
     first, second, third = baseline_order
     spectrum_id = doc.layers[0].layer_id
@@ -188,25 +189,29 @@ def test_full_cross_workspace_edit_undo_redo_save_reopen_and_render_snapshot(tmp
     assert visual_settings_for_song(controller.snapshot(), first)["video_speed"] == pytest.approx(0.5)
 
     final_document = controller.snapshot()
-    final_hash = normalized_project_hash(final_document)
-    assert final_hash != baseline_hash
+    final_signature = final_document.content_signature()
+    assert normalized_project_hash(final_document) != baseline_hash
+    assert final_signature != baseline_signature
 
-    # One global Undo/Redo history crosses Album/Timeline/Visual/Template/Spectrum/AI.
+    # Global Undo/Redo compares semantic domain content. Revision is deliberately
+    # monotonic and therefore not part of ProjectDocument.content_signature().
     undo_count = 0
     while controller.can_undo:
         controller.undo()
         undo_count += 1
     assert undo_count == 6
-    assert normalized_project_hash(controller.snapshot()) == baseline_hash
+    assert controller.snapshot().content_signature() == baseline_signature
 
     redo_count = 0
     while controller.can_redo:
         controller.redo()
         redo_count += 1
     assert redo_count == 6
-    assert normalized_project_hash(controller.snapshot()) == final_hash
+    assert controller.snapshot().content_signature() == final_signature
 
-    # I-K — Canonical save/reopen must preserve normalized authoritative state.
+    # I-K — Canonical save/reopen compares persisted normalized state at the
+    # final post-Redo revision, including revision/schema metadata.
+    final_hash = normalized_project_hash(controller.snapshot())
     project_path = tmp_path / "step11-final.json"
     save_project_document(str(project_path), controller.snapshot())
     assert verify_persisted_document(project_path, controller.snapshot()) is True
@@ -281,7 +286,7 @@ def test_nine_workspace_navigation_is_read_only_in_production_subprocess(tmp_pat
             app.processEvents()
             app.processEvents()
             before = normalized_project_hash(window.editor_workspace.document())
-            routes = ("home", "media", "album", "timeline", "visual", "template", "spectrum", "ai", "render")
+            routes = ("home", "media", "album", "timeline", "visual", "template", "spectrum", "ai_agent", "render")
             for route in routes:
                 window.foundation_shell.set_workspace(route)
                 app.processEvents()
