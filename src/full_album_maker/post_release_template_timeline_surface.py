@@ -222,7 +222,7 @@ class TemplateTimelineCanvas(QFrame):
                     painter.drawText(
                         rect.adjusted(5, 0, -3, 0),
                         Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                        "Audio Album",
+                        "Album Full.mp3",
                     )
 
         # Dynamic song-title layers are represented as one real title event per
