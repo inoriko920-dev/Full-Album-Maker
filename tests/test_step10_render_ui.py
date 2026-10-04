@@ -105,7 +105,12 @@ def test_production_render_route_uses_step10_surfaces_without_project_mutation(t
             assert window.foundation_state.workspace == "render"
             assert window.foundation_shell.workspace_stack.currentWidget() is window.render_workspace_s10
             assert window._inspector_router.currentWidget() is window.render_inspector_s10
-            assert window.foundation_shell.context.maximumWidth() == 0
+            # Post-release UI-09 restores the canonical Render context rail.
+            # Keep this semantic rather than binding the unit test to one
+            # desktop/compact pixel width; the screenshot gate owns exact geometry.
+            assert window.foundation_shell.context.minimumWidth() > 0
+            assert window.foundation_shell.context.maximumWidth() == 420
+            assert not window.render_history_s10.isHidden()
             assert window.foundation_shell.timeline.collapsed is True
             assert window.render_inspector_s10.pause.isEnabled() is False
             assert window.render_add_queue_s10.text() == "Tambah ke Antrian"
