@@ -13,9 +13,65 @@ from .foundation_capture import (
 from .foundation_tokens import TOKENS
 
 
-def _fixture_document(root: Path, *, populated: bool):
-    from PySide6.QtGui import QColor, QImage
+def _fixture_art(path: Path, index: int, *, size: tuple[int, int] = (160, 96)) -> None:
+    """Create deterministic synthetic artwork so real thumbnail UI is exercised.
 
+    These images are fixture media, not copies of the immutable UI golden.
+    """
+    from PySide6.QtCore import QPointF, QRectF
+    from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPen
+
+    width, height = size
+    image = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
+    palettes = (
+        ("#314B72", "#F29A63", "#FFD78D"),
+        ("#163A57", "#5D9FBC", "#BBD4D9"),
+        ("#294D42", "#7FAF73", "#D5C27B"),
+        ("#5C405E", "#E18B68", "#FFD398"),
+        ("#3A4B68", "#C88258", "#F7C183"),
+        ("#214C64", "#72A8C0", "#C8E2E9"),
+        ("#3F5570", "#E3A45D", "#F7D88F"),
+        ("#173950", "#4D829D", "#A2C7D3"),
+        ("#405C42", "#87A864", "#D3C77B"),
+        ("#3B4B5F", "#DB9966", "#F5D29C"),
+    )
+    sky, horizon, sun = palettes[index % len(palettes)]
+    painter = QPainter(image)
+    gradient = QLinearGradient(0, 0, 0, height)
+    gradient.setColorAt(0.0, QColor(sky))
+    gradient.setColorAt(0.68, QColor(horizon))
+    gradient.setColorAt(1.0, QColor("#24384B"))
+    painter.fillRect(image.rect(), gradient)
+
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(sun))
+    radius = max(7, int(height * 0.09))
+    painter.drawEllipse(QPointF(width * (0.68 - (index % 3) * 0.11), height * 0.34), radius, radius)
+
+    painter.setBrush(QColor("#203244"))
+    mountains = [
+        QPointF(0, height * 0.72),
+        QPointF(width * 0.22, height * 0.48),
+        QPointF(width * 0.40, height * 0.70),
+        QPointF(width * 0.60, height * 0.44),
+        QPointF(width * 0.82, height * 0.69),
+        QPointF(width, height * 0.55),
+        QPointF(width, height),
+        QPointF(0, height),
+    ]
+    from PySide6.QtGui import QPolygonF
+    painter.drawPolygon(QPolygonF(mountains))
+    painter.setPen(QPen(QColor("#FFFFFF"), 1))
+    painter.setOpacity(0.18)
+    painter.drawLine(QPointF(0, height * 0.80), QPointF(width, height * 0.80))
+    painter.end()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not image.save(str(path), "PNG"):
+        raise RuntimeError(f"Gagal membuat fixture artwork Album: {path}")
+
+
+def _fixture_document(root: Path, *, populated: bool):
+    from .album_model import ALBUM_COVER_KEY, DEFAULT_TRANSITION_KEY, TRANSITIONS_KEY
     from .editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
 
     document = ProjectDocument.new_empty("Perjalanan Kita")
@@ -23,54 +79,97 @@ def _fixture_document(root: Path, *, populated: bool):
     if not populated:
         return document
 
-    cover_path = root / "album-cover.png"
-    cover_image = QImage(96, 96, QImage.Format.Format_ARGB32_Premultiplied)
-    cover_image.fill(QColor("#76A9FA"))
-    if not cover_image.save(str(cover_path), "PNG"):
-        raise RuntimeError("Gagal membuat fixture cover Album.")
+    cover_assets: list[MediaAsset] = []
+    visual_assets: list[MediaAsset] = []
+    for index in range(10):
+        cover_path = root / "covers" / f"cover-{index + 1:02d}.png"
+        visual_thumb = root / "visuals" / f"visual-{index + 1:02d}.png"
+        _fixture_art(cover_path, index, size=(120, 120))
+        _fixture_art(visual_thumb, index + 3, size=(160, 90))
+        video_path = root / "visuals" / f"visual-{index + 1:02d}.mp4"
+        video_path.write_bytes(b"fixture-video-placeholder")
+        cover = MediaAsset(
+            kind="image",
+            locator=str(cover_path),
+            original_name=f"Cover {index + 1:02d}.png",
+            metadata={"title": f"Cover {index + 1:02d}"},
+        )
+        visual = MediaAsset(
+            kind="video",
+            locator=str(video_path),
+            original_name=video_path.name,
+            source_duration_tick=360 * TIMEBASE,
+            metadata={"thumbnail_path": str(visual_thumb)},
+        )
+        document.media.extend([cover, visual])
+        cover_assets.append(cover)
+        visual_assets.append(visual)
 
-    cover = MediaAsset(
-        kind="image",
-        locator=str(cover_path),
-        original_name="Perjalanan Kita.png",
-        metadata={"title": "Perjalanan Kita"},
-    )
-    visual = MediaAsset(
-        kind="video",
-        locator=str(root / "album-visual.mp4"),
-        original_name="album-visual.mp4",
-        source_duration_tick=100 * TIMEBASE,
-    )
-    document.media.extend([cover, visual])
+    document.extensions[ALBUM_COVER_KEY] = cover_assets[0].asset_id
+    document.extensions[DEFAULT_TRANSITION_KEY] = {"kind": "fade", "duration_seconds": 2.0}
 
-    # 20 × 101 detik + 80 × 100 detik = 10.020 detik = 2j 47m.
+    visible_titles = (
+        "Senja di Kota Ini",
+        "Jalan Pulang",
+        "Perjalanan Kita",
+        "Cerita Baru",
+        "Di Ujung Waktu",
+        "Langit Yang Sama",
+        "Rumah Untuk Kembali",
+        "Terdekat Namun Jauh",
+        "Bersama Lagi",
+        "Sampai Nanti",
+    )
+    visible_durations = (258, 185, 327, 194, 276, 232, 251, 225, 248, 312)
+    visible_transitions = (
+        "fade", "cross_fade", "fade", "zoom", "fade",
+        "cross_fade", "fade", "zoom", "fade", "cross_fade",
+    )
+    transitions: dict[str, dict[str, object]] = {}
+
+    # Keep the established STEP04 contract while making the first page realistic:
+    # 100 songs, exactly 10,020 seconds (2j47m), 12 missing covers,
+    # 18 missing visuals, and exactly 6 review rows.
+    missing_cover = {4, *range(20, 31)}
+    missing_visual = {5, 6, *range(20, 26), *range(40, 50)}
+
     for index in range(100):
-        duration_seconds = 101 if index < 20 else 100
-        title = f"Lagu {index + 1:03d}"
+        if index < 10:
+            duration_seconds = visible_durations[index]
+            title = visible_titles[index]
+        else:
+            # Remaining 90 tracks sum to 7,512 seconds: 42×84 + 48×83.
+            duration_seconds = 84 if index < 52 else 83
+            title = f"Perjalanan {index + 1:02d}"
+        audio_path = root / "audio" / f"{index + 1:03d}-{title}.mp3"
+        audio_path.parent.mkdir(parents=True, exist_ok=True)
+        audio_path.write_bytes(b"fixture-audio")
         audio = MediaAsset(
             kind="audio",
-            locator=str(root / f"{title}.mp3"),
-            original_name=f"{title}.mp3",
+            locator=str(audio_path),
+            original_name=audio_path.name,
             source_duration_tick=duration_seconds * TIMEBASE,
             metadata={"title": title, "artist": "Perjalanan Kita"},
         )
         document.media.append(audio)
-        # Contract fixture:
-        # - first 12 have no cover
-        # - rows 7..24 have no visual = 18
-        # - first 6 have a visual but no cover = exactly 6 review rows
-        cover_id = cover.asset_id if index >= 12 else None
-        visual_id = None if 6 <= index < 24 else visual.asset_id
-        document.playlist.entries.append(
-            SongInstance(
-                asset_id=audio.asset_id,
-                display_title=title,
-                display_artist="Perjalanan Kita",
-                source_out_tick=audio.source_duration_tick,
-                cover_asset_id=cover_id,
-                visual_asset_id=visual_id,
-            )
+        cover_id = None if index in missing_cover else cover_assets[index % len(cover_assets)].asset_id
+        visual_id = None if index in missing_visual else visual_assets[index % len(visual_assets)].asset_id
+        song = SongInstance(
+            asset_id=audio.asset_id,
+            display_title=title,
+            display_artist="Perjalanan Kita",
+            source_out_tick=audio.source_duration_tick,
+            cover_asset_id=cover_id,
+            visual_asset_id=visual_id,
         )
+        document.playlist.entries.append(song)
+        if index < 10:
+            transitions[song.song_id] = {
+                "kind": visible_transitions[index],
+                "duration_seconds": 2.0,
+            }
+
+    document.extensions[TRANSITIONS_KEY] = transitions
     document.validate()
     return document
 
@@ -101,7 +200,10 @@ def capture(state: str, output: Path, width: int, height: int, scale: float) -> 
     window.editor_workspace.set_document(document)
     window.foundation_shell.set_workspace("album")
     if state != "empty":
-        selected = {song.song_id for song in document.playlist.entries[:12]}
+        # Match the visible selection pattern while preserving the 12-song
+        # selection contract: rows 1..7 plus five selections outside page 1.
+        chosen = [*document.playlist.entries[:7], *document.playlist.entries[20:25]]
+        selected = {song.song_id for song in chosen}
         window.album_workspace.set_selection(selected)
     window.show()
 
