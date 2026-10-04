@@ -103,7 +103,6 @@ class TemplateTimelineCanvas(QWidget):
             painter.setPen(QColor("#607089"))
             painter.drawText(QRectF(x - 24, 1, 48, self.RULER_H - 3), Qt.AlignmentFlag.AlignCenter, f"{minute:02d}:{second:02d}")
 
-        songs = self._document.song_map()
         video_y = self.RULER_H + 2
         audio_y = self.RULER_H + lane_h + 2
         text_y = self.RULER_H + lane_h * 2 + 2
@@ -182,6 +181,14 @@ def _install_canvas(window) -> None:
     window.template_timeline_s07 = canvas
 
 
+def _template_project_context(window) -> str:
+    document = window.editor_workspace.document()
+    songs = len(document.playlist.entries)
+    footage = sum(1 for asset in document.media if str(getattr(asset, "kind", "")) == "video")
+    settings = window.project.settings
+    return f"Proyek aktif • {songs} lagu • {footage} footage • {settings.width}×{settings.height}"
+
+
 def _set_template_shell(window, active: bool) -> None:
     timeline = window.foundation_shell.timeline
     timeline.mode.setVisible(not active)
@@ -193,9 +200,15 @@ def _set_template_shell(window, active: bool) -> None:
     if active:
         body_layout.setContentsMargins(0, 0, 0, 2)
         body_layout.setSpacing(0)
+        context = _template_project_context(window)
+        window.foundation_state.set_status(project_context=context)
+        timeline.set_project_context(context)
     else:
         body_layout.setContentsMargins(TOKENS.space_2, 0, TOKENS.space_2, TOKENS.space_2)
         body_layout.setSpacing(2)
+        sync_foundation_state = getattr(window, "_sync_foundation_state", None)
+        if callable(sync_foundation_state):
+            sync_foundation_state()
 
 
 def install_post_release_template_timeline_adjustment() -> None:
