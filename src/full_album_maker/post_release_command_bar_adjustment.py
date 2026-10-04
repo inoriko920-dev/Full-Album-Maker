@@ -10,15 +10,18 @@ from PySide6.QtCore import QSize
 
 _installed = False
 
+# Tuned against the immutable 1672x941 reference. The added width is distributed
+# across groups rather than placing one large spacer before Render, so the two
+# divider positions and every intermediate command also converge on the golden.
 _DESKTOP_WIDTHS = {
-    "new": 80,
-    "open": 82,
-    "save": 98,
-    "undo": 84,
-    "redo": 82,
-    "import": 118,
-    "auto": 125,
-    "preview": 104,
+    "new": 95,
+    "open": 97,
+    "save": 113,
+    "undo": 99,
+    "redo": 97,
+    "import": 130,
+    "auto": 137,
+    "preview": 116,
     "render": 145,
 }
 
@@ -33,7 +36,7 @@ def _apply_geometry(bar, *, compact: bool) -> None:
             button.setIconSize(QSize(16, 16))
         return
 
-    row.setSpacing(14)
+    row.setSpacing(18)
     bar.app_name.setMinimumWidth(152)
     for key, width in _DESKTOP_WIDTHS.items():
         button = bar.buttons.get(key)
