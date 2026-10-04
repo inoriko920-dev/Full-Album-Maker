@@ -21,6 +21,50 @@ GOLDEN_PROMPT = (
 )
 
 
+def _write_fixture_cover(path: Path, index: int) -> None:
+    """Create deterministic QA artwork without using any golden-reference pixels."""
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPen
+
+    image = QImage(320, 180, QImage.Format.Format_RGB32)
+    image.fill(QColor("#DDE8F5"))
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+    palettes = (
+        ("#325A88", "#D2A26F"),
+        ("#274E72", "#82A9B6"),
+        ("#594D80", "#C58D78"),
+        ("#2E6C67", "#D6B778"),
+        ("#495F7F", "#A7B8D2"),
+    )
+    top, bottom = palettes[(index - 1) % len(palettes)]
+    gradient = QLinearGradient(QPointF(0, 0), QPointF(320, 180))
+    gradient.setColorAt(0.0, QColor(top))
+    gradient.setColorAt(1.0, QColor(bottom))
+    painter.fillRect(image.rect(), gradient)
+
+    # Simple landscape-like silhouettes make the QA covers exercise real image
+    # rendering/cropping without copying or approximating the canonical artwork.
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(255, 255, 255, 55))
+    painter.drawEllipse(QRectF(228, 20, 58, 58))
+    painter.setBrush(QColor(18, 35, 58, 130))
+    painter.drawPolygon([
+        QPointF(0, 150), QPointF(60, 88), QPointF(113, 137),
+        QPointF(170, 72), QPointF(238, 142), QPointF(320, 96), QPointF(320, 180), QPointF(0, 180),
+    ])
+    painter.setPen(QPen(QColor("#FFFFFF")))
+    font = QFont()
+    font.setBold(True)
+    font.setPointSize(14)
+    painter.setFont(font)
+    painter.drawText(QRectF(14, 16, 190, 30), Qt.AlignmentFlag.AlignLeft, f"Lagu {index:02d}")
+    painter.end()
+    if not image.save(str(path), "PNG"):
+        raise RuntimeError(f"Gagal membuat cover fixture: {path}")
+
+
 def _fixture_document(root: Path):
     from .editor_models import Layer, MediaAsset, ProjectDocument, SongInstance, TimeBinding, TIMEBASE
 
@@ -39,8 +83,10 @@ def _fixture_document(root: Path):
         title = f"Lagu {index:02d}"
         audio_path = root / f"audio-{index:02d}.wav"
         video_path = root / f"{title}.mp4"
+        cover_path = root / f"cover-{index:02d}.png"
         audio_path.write_bytes(b"fixture-audio")
         video_path.write_bytes(b"fixture-video")
+        _write_fixture_cover(cover_path, index)
         audio = MediaAsset(
             kind="audio",
             locator=str(audio_path),
@@ -54,11 +100,19 @@ def _fixture_document(root: Path):
             original_name=video_path.name,
             source_duration_tick=song_duration_tick,
         )
-        document.media.extend([audio, video])
+        cover = MediaAsset(
+            kind="image",
+            locator=str(cover_path),
+            original_name=cover_path.name,
+            source_duration_tick=0,
+            metadata={"title": f"Cover {title}"},
+        )
+        document.media.extend([audio, video, cover])
         song = SongInstance(
             asset_id=audio.asset_id,
             display_title=title,
             display_artist="Perjalanan Kita",
+            cover_asset_id=cover.asset_id,
             source_out_tick=song_duration_tick,
         )
         document.playlist.entries.append(song)
