@@ -42,6 +42,7 @@ from full_album_maker.post_release_ai_context_adjustment import install_post_rel
 from full_album_maker.post_release_ai_conversation_adjustment import install_post_release_ai_conversation_adjustment
 from full_album_maker.post_release_ai_canvas_header_adjustment import install_post_release_ai_canvas_header_adjustment
 from full_album_maker.post_release_ai_preview_timeline_surface import install_post_release_ai_preview_timeline_surface
+from full_album_maker.post_release_ai_task_surface import install_post_release_ai_task_surface
 
 
 install_feature()
@@ -84,6 +85,7 @@ install_post_release_ai_context_adjustment()
 install_post_release_ai_conversation_adjustment()
 install_post_release_ai_canvas_header_adjustment()
 install_post_release_ai_preview_timeline_surface()
+install_post_release_ai_task_surface()
 
 
 def main(argv: list[str] | None = None) -> int:
