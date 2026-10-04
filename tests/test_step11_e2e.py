@@ -41,6 +41,7 @@ from full_album_maker.template_studio_step07 import (
     build_template_apply_commands,
 )
 from full_album_maker.timeline_audio_commands import SplitSongAtTick
+from full_album_maker.timeline_resolver import TimelineResolver
 from full_album_maker.visual_precision import (
     SetSongVisualSettings,
     visual_settings_for_song,
@@ -132,15 +133,15 @@ def test_full_cross_workspace_edit_undo_redo_save_reopen_and_render_snapshot(tmp
     spectrum_id = doc.layers[0].layer_id
     controller = EditorController(doc)
 
-    # C — Album reorder through the recovered owner.
-    controller.dispatch(MoveSong(third, target_position=0))
+    # C — Album reorder through the recovered owner. Playlist positions are 1-based.
+    controller.dispatch(MoveSong(third, target_position=1))
     assert tuple(song.song_id for song in controller.snapshot().playlist.entries)[:3] == (third, first, second)
 
     # D — Timeline manual split through the recovered Timeline command.
     resolved_before_split = controller.snapshot()
     first_event = next(
         item
-        for item in __import__("full_album_maker.timeline_resolver", fromlist=["TimelineResolver"]).TimelineResolver().resolve(resolved_before_split).songs
+        for item in TimelineResolver().resolve(resolved_before_split).songs
         if item.song_id == first
     )
     controller.dispatch(SplitSongAtTick(first, first_event.start_tick + 8 * TIMEBASE))
@@ -240,7 +241,7 @@ def test_full_cross_workspace_edit_undo_redo_save_reopen_and_render_snapshot(tmp
     frozen_signature = preflight.snapshot.content_signature
 
     # Mutating the live controller after queue/preflight cannot mutate the frozen snapshot.
-    controller.dispatch(MoveSong(second, target_position=0))
+    controller.dispatch(MoveSong(second, target_position=1))
     assert preflight.snapshot.snapshot_hash == snapshot_hash
     assert preflight.snapshot.content_signature == frozen_signature
     assert preflight.snapshot.document().content_signature() == reopened.content_signature()
@@ -256,7 +257,7 @@ def test_nine_workspace_navigation_is_read_only_in_production_subprocess(tmp_pat
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         os.environ.setdefault("FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER", "1")
         from PySide6.QtWidgets import QApplication
-        import full_album_maker.main  # production installer chain
+        import full_album_maker.main  # installs production layers through STEP11
         from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
         from full_album_maker.foundation_window import FoundationMainWindow
         from full_album_maker.integration_core_step11 import normalized_project_hash
@@ -275,13 +276,19 @@ def test_nine_workspace_navigation_is_read_only_in_production_subprocess(tmp_pat
             window = FoundationMainWindow()
             window._foundation_project_open = True
             window.editor_workspace.set_document(doc)
+            # Let all zero-delay activation guards from STEP03-STEP11 settle
+            # before navigation becomes the behavior under measurement.
+            app.processEvents()
+            app.processEvents()
             before = normalized_project_hash(window.editor_workspace.document())
             routes = ("home", "media", "album", "timeline", "visual", "template", "spectrum", "ai", "render")
             for route in routes:
                 window.foundation_shell.set_workspace(route)
                 app.processEvents()
-                assert window.foundation_state.workspace == route
-                assert normalized_project_hash(window.editor_workspace.document()) == before
+                app.processEvents()
+                assert window.foundation_state.workspace == route, (route, window.foundation_state.workspace)
+                current = normalized_project_hash(window.editor_workspace.document())
+                assert current == before, (route, before, current)
             window.hide()
             shutdown = getattr(window, "_s11_shutdown", None)
             if callable(shutdown):
