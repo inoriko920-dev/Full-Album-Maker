@@ -40,6 +40,7 @@ from full_album_maker.post_release_render_content_adjustment import install_post
 from full_album_maker.post_release_command_bar_adjustment import install_post_release_command_bar_adjustment
 from full_album_maker.post_release_ai_context_adjustment import install_post_release_ai_context_adjustment
 from full_album_maker.post_release_ai_conversation_adjustment import install_post_release_ai_conversation_adjustment
+from full_album_maker.post_release_ai_canvas_header_adjustment import install_post_release_ai_canvas_header_adjustment
 
 
 install_feature()
@@ -80,6 +81,7 @@ install_post_release_render_content_adjustment()
 install_post_release_command_bar_adjustment()
 install_post_release_ai_context_adjustment()
 install_post_release_ai_conversation_adjustment()
+install_post_release_ai_canvas_header_adjustment()
 
 
 def main(argv: list[str] | None = None) -> int:
