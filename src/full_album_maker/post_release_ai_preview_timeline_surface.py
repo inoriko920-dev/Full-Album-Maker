@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QPushButton
+from PySide6.QtWidgets import QAbstractButton, QFrame, QLabel
 
 from .foundation_tokens import TOKENS
 
@@ -163,7 +163,6 @@ class AIPreviewTimelineCanvas(QFrame):
         segments, total = _timeline_segments(document)
         timebase = max(1, int(document.timebase))
 
-        # Compact ruler: evenly spaced ticks follow the actual project duration.
         painter.setPen(QColor("#526A86"))
         for index in range(7):
             ratio = index / 6.0
@@ -211,8 +210,6 @@ class AIPreviewTimelineCanvas(QFrame):
                     label,
                 )
 
-            # Audio overview is a deterministic visual envelope of each real song
-            # segment. It is presentation-only and does not claim waveform analysis.
             audio_rect = QRectF(x0, audio_y, clip_w, clip_h)
             painter.fillRect(audio_rect, QColor("#DDF6EC"))
             painter.setPen(QPen(QColor("#36B89E"), 1))
@@ -226,8 +223,6 @@ class AIPreviewTimelineCanvas(QFrame):
                 amplitude = (0.18 + 0.72 * abs(math.sin(phase))) * audio_rect.height() * 0.36
                 painter.drawLine(int(x), int(mid - amplitude), int(x), int(mid + amplitude))
 
-        # Paint real text/title layers only when the project actually contains
-        # them. No synthetic lyric/credit blocks are introduced by this surface.
         for layer in document.layers:
             kind = str(getattr(layer, "type", "") or "").casefold()
             name = str(getattr(layer, "name", "") or "")
@@ -279,15 +274,19 @@ def _install_canvas(window) -> None:
         layout.insertWidget(index, canvas, 1)
     panel.canvas = canvas
 
-    # The application shell already supplies timeline controls above this panel;
-    # hide the duplicate STEP05 precision toolbar for the AI overview only.
+    # The application shell already supplies timeline controls above this panel.
+    # Hide every widget from the STEP05 precision toolbar on this AI-only panel.
     mode = getattr(panel, "mode", None)
-    if isinstance(mode, QComboBox):
+    if mode is not None:
         mode.hide()
+    for name in ("split", "delete_gap", "ripple", "snap", "marker"):
+        widget = getattr(panel, name, None)
+        if widget is not None:
+            widget.hide()
     playhead_label = getattr(panel, "playhead_label", None)
     if isinstance(playhead_label, QLabel):
         playhead_label.hide()
-    for button in panel.findChildren(QPushButton):
+    for button in panel.findChildren(QAbstractButton):
         button.hide()
     layout.setSpacing(0)
     panel._post_release_ai_three_lane = True
