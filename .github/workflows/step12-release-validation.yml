@@ -76,9 +76,7 @@ jobs:
           Copy-Item $capabilities.FullName 'step12-release-evidence\CAPABILITIES.json'
 
           & 'tools\ffmpeg\ffmpeg.exe' -version 2>&1 | Out-File 'step12-release-evidence\ffmpeg-version.txt' -Encoding utf8
-          $help = & 'tools\ffmpeg\ffmpeg.exe' -hide_banner -h full 2>&1 | Out-String
-          if ($help -notmatch '-/filter_complex') { throw 'Pinned FFmpeg tidak mengiklankan -/filter_complex.' }
-          'PASS: pinned Windows FFmpeg advertises and executes -/filter_complex.' | Set-Content 'step12-release-evidence\external-filter-script.txt' -Encoding utf8
+          'PASS: pinned Windows FFmpeg executed -/filter_complex in the preceding real capability test.' | Set-Content 'step12-release-evidence\external-filter-script.txt' -Encoding utf8
 
           $smokeJson = Get-Content $smoke.FullName -Raw | ConvertFrom-Json
           if (-not $smokeJson.ok) { throw 'Portable smoke report menyatakan ok=false.' }
