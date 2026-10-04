@@ -256,6 +256,17 @@ class AIPreviewTimelineCanvas(QFrame):
         painter.end()
 
 
+def _set_foundation_toolbar_visible(window, visible: bool) -> None:
+    timeline = window.foundation_shell.timeline
+    timeline.mode.setVisible(bool(visible))
+    body = timeline.body
+    for button in body.findChildren(QAbstractButton):
+        # The foundation toolbar owns only these commands. Descendant buttons in
+        # the AI precision panel have already been disabled by _install_canvas.
+        if button.text().strip() in {"Split", "Ripple", "Snap", "Marker"}:
+            button.setVisible(bool(visible))
+
+
 def _install_canvas(window) -> None:
     panel = getattr(window, "ai_timeline_s09", None)
     if panel is None or getattr(panel, "_post_release_ai_three_lane", False):
@@ -274,8 +285,8 @@ def _install_canvas(window) -> None:
         layout.insertWidget(index, canvas, 1)
     panel.canvas = canvas
 
-    # The application shell already supplies timeline controls above this panel.
-    # Hide every widget from the STEP05 precision toolbar on this AI-only panel.
+    # Hide the STEP05 precision toolbar that belongs to this AI panel. The outer
+    # foundation toolbar is controlled separately by route.
     mode = getattr(panel, "mode", None)
     if mode is not None:
         mode.hide()
@@ -307,12 +318,18 @@ def install_post_release_ai_preview_timeline_surface() -> None:
     def wrapped_init(self, *args, **kwargs) -> None:
         previous_init(self, *args, **kwargs)
         _install_canvas(self)
+        _set_foundation_toolbar_visible(self, getattr(self.foundation_state, "workspace", "") != "ai_agent")
+        self.foundation_state.workspace_changed.connect(
+            lambda route: _set_foundation_toolbar_visible(self, str(route) != "ai_agent")
+        )
         self._s09_refresh()
 
     def refresh_with_preview_surface(self) -> None:
         previous_refresh(self)
         _install_canvas(self)
-        if getattr(self.foundation_state, "workspace", "") != "ai_agent":
+        active = getattr(self.foundation_state, "workspace", "") == "ai_agent"
+        _set_foundation_toolbar_visible(self, not active)
+        if not active:
             return
         session = getattr(self, "_s09_agent_session", None)
         if session is None:
