@@ -28,10 +28,10 @@ def install_post_release_template_card_density_adjustment() -> None:
             root.setContentsMargins(5, 5, 5, 5)
             root.setSpacing(2)
 
-        # The existing thumbnail/fallback painter stays authoritative; only its
-        # vertical footprint is tightened to match the UI-06 card rhythm.
-        self.thumbnail.setMinimumHeight(100)
-        self.thumbnail.setMaximumHeight(103)
+        # UI-06 spends more of the fixed card height on the visual preview and
+        # less on the action row.  Use fixed heights here because the global
+        # QPushButton style's sizeHint can otherwise reclaim this space.
+        self.thumbnail.setFixedHeight(116)
 
         labels = [
             label for label in self.findChildren(QLabel)
@@ -46,8 +46,7 @@ def install_post_release_template_card_density_adjustment() -> None:
                 label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         for button in (self.preview, self.use):
-            button.setMinimumHeight(27)
-            button.setMaximumHeight(27)
+            button.setFixedHeight(28)
 
         self.setMinimumHeight(0)
         self.setMaximumHeight(196)
