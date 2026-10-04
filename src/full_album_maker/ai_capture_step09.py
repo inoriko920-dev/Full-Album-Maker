@@ -24,13 +24,17 @@ GOLDEN_PROMPT = (
 def _fixture_document(root: Path):
     from .editor_models import Layer, MediaAsset, ProjectDocument, SongInstance, TimeBinding, TIMEBASE
 
-    document = ProjectDocument.new_empty("AI Agent Golden Project")
-    document.album_title = "Perjalanan Kita — Full Album"
+    # The approved UI-08 reference represents a normal 20-song, 48:20 album.
+    # Keep the QA fixture realistic so the ruler and project context exercise the
+    # same long-form layout as production rather than an artificial 10-minute demo.
+    document = ProjectDocument.new_empty("Album Kenangan")
+    document.album_title = "Album Kenangan"
     document.canvas.width = 1920
     document.canvas.height = 1080
 
     song_ids: list[str] = []
     video_ids: list[str] = []
+    song_duration_tick = 145 * TIMEBASE  # 20 × 145s = 2900s = 48:20
     for index in range(1, 21):
         title = f"Lagu {index:02d}"
         audio_path = root / f"audio-{index:02d}.wav"
@@ -41,21 +45,21 @@ def _fixture_document(root: Path):
             kind="audio",
             locator=str(audio_path),
             original_name=audio_path.name,
-            source_duration_tick=30 * TIMEBASE,
+            source_duration_tick=song_duration_tick,
             metadata={"title": title, "artist": "Perjalanan Kita"},
         )
         video = MediaAsset(
             kind="video",
             locator=str(video_path),
             original_name=video_path.name,
-            source_duration_tick=18 * TIMEBASE,
+            source_duration_tick=song_duration_tick,
         )
         document.media.extend([audio, video])
         song = SongInstance(
             asset_id=audio.asset_id,
             display_title=title,
             display_artist="Perjalanan Kita",
-            source_out_tick=30 * TIMEBASE,
+            source_out_tick=song_duration_tick,
         )
         document.playlist.entries.append(song)
         song_ids.append(song.song_id)
@@ -72,8 +76,8 @@ def _fixture_document(root: Path):
                 type="text",
                 name="Judul Album",
                 order=100,
-                time_binding=TimeBinding(kind="absolute", start_tick=0, duration_tick=180 * TIMEBASE),
-                properties={"text": "Perjalanan Kita"},
+                time_binding=TimeBinding(kind="absolute", start_tick=0, duration_tick=300 * TIMEBASE),
+                properties={"text": "Album Kenangan"},
                 origin="manual",
             ),
             Layer(
@@ -81,7 +85,7 @@ def _fixture_document(root: Path):
                 type="subtitle",
                 name="Lirik Berjalan",
                 order=101,
-                time_binding=TimeBinding(kind="absolute", start_tick=180 * TIMEBASE, duration_tick=360 * TIMEBASE),
+                time_binding=TimeBinding(kind="absolute", start_tick=300 * TIMEBASE, duration_tick=2400 * TIMEBASE),
                 properties={"text": "Lirik Berjalan"},
                 origin="manual",
             ),
@@ -90,7 +94,7 @@ def _fixture_document(root: Path):
                 type="text",
                 name="Credit",
                 order=102,
-                time_binding=TimeBinding(kind="absolute", start_tick=540 * TIMEBASE, duration_tick=60 * TIMEBASE),
+                time_binding=TimeBinding(kind="absolute", start_tick=2700 * TIMEBASE, duration_tick=200 * TIMEBASE),
                 properties={"text": "Credit"},
                 origin="manual",
             ),
