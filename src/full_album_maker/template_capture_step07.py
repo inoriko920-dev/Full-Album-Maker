@@ -69,8 +69,8 @@ def _seed_reference_custom_templates(window, document, root: Path):
     """Create functional custom-template fixtures through the production API.
 
     UI-06 contains a mixed gallery: eight built-ins followed by four user custom
-    templates.  The clean CI account naturally has no user templates, so the
-    fidelity capture creates four *real* portable customs in a temporary store.
+    templates. The clean CI account naturally has no user templates, so the
+    fidelity capture creates four real portable customs in a temporary store.
     Nothing is written to the normal user data directory and built-in catalog
     semantics remain unchanged.
     """
@@ -138,10 +138,17 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     window._s07_refresh()
     window._s07_select_template("spotify_clean")
     window._s07_preview()
+    window.show()
 
-    # Reference UI-06 shows one overview gallery containing its eight core
-    # built-ins plus four real user customs. Keep the actual filter/state owners
-    # untouched and project that deterministic overview only into this QA capture.
+    loop = QEventLoop()
+    QTimer.singleShot(300, loop.quit)
+    loop.exec()
+    app.processEvents()
+
+    # Showing the window can legitimately trigger a route refresh, which restores
+    # the real Built-in filter. Apply the deterministic UI-06 overview only after
+    # those events have settled so the screenshot actually contains 8 built-ins
+    # plus 4 functional customs. No filter owner or project state is mutated.
     customs, custom_errors = window._s07_store.scan()
     if custom_errors:
         raise RuntimeError(f"Custom template fixture invalid: {custom_errors}")
@@ -151,11 +158,6 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         selected_id="spotify_clean",
         favorites=(),
     )
-    window.show()
-
-    loop = QEventLoop()
-    QTimer.singleShot(300, loop.quit)
-    loop.exec()
     app.processEvents()
 
     live_document = window.editor_workspace.document()
