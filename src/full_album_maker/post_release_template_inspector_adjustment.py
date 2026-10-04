@@ -89,6 +89,11 @@ def install_post_release_template_inspector_adjustment() -> None:
         if root is None:
             return
 
+        # Preserve the recovered renderer contract/data value while matching the
+        # UI-06 reference label shown to the user.
+        if self.typography.count():
+            self.typography.setItemText(0, "Playfair Display")
+
         # Preserve every production widget and its existing signal connection,
         # but discard the original vertical arrangement/label-only rows.
         _clear_layout(root)
