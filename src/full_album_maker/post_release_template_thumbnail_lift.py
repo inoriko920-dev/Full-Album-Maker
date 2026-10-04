@@ -1,17 +1,32 @@
 from __future__ import annotations
 
-"""Small luminance correction for deterministic Template fallback thumbnails.
+"""Per-template luminance correction for deterministic Template fallbacks.
 
 Only placeholder thumbnails without a real cached/rendered pixmap are adjusted.
-Real user/runtime thumbnails remain untouched.  The existing fallback painter is
-kept as the source of composition; this layer lifts its luminance slightly and
-redraws the title so text contrast remains stable.
+Real user/runtime thumbnails remain untouched.  Each built-in fallback keeps its
+existing scene composition while receiving a small deterministic luminance lift
+appropriate to that scene; text is redrawn afterward for stable contrast.
 """
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter
 
 _installed = False
+
+# Alpha byte for a white luminance lift. These values affect only the deterministic
+# placeholder painter used while no real thumbnail exists.
+_LIFT_ALPHA = {
+    "spotify_clean": 16,
+    "cafe_acoustic": 55,
+    "viral_full_album": 17,
+    "vinyl_nostalgia": 100,
+    "neon_spectrum": 86,
+    "romantic_bokeh": 99,
+    "dark_cinematic": 56,
+    "photo_album": 49,
+    "cassette_retro": 19,
+    "music_channel_pro": 89,
+}
 
 
 def install_post_release_template_thumbnail_lift() -> None:
@@ -32,7 +47,9 @@ def install_post_release_template_thumbnail_lift() -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         inner = QRectF(self.rect()).adjusted(5, 5, -5, -5)
-        painter.fillRect(inner, QColor(255, 255, 255, 46))
+        alpha = int(_LIFT_ALPHA.get(str(getattr(self, "template_id", "")), 46))
+        if alpha > 0:
+            painter.fillRect(inner, QColor(255, 255, 255, alpha))
 
         painter.setPen(QColor("#FFFFFF"))
         font = painter.font()
