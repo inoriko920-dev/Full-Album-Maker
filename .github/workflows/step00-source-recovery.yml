@@ -1,0 +1,111 @@
+name: STEP00 verified source recovery
+
+on:
+  push:
+    branches:
+      - recovery/step-00-r0
+    paths:
+      - .github/workflows/step00-source-recovery.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: step00-source-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout recovery branch
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/step-00-r0
+          fetch-depth: 0
+
+      - name: Stage exact legacy source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_REPO="https://github.com/tonitarung099-creator/Full-Album-Video-Maker.git"
+          SOURCE_COMMIT="1d52b73e35f9df8272978e7b93a7a8c87896d7bd"
+          TMP="$(mktemp -d)"
+          SRC="$TMP/source"
+
+          git clone --filter=blob:none --no-checkout "$SOURCE_REPO" "$SRC"
+          git -C "$SRC" checkout --detach "$SOURCE_COMMIT"
+          test "$(git -C "$SRC" rev-parse HEAD)" = "$SOURCE_COMMIT"
+
+          for d in src tests build assets; do
+            if [ -d "$SRC/$d" ]; then
+              rm -rf "$d"
+              cp -a "$SRC/$d" "$d"
+            fi
+          done
+
+          for f in .gitignore LICENSE THIRD_PARTY_NOTICES.md pyproject.toml requirements.txt requirements-dev.txt pytest.ini setup.cfg setup.py; do
+            if [ -f "$SRC/$f" ]; then
+              cp -a "$SRC/$f" "$f"
+            fi
+          done
+
+          mkdir -p docs/recovery docs/legacy-source-v1.4.0
+          if [ -d "$SRC/docs" ]; then
+            rm -rf docs/legacy-source-v1.4.0
+            mkdir -p docs/legacy-source-v1.4.0
+            cp -a "$SRC/docs/." docs/legacy-source-v1.4.0/
+          fi
+          if [ -f "$SRC/README.md" ]; then
+            cp -a "$SRC/README.md" docs/legacy-source-v1.4.0/README.md
+          fi
+          if [ -f "$SRC/.github/workflows/build-windows-portable.yml" ]; then
+            cp -a "$SRC/.github/workflows/build-windows-portable.yml" docs/legacy-source-v1.4.0/build-windows-portable.yml
+          fi
+
+          git -C "$SRC" ls-tree -r --full-tree "$SOURCE_COMMIT" > docs/recovery/SOURCE_V1_4_0_GIT_TREE.txt
+
+          {
+            echo "# VERIFIED_SOURCE import — legacy v1.4.0"
+            echo
+            echo "- Source repository: \`tonitarung099-creator/Full-Album-Video-Maker\`"
+            echo "- Source commit: \`$SOURCE_COMMIT\`"
+            echo "- Source branch observed before recovery: \`main\`"
+            echo "- Source commit message: \`feat: publish Full Album Maker v1.4.0 Gemini AI parity\`"
+            echo "- Provenance: \`VERIFIED_SOURCE\` for files copied from this commit."
+            echo "- Important limitation: portable v1.4.1 reports build commit \`809b4d130c30f12e9df272395c2dd85941931c24\`; that commit was not reachable in the public legacy repository during STEP 00. Therefore this import is an exact v1.4.0 source baseline, not a claim of exact v1.4.1 source."
+            echo "- The historical build workflow is preserved at \`docs/legacy-source-v1.4.0/build-windows-portable.yml\` instead of activating it under \`.github/workflows/\`; STEP 00 treats it as provenance/build evidence and does not alter release automation."
+            echo
+            echo "## Imported groups"
+            echo
+            echo "\`src/\`, \`tests/\`, \`build/\`, \`assets/\`, dependency/project metadata present at the source commit, and historical docs/build-workflow evidence under \`docs/legacy-source-v1.4.0/\`."
+          } > docs/recovery/VERIFIED_SOURCE_IMPORT.md
+
+          {
+            echo "# sha256 | path"
+            find src tests build assets -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum
+            find docs/legacy-source-v1.4.0 -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum
+            for f in .gitignore LICENSE THIRD_PARTY_NOTICES.md pyproject.toml requirements.txt requirements-dev.txt pytest.ini setup.cfg setup.py; do
+              [ -f "$f" ] && sha256sum "$f"
+            done
+          } > docs/recovery/VERIFIED_SOURCE_SHA256.txt
+
+          if find src tests build assets -type f \( -name '.env' -o -name '*.pem' -o -name '*.key' -o -name 'credentials.json' \) -print 2>/dev/null | grep -q .; then
+            echo "Credential-like file found in recovered source; refusing to commit." >&2
+            exit 1
+          fi
+
+      - name: Commit recovered exact source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "STEP00 Recovery Bot"
+          git config user.email "step00-recovery@users.noreply.github.com"
+          git add -f build
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git commit -m "recovery: import verified v1.4.0 source snapshot"
+          git push origin HEAD:recovery/step-00-r0

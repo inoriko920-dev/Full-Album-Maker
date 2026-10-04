@@ -1,0 +1,183 @@
+name: STEP12 Release QA validation
+
+on:
+  push:
+    branches:
+      - release/step-12-qa
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: step12-release-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-release-qa:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUNBUFFERED: '1'
+      FAM_STEP09_PROVIDER: mock
+      FAM_STEP11_NO_RECOVERY_PROMPT: '1'
+    steps:
+      - name: Checkout STEP12 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Set up pinned Python 3.12.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.10'
+
+      - name: Verify STEP11 handoff is in candidate history
+        shell: pwsh
+        run: |
+          git merge-base --is-ancestor c40685e912b7c27d6c08c58465f0198e76c51451 HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'STEP12 candidate tidak berisi handoff STEP11 c40685e.' }
+          git status --short
+          git log -1 --oneline
+
+      - name: Build and smoke exact Windows portable candidate
+        shell: pwsh
+        run: ./build/build_portable.ps1
+
+      - name: Re-prove pinned FFmpeg external filter script capability
+        shell: pwsh
+        run: |
+          $ffDir = (Resolve-Path 'tools\ffmpeg').Path
+          $env:PATH = "$ffDir;$env:PATH"
+          & 'tools\ffmpeg\ffmpeg.exe' -version | Select-Object -First 1
+          python -m pytest -q tests/test_editor_v2_s12_performance.py::test_real_ffmpeg_accepts_external_filter_script
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Windows FFmpeg gagal pada -/filter_complex.' }
+
+      - name: Collect STEP12 release evidence
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force 'step12-release-evidence' | Out-Null
+          Copy-Item 'SHA256SUMS.txt' 'step12-release-evidence\SHA256SUMS.txt'
+
+          $version = python -c "import sys; sys.path.insert(0, 'src'); import full_album_maker; print(full_album_maker.__version__)"
+          if ($LASTEXITCODE -ne 0) { throw 'Tidak dapat membaca versi kandidat.' }
+          $version = $version.Trim()
+          $zip = Get-ChildItem -File 'Full-Album-Maker-v*-Windows-Portable.zip' | Select-Object -First 1
+          if (-not $zip) { throw 'ZIP portable kandidat tidak ditemukan.' }
+          $zipSha = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          $smoke = Get-ChildItem -Recurse -Filter 'portable-smoke.json' | Where-Object { $_.FullName -like '*portable smoke*' } | Select-Object -First 1
+          if (-not $smoke) { throw 'portable-smoke.json hasil extracted ZIP tidak ditemukan.' }
+          Copy-Item $smoke.FullName 'step12-release-evidence\portable-smoke.json'
+
+          $capabilities = Get-ChildItem -Recurse -Filter 'CAPABILITIES.json' | Where-Object { $_.FullName -like '*portable smoke*' } | Select-Object -First 1
+          if (-not $capabilities) { throw 'CAPABILITIES.json hasil extracted ZIP tidak ditemukan.' }
+          Copy-Item $capabilities.FullName 'step12-release-evidence\CAPABILITIES.json'
+
+          & 'tools\ffmpeg\ffmpeg.exe' -version 2>&1 | Out-File 'step12-release-evidence\ffmpeg-version.txt' -Encoding utf8
+          'PASS: pinned Windows FFmpeg executed -/filter_complex in the preceding real capability test.' | Set-Content 'step12-release-evidence\external-filter-script.txt' -Encoding utf8
+
+          $smokeJson = Get-Content $smoke.FullName -Raw | ConvertFrom-Json
+          if (-not $smokeJson.ok) { throw 'Portable smoke report menyatakan ok=false.' }
+          if ($smokeJson.api_key_present) { throw 'Portable smoke mendeteksi API key.' }
+          if ($smokeJson.output_streams -notcontains 'audio' -or $smokeJson.output_streams -notcontains 'video') {
+            throw 'Portable smoke tidak membuktikan audio+video.'
+          }
+
+          $summary = [ordered]@{
+            status = 'PASS_WITH_UI_GOLDEN_PENDING'
+            repository = $env:GITHUB_REPOSITORY
+            branch = $env:GITHUB_REF_NAME
+            candidate_sha = $env:GITHUB_SHA
+            step11_handoff_sha = 'c40685e912b7c27d6c08c58465f0198e76c51451'
+            application_version = $version
+            runner = 'windows-2025'
+            python = '3.12.10'
+            portable_zip = $zip.Name
+            portable_zip_sha256 = $zipSha
+            external_filter_script = 'PASS'
+            extracted_zip_smoke = 'PASS'
+            audio_video_probe = 'PASS'
+            ui_golden = 'LOCAL_PENDING unless exact immutable binaries are supplied and match manifest SHA-256'
+          }
+          $summary | ConvertTo-Json -Depth 5 | Set-Content 'step12-release-evidence\summary.json' -Encoding utf8
+          Get-Content 'step12-release-evidence\summary.json'
+
+      - name: Validate immutable UI golden pack only when exact binaries exist
+        shell: pwsh
+        run: |
+          @'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path('docs/ui-reference/manifest.json').read_text(encoding='utf-8'))
+          root = Path('docs/ui-reference')
+          report = []
+          for entry in manifest['references']:
+              path = root / entry['file']
+              if path.is_file():
+                  actual = hashlib.sha256(path.read_bytes()).hexdigest()
+                  if actual != entry['sha256']:
+                      raise SystemExit(f"Golden digest mismatch {entry['id']}: {actual} != {entry['sha256']}")
+                  status = 'VERIFIED'
+              else:
+                  actual = None
+                  status = 'LOCAL_PENDING'
+              report.append({
+                  'id': entry['id'],
+                  'workspace': entry['workspace'],
+                  'file': entry['file'],
+                  'expected_sha256': entry['sha256'],
+                  'actual_sha256': actual,
+                  'status': status,
+              })
+          out = Path('step12-release-evidence/ui-golden-status.json')
+          out.write_text(json.dumps({'references': report}, indent=2) + '\n', encoding='utf-8')
+          print({item['id']: item['status'] for item in report})
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Validasi immutable UI golden gagal.' }
+
+      - name: Secret scan release candidate
+        shell: pwsh
+        run: |
+          @'
+          import re
+          from pathlib import Path
+
+          patterns = {
+              'PRIVATE_KEY': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
+              'GITHUB_TOKEN': re.compile(r'gh[pousr]_[A-Za-z0-9]{36,255}'),
+              'GOOGLE_API_KEY': re.compile(r'AIza[0-9A-Za-z_-]{35}'),
+              'OPENAI_LIKE_KEY': re.compile(r'\bsk-[A-Za-z0-9_-]{20,}\b'),
+          }
+          hits = []
+          for root in (Path('src'), Path('tests'), Path('docs'), Path('build')):
+              for path in root.rglob('*'):
+                  if not path.is_file():
+                      continue
+                  try:
+                      text = path.read_text(encoding='utf-8')
+                  except Exception:
+                      continue
+                  for line_no, line in enumerate(text.splitlines(), 1):
+                      for kind, pattern in patterns.items():
+                          if pattern.search(line):
+                              hits.append((str(path), line_no, kind))
+          if hits:
+              raise SystemExit(f'Secret scan gagal: {hits[:10]}')
+          Path('step12-release-evidence/secret-scan.txt').write_text('PASS\n', encoding='utf-8')
+          print('STEP12_SECRET_SCAN_PASS')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Secret scan kandidat gagal.' }
+
+      - name: Upload STEP12 evidence and portable candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: step12-release-qa-evidence
+          path: |
+            step12-release-evidence/**
+            Full-Album-Maker-v*-Windows-Portable.zip
+            SHA256SUMS.txt
+          if-no-files-found: error

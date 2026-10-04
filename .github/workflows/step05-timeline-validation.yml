@@ -1,0 +1,179 @@
+name: STEP05 Timeline validation
+
+on:
+  push:
+    branches:
+      - ui/step-05-timeline
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-timeline:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Checkout STEP05 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Stage pinned Noto Sans visual-QA font
+        run: |
+          mkdir -p assets/fonts
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" \
+            --output assets/fonts/NotoSans.ttf
+          test $(stat -c%s assets/fonts/NotoSans.ttf) -gt 1000000
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run STEP05 focused tests
+        run: |
+          python -m pytest -q \
+            tests/test_step05_timeline_precision.py \
+            tests/test_step05_timeline_audio.py \
+            tests/test_step05_timeline_ui.py \
+            tests/test_step05_timeline_integration.py \
+            tests/test_step05_timeline_render_mix.py \
+            tests/test_step05_timeline_completion.py
+      - name: Run STEP04 regression gate
+        run: |
+          python -m pytest -q \
+            tests/test_step04_album_model.py \
+            tests/test_step04_album_ui.py \
+            tests/test_step04_album_integration.py \
+            tests/test_step04_album_acceptance.py
+      - name: Run full recovered regression suite
+        run: python -m pytest -q --disable-warnings
+      - name: Capture deterministic STEP05 Timeline evidence
+        run: |
+          mkdir -p step05-timeline-evidence/current step05-timeline-evidence/reports step05-timeline-evidence/compare
+          python -m full_album_maker.timeline_capture \
+            --state golden \
+            --output step05-timeline-evidence/current/timeline-g04-final.png \
+            --report step05-timeline-evidence/reports/timeline-g04-final.json
+          python -m full_album_maker.timeline_capture \
+            --state empty \
+            --output step05-timeline-evidence/current/timeline-empty-final.png \
+            --report step05-timeline-evidence/reports/timeline-empty-final.json
+          python -m full_album_maker.timeline_capture \
+            --state golden --width 1366 --height 768 \
+            --output step05-timeline-evidence/current/timeline-1366-final.png \
+            --report step05-timeline-evidence/reports/timeline-1366-final.json
+      - name: Validate Timeline geometry and fixture contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          def geometry(name):
+              return json.loads(Path(f'step05-timeline-evidence/reports/{name}.json').read_text())['geometry']
+
+          main = geometry('timeline-g04-final')
+          assert main['window'] == [1672, 941], main
+          assert main['workspace'] == 'timeline' and main['timeline_active'] is True, main
+          assert main['context_visible'] is True and main['inspector_active'] is True, main
+          assert main['precision_visible'] is True, main
+          assert main['context_width'] in range(254, 275), main
+          assert main['right_dock_width'] in range(338, 359), main
+          assert main['timeline_height'] in range(350, 355), main
+          assert main['status_height'] in range(26, 31), main
+          assert main['playlist_mode'] == 'free', main
+          assert main['song_count'] == 3, main
+          assert main['marker_count'] == 4, main
+          assert main['gap_count'] == 1, main
+          assert main['crossfade_count'] == 1, main
+          assert main['audio_errors'] == [], main
+          assert main['route_preserved_content'] is True, main
+          assert main['selected_inspector'] == 'Lagu Utama', main
+          assert main['monitor_audio_available'] is False, main
+
+          empty = geometry('timeline-empty-final')
+          assert empty['song_count'] == 0 and empty['marker_count'] == 0, empty
+          assert empty['timeline_active'] is True, empty
+          assert empty['route_preserved_content'] is True, empty
+
+          compact = geometry('timeline-1366-final')
+          assert compact['window'] == [1366, 768], compact
+          assert compact['timeline_active'] is True and compact['precision_visible'] is True, compact
+          assert compact['right_dock_width'] in range(290, 311), compact
+          assert compact['timeline_height'] in range(350, 355), compact
+          assert compact['gap_count'] == 1 and compact['crossfade_count'] == 1, compact
+          print('STEP05_TIMELINE_GEOMETRY_PASS')
+          PY
+      - name: Verify immutable Timeline golden and build overlay when available
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageChops
+
+          expected = 'd559b1d380f03bbb68ab832d3174b32e9d63d64fe7c1c4af98d11e5e7d3839c3'
+          ref = Path('docs/ui-reference/04-timeline.png')
+          current = Path('step05-timeline-evidence/current/timeline-g04-final.png')
+          report = {
+              'reference': '04-timeline.png',
+              'expected_sha256': expected,
+              'status': 'LOCAL_PENDING',
+          }
+          if ref.is_file():
+              actual = hashlib.sha256(ref.read_bytes()).hexdigest()
+              assert actual == expected, (actual, expected)
+              golden = Image.open(ref).convert('RGB')
+              rendered = Image.open(current).convert('RGB')
+              assert golden.size == rendered.size == (1672, 941), (golden.size, rendered.size)
+              Image.blend(golden, rendered, 0.5).save('step05-timeline-evidence/compare/timeline-overlay-50.png')
+              ImageChops.difference(golden, rendered).save('step05-timeline-evidence/compare/timeline-diff.png')
+              report['actual_sha256'] = actual
+              report['status'] = 'PASS'
+          else:
+              report['detail'] = 'Exact UI-04 binary is external to the repository; provide the immutable local golden pack for pixel overlay.'
+          Path('step05-timeline-evidence/reports/golden-reference-status.json').write_text(
+              json.dumps(report, indent=2) + '\n', encoding='utf-8'
+          )
+          print('STEP05_GOLDEN_REFERENCE_' + report['status'])
+          PY
+      - name: Secret scan STEP05 surfaces
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          patterns = [
+              re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
+              re.compile(r'gh[pousr]_[A-Za-z0-9]{36,255}'),
+              re.compile(r'AIza[0-9A-Za-z_-]{35}'),
+              re.compile(r'\bsk-[A-Za-z0-9_-]{20,}\b'),
+          ]
+          hits=[]
+          for root in (Path('src/full_album_maker'), Path('tests')):
+              for path in root.rglob('*.py'):
+                  text=path.read_text(encoding='utf-8', errors='ignore')
+                  if any(pattern.search(text) for pattern in patterns):
+                      hits.append(str(path))
+          assert not hits, hits
+          print('STEP05_TIMELINE_SECRET_SCAN_PASS')
+          PY
+      - name: Upload STEP05 Timeline evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: step05-timeline-evidence
+          path: step05-timeline-evidence/
+          if-no-files-found: error

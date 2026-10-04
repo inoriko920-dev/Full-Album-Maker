@@ -1,0 +1,16 @@
+{
+  "source": "ASTRA_MASTER_PLAN_UI_FULL_ALBUM_MAKER_PIXEL_MATCH_9_REFERENSI.docx",
+  "golden_viewport": [1672, 941],
+  "dpi_baseline": 96,
+  "references": [
+    {"id": "UI-01", "workspace": "Beranda", "file": "01-beranda.png", "sha256": "039f548c4938c4d56ba7a92fc1cbfcbf5befb566732be24a6393ab9791f677b0"},
+    {"id": "UI-02", "workspace": "Media", "file": "02-media.png", "sha256": "117572570f900d7f25e2fd0dc822bd59c4496dcc6f23bfb9af8cb8b9d10aa3a5"},
+    {"id": "UI-03", "workspace": "Album", "file": "03-album.png", "sha256": "42756121fc9a0b18b03d006710d1fb528388b3cf86eaf25c0e72afdac11062b9"},
+    {"id": "UI-04", "workspace": "Timeline", "file": "04-timeline.png", "sha256": "d559b1d380f03bbb68ab832d3174b32e9d63d64fe7c1c4af98d11e5e7d3839c3"},
+    {"id": "UI-05", "workspace": "Visual", "file": "05-visual.png", "sha256": "8b661752b235de74843950945126ab80837dec01953b796fcdcd6ad2ac317ef8"},
+    {"id": "UI-06", "workspace": "Template", "file": "06-template.png", "sha256": "cd2dcd55dcfcf16b947737e459129178a71f76b52b625e398c0fc2f1e87f5895"},
+    {"id": "UI-07", "workspace": "Spectrum", "file": "07-spectrum.png", "sha256": "ffd89d91c8679b819264ce012742e2387313fdfef90e2ea9a2f590685cb7d87f"},
+    {"id": "UI-08", "workspace": "AI Agent", "file": "08-ai-agent.png", "sha256": "276a602d2617762e87b2007e7191f9042217b41dd3bf75ce42da7a5fa5be29f3"},
+    {"id": "UI-09", "workspace": "Render", "file": "09-render.png", "sha256": "8739b225d83089772b19f05b133b98b3ea8e448d1fb905ba613751f46d988618"}
+  ]
+}

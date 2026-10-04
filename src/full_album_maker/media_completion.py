@@ -1,0 +1,423 @@
+from __future__ import annotations
+
+from dataclasses import replace
+from pathlib import Path
+from typing import Any, Callable
+
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygon
+from PySide6.QtWidgets import QMenu, QSizePolicy
+
+from .foundation_tokens import TOKENS
+from .media_library_services import MediaSidecarStore
+from .media_preview_cache import MediaPreviewCache, PreviewResult, invalidate_source, preview_cache_path
+from .media_workspace import COLLECTIONS, MediaPreviewPlaceholder, MediaWorkspace, MediaInspectorWidget
+
+_installed = False
+_originals: dict[str, Any] = {}
+
+
+def _preview_set_path(self: MediaPreviewPlaceholder, path: str) -> None:
+    path = str(path or "")
+    self._step03_preview_path = path
+    pixmap = QPixmap(path) if path and Path(path).is_file() else QPixmap()
+    self._step03_preview_pixmap = None if pixmap.isNull() else pixmap
+    self.update()
+
+
+def _preview_paint(self: MediaPreviewPlaceholder, event) -> None:
+    painter = QPainter(self)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    rect = self.rect().adjusted(0, 0, -1, -1)
+    painter.setClipRect(rect)
+    pixmap = getattr(self, "_step03_preview_pixmap", None)
+    if pixmap is not None:
+        scaled = pixmap.scaled(
+            rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        painter.drawPixmap(
+            rect.center().x() - scaled.width() // 2,
+            rect.center().y() - scaled.height() // 2,
+            scaled,
+        )
+    elif self.asset.media_type.value == "audio":
+        painter.fillRect(rect, QColor("#F4F8FF"))
+        painter.setPen(QPen(QColor("#6FA7FF"), 2))
+        middle = rect.center().y()
+        usable = max(1, rect.width() - 20)
+        bars = max(24, min(52, usable // 7))
+        for index in range(bars):
+            x = rect.left() + 10 + int(index * usable / bars)
+            height = 7 + ((index * 17 + 11) % max(12, rect.height() - 18))
+            painter.drawLine(x, middle - height // 2, x, middle + height // 2)
+    else:
+        gradient = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        if self.asset.media_type.value == "video":
+            gradient.setColorAt(0.0, QColor("#BFD8FF"))
+            gradient.setColorAt(1.0, QColor("#FFE1B5"))
+        else:
+            gradient.setColorAt(0.0, QColor("#C6E7FF"))
+            gradient.setColorAt(1.0, QColor("#CDE8C8"))
+        painter.fillRect(rect, gradient)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#6F9A78"))
+        points = QPolygon([
+            QPoint(rect.left(), rect.bottom()),
+            QPoint(rect.left() + rect.width() // 3, rect.top() + rect.height() // 2),
+            QPoint(rect.left() + rect.width() // 2, rect.top() + int(rect.height() * 0.68)),
+            QPoint(rect.left() + int(rect.width() * 0.72), rect.top() + int(rect.height() * 0.43)),
+            QPoint(rect.right(), rect.bottom()),
+        ])
+        painter.drawPolygon(points)
+        if self.asset.media_type.value == "video":
+            painter.setBrush(QColor(15, 35, 70, 170))
+            center = rect.center()
+            painter.drawEllipse(center, 16, 16)
+            painter.setPen(QColor("#FFFFFF"))
+            font = painter.font()
+            font.setPointSize(14)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(QRect(center.x() - 13, center.y() - 14, 30, 30), Qt.AlignmentFlag.AlignCenter, "▶")
+    painter.setPen(QPen(QColor(TOKENS.border), 1))
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawRoundedRect(rect, 7, 7)
+    if self.asset.status.value == "missing":
+        painter.fillRect(rect, QColor(255, 245, 220, 205))
+        painter.setPen(QColor("#A56D00"))
+        painter.drawText(rect.adjusted(6, 6, -6, -6), Qt.AlignmentFlag.AlignCenter, "SOURCE MISSING")
+    painter.end()
+
+
+def _workspace_init(self: MediaWorkspace, *args, **kwargs) -> None:
+    _originals["workspace_init"](self, *args, **kwargs)
+    self._step03_preview_paths: dict[str, str] = {}
+    self._step03_preview_failed: set[str] = set()
+    self._step03_preview_requester: Callable[[Any], None] | None = None
+    self._step03_collection_handler: Callable[[str, str, bool], None] | None = None
+    self.scroll.verticalScrollBar().valueChanged.connect(lambda _v: QTimer.singleShot(40, self._step03_request_nearby))
+
+
+def _workspace_columns(self: MediaWorkspace) -> int:
+    width = max(360, self.scroll.viewport().width())
+    return max(2, min(5, width // 180))
+
+
+def _workspace_refresh(self: MediaWorkspace) -> None:
+    _originals["workspace_refresh"](self)
+    for card in self._cards:
+        asset = card.asset
+        card.setMaximumHeight(168 if self.query.view_mode.value == "grid" else 126)
+        preview = card.findChild(MediaPreviewPlaceholder)
+        if preview is not None:
+            preview.setFixedHeight(78 if self.query.view_mode.value == "grid" else 44)
+            cached = self._step03_preview_paths.get(asset.asset_id, "")
+            if cached:
+                preview.set_preview_path(cached)
+        menus = card.findChildren(QMenu)
+        if menus:
+            menu = menus[0]
+            collection_menu = menu.addMenu("Koleksi")
+            for collection in COLLECTIONS:
+                action = collection_menu.addAction(collection)
+                action.setCheckable(True)
+                action.setChecked(collection in asset.collections)
+                action.triggered.connect(
+                    lambda checked=False, asset_id=asset.asset_id, name=collection, workspace=self:
+                    workspace._step03_collection_handler and workspace._step03_collection_handler(asset_id, name, bool(checked))
+                )
+    QTimer.singleShot(0, self._step03_request_nearby)
+
+
+def _workspace_request_nearby(self: MediaWorkspace) -> None:
+    requester = getattr(self, "_step03_preview_requester", None)
+    if not callable(requester) or not self.isVisible():
+        return
+    viewport = self.scroll.viewport()
+    top = self.scroll.verticalScrollBar().value() - 220
+    bottom = top + viewport.height() + 440
+    for card in self._cards:
+        asset = card.asset
+        if asset.status.value == "missing" or asset.asset_id in self._step03_preview_failed:
+            continue
+        if asset.asset_id in self._step03_preview_paths:
+            continue
+        y = card.geometry().top()
+        if y + card.height() < top or y > bottom:
+            continue
+        requester(asset)
+
+
+def _workspace_preview_result(self: MediaWorkspace, result: PreviewResult) -> None:
+    asset_id = str(result.asset_id)
+    if result.path:
+        self._step03_preview_paths[asset_id] = result.path
+        self._step03_preview_failed.discard(asset_id)
+    elif result.error:
+        self._step03_preview_failed.add(asset_id)
+    for card in self._cards:
+        if card.asset.asset_id != asset_id:
+            continue
+        preview = card.findChild(MediaPreviewPlaceholder)
+        if preview is not None and result.path:
+            preview.set_preview_path(result.path)
+
+
+def _inspector_init(self: MediaInspectorWidget, *args, **kwargs) -> None:
+    _originals["inspector_init"](self, *args, **kwargs)
+    layout = self.layout()
+    if layout is not None:
+        layout.setContentsMargins(10, 7, 10, 8)
+        layout.setSpacing(5)
+    self.preview.setMinimumHeight(96)
+    self.preview.setMaximumHeight(112)
+    self.description.setMaximumHeight(60)
+    self.save_meta.hide()
+    self.favorite.hide()
+    self.setMinimumHeight(0)
+    self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Ignored)
+    self._step03_meta_timer = QTimer(self)
+    self._step03_meta_timer.setSingleShot(True)
+    self._step03_meta_timer.setInterval(450)
+    self._step03_meta_timer.timeout.connect(self._save)
+    self.tags.editingFinished.connect(self._save)
+    self.description.textChanged.connect(lambda: self._step03_meta_timer.start())
+
+
+def _inspector_preview(self: MediaInspectorWidget, asset_id: str, path: str) -> None:
+    asset = getattr(self, "_asset", None)
+    if asset is None or asset.asset_id != asset_id or not path:
+        return
+    pixmap = QPixmap(path)
+    if pixmap.isNull():
+        return
+    self.preview.setText("")
+    self.preview.setPixmap(
+        pixmap.scaled(
+            self.preview.size(),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+    )
+
+
+def _shell_sizes(self, route: str) -> None:
+    if route != "media":
+        _originals["shell_sizes"](self, route)
+        return
+    total = max(1, self.width())
+    compact = bool(getattr(self, "_responsive_compact", False))
+    nav = TOKENS.nav_compact_width if compact else TOKENS.nav_width
+    context = 196 if compact else 205
+    right = 38 if self.inspector.collapsed else (274 if compact else 286)
+    center = max(430 if compact else 640, total - nav - context - right - TOKENS.splitter_handle * 3)
+    self.context.setMinimumWidth(context)
+    self.context.setMaximumWidth(context)
+    if not self.inspector.collapsed:
+        self.inspector.setMinimumWidth(right)
+        self.inspector.setMaximumWidth(520)
+    self.horizontal_splitter.setSizes([nav, context, center, right])
+    timeline_height = TOKENS.timeline_collapsed_height if self.timeline.collapsed else self.timeline.preferred_height
+    top_height = max(300, self.height() - timeline_height - TOKENS.status_height - TOKENS.command_height)
+    self.vertical_splitter.setSizes([top_height, timeline_height])
+
+
+def _window_init(self, *args, **kwargs) -> None:
+    _originals["window_init"](self, *args, **kwargs)
+    self._s03_preview_project_identity = id(self.project)
+    self._s03_preview_jobs = 0
+    self._s03_preview_cache = MediaPreviewCache(self, workers=2)
+    self._s03_preview_cache.preview_ready.connect(self._s03_completion_preview_ready)
+    self._s03_preview_cache.jobs_changed.connect(self._s03_completion_preview_jobs)
+    self.media_workspace._step03_preview_requester = self._s03_preview_cache.request
+    self.media_workspace._step03_collection_handler = self._s03_completion_collection
+    self.foundation_shell.horizontal_splitter.setMinimumHeight(0)
+    self.foundation_shell.inspector.setMinimumHeight(0)
+    self.foundation_shell.inspector.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Ignored)
+    self._inspector_router.setMinimumHeight(0)
+    self._inspector_router.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Ignored)
+    QTimer.singleShot(0, lambda: self.foundation_shell._apply_shell_sizes(self.foundation_state.workspace))
+    QTimer.singleShot(0, self.media_workspace._step03_request_nearby)
+
+
+def _collection(self, asset_id: str, collection: str, enabled: bool) -> None:
+    asset = self._s03_index.get(str(asset_id))
+    if asset is None or collection not in COLLECTIONS:
+        return
+    values = list(asset.collections)
+    if enabled and collection not in values:
+        values.append(collection)
+    if not enabled:
+        values = [value for value in values if value != collection]
+    try:
+        self._s03_store.update(
+            asset.asset_id,
+            collections=values,
+            persist=bool(self._foundation_project_path),
+        )
+    except OSError as exc:
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.warning(self, "Koleksi Media", f"Koleksi tidak dapat disimpan:\n{exc}")
+        return
+    self._s03_refresh(False)
+
+
+def _preview_ready(self, result: PreviewResult) -> None:
+    if result.generation != self._s03_preview_cache.generation:
+        return
+    self.media_workspace._step03_preview_result(result)
+    if result.path:
+        self.media_inspector.set_preview_path(result.asset_id, result.path)
+
+
+def _preview_jobs(self, jobs: int) -> None:
+    self._s03_preview_jobs = max(0, int(jobs))
+    self._sync_foundation_state()
+
+
+def _selected_summary(self) -> str:
+    ids = tuple(self.media_workspace.selection.selected_ids)
+    assets = [self._s03_index.get(asset_id) for asset_id in ids]
+    assets = [asset for asset in assets if asset is not None]
+    video = sum(asset.media_type.value == "video" for asset in assets)
+    photo = sum(asset.media_type.value == "photo" for asset in assets)
+    audio = sum(asset.media_type.value == "audio" for asset in assets)
+    duration = max(
+        sum(float(getattr(item, "duration", 0) or 0) for item in getattr(self.project, "audios", ())),
+        sum(float(getattr(item, "duration", 0) or 0) for item in getattr(self.project, "videos", ())),
+        0.0,
+    )
+    minutes, seconds = divmod(int(round(duration)), 60)
+    hours, minutes = divmod(minutes, 60)
+    duration_text = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return (
+        f"Media: {len(assets)} dipilih ({video} video, {photo} foto, {audio} audio)"
+        f"  •  Durasi Proyek {duration_text}  •  {len(self._s03_index.all())} item"
+    )
+
+
+def _sync(self) -> None:
+    _originals["sync"](self)
+    if not getattr(self, "_foundation_ready", False):
+        return
+    import_jobs = int(getattr(self, "_s03_jobs", 0) or 0)
+    recovered_jobs = int(getattr(self, "_import_job_count", 0) or 0)
+    render_jobs = int(bool(getattr(self, "render_busy", False)))
+    preview_jobs = int(getattr(self, "_s03_preview_jobs", 0) or 0)
+    total_jobs = import_jobs + recovered_jobs + render_jobs + preview_jobs
+    updates = {"jobs": (f"Jobs: {total_jobs}", "warning" if total_jobs else "neutral")}
+    if self.foundation_state.workspace == "media":
+        updates["project_context"] = self._s03_completion_selected_summary()
+        self.foundation_shell.timeline.set_project_context(f"Media: {len(self._s03_index.all())} item")
+    self.foundation_state.set_status(**updates)
+
+
+def _select(self, ids) -> None:
+    _originals["select"](self, ids)
+    asset = getattr(self.media_inspector, "_asset", None)
+    if asset is not None:
+        path = self.media_workspace._step03_preview_paths.get(asset.asset_id, "")
+        if not path:
+            candidate = preview_cache_path(asset)
+            path = str(candidate) if candidate.is_file() else ""
+        if path:
+            self.media_inspector.set_preview_path(asset.asset_id, path)
+    self._sync_foundation_state()
+
+
+def _refresh_media(self, reset=False) -> None:
+    project_changed = id(self.project) != getattr(self, "_s03_preview_project_identity", id(self.project))
+    _originals["refresh_media"](self, reset)
+    if project_changed and hasattr(self, "_s03_preview_cache"):
+        self._s03_preview_project_identity = id(self.project)
+        self._s03_preview_cache.reset()
+        self.media_workspace._step03_preview_paths.clear()
+        self.media_workspace._step03_preview_failed.clear()
+    if hasattr(self, "media_workspace"):
+        QTimer.singleShot(0, self.media_workspace._step03_request_nearby)
+
+
+def _relinked(self, payload) -> None:
+    old_path = str(payload.get("old", "")) if isinstance(payload, dict) else ""
+    if old_path:
+        invalidate_source(old_path)
+    _originals["relinked"](self, payload)
+    if hasattr(self, "_s03_preview_cache"):
+        self._s03_preview_cache.reset()
+    if hasattr(self, "media_workspace"):
+        self.media_workspace._step03_preview_paths.clear()
+        self.media_workspace._step03_preview_failed.clear()
+        QTimer.singleShot(0, self.media_workspace._step03_request_nearby)
+
+
+def _save_project(self) -> None:
+    old_store = getattr(self, "_s03_store", None)
+    old_records = old_store.records() if old_store is not None else {}
+    _originals["save_project"](self)
+    if not self._foundation_project_path:
+        current = str(getattr(self, "_current_project_path", "") or "")
+        if current:
+            self._foundation_project_path = current
+    if not self._foundation_project_path:
+        return
+    target = Path(self._foundation_project_path)
+    if old_store is not None and old_store.project_path == target:
+        return
+    store = MediaSidecarStore(target)
+    store.load()
+    try:
+        for asset_id, record in old_records.items():
+            store.set(asset_id, record, persist=False)
+        if old_records:
+            store.save()
+    except OSError:
+        return
+    self._s03_store = store
+    self._s03_refresh(False)
+
+
+def install_step03_media_completion() -> None:
+    """Close STEP03 collection/cache/golden-layout gaps without a second shell."""
+    global _installed
+    if _installed:
+        return
+
+    from .foundation_shell import FoundationShellWidget
+    from .foundation_window import FoundationMainWindow
+
+    _originals.update(
+        workspace_init=MediaWorkspace.__init__,
+        workspace_refresh=MediaWorkspace.refresh_view,
+        inspector_init=MediaInspectorWidget.__init__,
+        shell_sizes=FoundationShellWidget._apply_shell_sizes,
+        window_init=FoundationMainWindow.__init__,
+        sync=FoundationMainWindow._sync_foundation_state,
+        select=FoundationMainWindow._s03_select,
+        refresh_media=FoundationMainWindow._s03_refresh,
+        relinked=FoundationMainWindow._s03_relinked,
+        save_project=FoundationMainWindow._foundation_save_project,
+    )
+
+    MediaPreviewPlaceholder.set_preview_path = _preview_set_path
+    MediaPreviewPlaceholder.paintEvent = _preview_paint
+    MediaWorkspace.__init__ = _workspace_init
+    MediaWorkspace.refresh_view = _workspace_refresh
+    MediaWorkspace._columns = _workspace_columns
+    MediaWorkspace._step03_request_nearby = _workspace_request_nearby
+    MediaWorkspace._step03_preview_result = _workspace_preview_result
+    MediaInspectorWidget.__init__ = _inspector_init
+    MediaInspectorWidget.set_preview_path = _inspector_preview
+    FoundationShellWidget._apply_shell_sizes = _shell_sizes
+    FoundationMainWindow.__init__ = _window_init
+    FoundationMainWindow._s03_completion_collection = _collection
+    FoundationMainWindow._s03_completion_preview_ready = _preview_ready
+    FoundationMainWindow._s03_completion_preview_jobs = _preview_jobs
+    FoundationMainWindow._s03_completion_selected_summary = _selected_summary
+    FoundationMainWindow._sync_foundation_state = _sync
+    FoundationMainWindow._s03_select = _select
+    FoundationMainWindow._s03_refresh = _refresh_media
+    FoundationMainWindow._s03_relinked = _relinked
+    FoundationMainWindow._foundation_save_project = _save_project
+    _installed = True

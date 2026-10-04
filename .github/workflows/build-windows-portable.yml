@@ -1,0 +1,223 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-2025
+    permissions:
+      contents: write
+
+    steps:
+      # actions/checkout v7.0.1 — Node 24, pinned by full commit SHA.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # actions/setup-python v7.0.0 — Node 24, pinned by full commit SHA.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+
+      - name: Resolve stable application version
+        shell: pwsh
+        run: |
+          $version = python -c "import sys; sys.path.insert(0, 'src'); import full_album_maker; print(full_album_maker.__version__)"
+          if ($LASTEXITCODE -ne 0) { throw "Tidak dapat membaca versi aplikasi." }
+          $version = $version.Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Versi release harus semantic version stabil, contoh 1.0.0. Ditemukan: $version"
+          }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_ZIP=Full-Album-Maker-v$version-Windows-Portable.zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install pinned Python build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install pip==26.2.1
+          python -m pip install -r build/requirements-windows.lock
+
+      - name: Download pinned FFmpeg and portable font assets
+        shell: pwsh
+        run: |
+          # BtbN Auto-Build autobuild-2026-10-03-18-14, master N-127142-g12b7b9891b.
+          # Pin the dated release URL and SHA-256; never use the mutable /latest/ alias.
+          $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-03-18-14/ffmpeg-N-127142-g12b7b9891b-win64-gpl.zip"
+          $ffmpegSha256 = "a885f564dee2b60f69ab866c6c89b96ae531fc2ee1f24ff8b5b1a6d29960a96b"
+          $headers = @{
+            "User-Agent" = "Full-Album-Maker-Build"
+          }
+          Invoke-WebRequest -Uri $ffmpegUrl -Headers $headers -OutFile ffmpeg.zip
+          $actual = (Get-FileHash ffmpeg.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $ffmpegSha256) {
+            throw "Digest FFmpeg berubah. Expected $ffmpegSha256, got $actual. Update pin secara eksplisit."
+          }
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_unpack
+
+          $ffmpeg = Get-ChildItem ffmpeg_unpack -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          $ffprobe = Get-ChildItem ffmpeg_unpack -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw "ffmpeg.exe atau ffprobe.exe tidak ditemukan." }
+
+          New-Item -ItemType Directory -Force "tools\ffmpeg" | Out-Null
+          Copy-Item $ffmpeg.FullName "tools\ffmpeg\ffmpeg.exe"
+          Copy-Item $ffprobe.FullName "tools\ffmpeg\ffprobe.exe"
+
+          $ffDir = (Resolve-Path "tools\ffmpeg").Path
+          $ffDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          $encoders = & "tools\ffmpeg\ffmpeg.exe" -hide_banner -encoders 2>&1 | Out-String
+          if ($encoders -notmatch "libx264") { throw "FFmpeg build tidak memiliki libx264." }
+          if ($encoders -notmatch "libx265") { throw "FFmpeg build tidak memiliki libx265." }
+
+          # Google Fonts commit is immutable and recorded in CAPABILITIES.json.
+          $fontCommit = "23e54b51ddffbc7713c583748e3bd86f62b1fa4a"
+          New-Item -ItemType Directory -Force "assets\fonts" | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/google/fonts/$fontCommit/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" -OutFile "assets\fonts\NotoSans.ttf"
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/google/fonts/$fontCommit/ofl/notosans/OFL.txt" -OutFile "assets\fonts\NotoSans-OFL.txt"
+          if ((Get-Item "assets\fonts\NotoSans.ttf").Length -lt 1000000) {
+            throw "Noto Sans portable tampak tidak lengkap."
+          }
+
+      - name: Run regression, long-project, and real FFmpeg tests
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ffmpeg -version
+          ffprobe -version
+          python -m pytest -q
+
+      - name: Prepare Windows icon
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python build/generate_icon.py
+
+      - name: Build one-folder EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name "Full Album Maker" --icon "$PWD\assets\logo.ico" --paths "$PWD\src" "$PWD\src\full_album_maker\main.py"
+
+      - name: Bundle FFmpeg, font, assets, notices, and capability report
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "dist\Full Album Maker\tools\ffmpeg" | Out-Null
+          Copy-Item "tools\ffmpeg\ffmpeg.exe" "dist\Full Album Maker\tools\ffmpeg\ffmpeg.exe"
+          Copy-Item "tools\ffmpeg\ffprobe.exe" "dist\Full Album Maker\tools\ffmpeg\ffprobe.exe"
+          Copy-Item LICENSE "dist\Full Album Maker\LICENSE.txt"
+          Copy-Item THIRD_PARTY_NOTICES.md "dist\Full Album Maker\THIRD_PARTY_NOTICES.md"
+          New-Item -ItemType Directory -Force "dist\Full Album Maker\assets\fonts" | Out-Null
+          Copy-Item "assets\logo.svg" "dist\Full Album Maker\assets\logo.svg"
+          Copy-Item "assets\fonts\fonts.conf" "dist\Full Album Maker\assets\fonts\fonts.conf"
+          Copy-Item "assets\fonts\NotoSans.ttf" "dist\Full Album Maker\assets\fonts\NotoSans.ttf"
+          Copy-Item "assets\fonts\NotoSans-OFL.txt" "dist\Full Album Maker\assets\fonts\NotoSans-OFL.txt"
+
+          $ffLicense = Get-ChildItem ffmpeg_unpack -Recurse -File | Where-Object { $_.Name -eq "LICENSE.txt" } | Select-Object -First 1
+          $ffReadme = Get-ChildItem ffmpeg_unpack -Recurse -File | Where-Object { $_.Name -eq "README.txt" } | Select-Object -First 1
+          if ($ffLicense) { Copy-Item $ffLicense.FullName "dist\Full Album Maker\FFMPEG-LICENSE.txt" }
+          if ($ffReadme) { Copy-Item $ffReadme.FullName "dist\Full Album Maker\FFMPEG-README.txt" }
+
+          New-Item -ItemType Directory -Force "dist\Full Album Maker\data" | Out-Null
+          New-Item -ItemType Directory -Force "dist\Full Album Maker\temp" | Out-Null
+          New-Item -ItemType Directory -Force "dist\Full Album Maker\output" | Out-Null
+          python build/write_release_capabilities.py --root "dist\Full Album Maker"
+
+      - name: Create versioned portable ZIP and checksum
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist\Full Album Maker" -DestinationPath $env:RELEASE_ZIP
+          if (-not (Test-Path $env:RELEASE_ZIP)) { throw "Portable ZIP versi tidak berhasil dibuat." }
+
+          $zipSha256 = (Get-FileHash $env:RELEASE_ZIP -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$zipSha256  $env:RELEASE_ZIP" | Set-Content -Path "SHA256SUMS.txt" -Encoding ascii
+          $recorded = (Get-Content "SHA256SUMS.txt" -Raw).Trim()
+          if ($recorded -ne "$zipSha256  $env:RELEASE_ZIP") {
+            throw "SHA256SUMS.txt tidak cocok dengan ZIP portable yang baru dibuat."
+          }
+
+      - name: Smoke extracted portable ZIP without global Python, FFmpeg, or API key
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $extractRoot = Join-Path $PWD "portable smoke – O'Brien"
+          Expand-Archive $env:RELEASE_ZIP -DestinationPath $extractRoot
+          $app = Get-ChildItem $extractRoot -Recurse -Filter "Full Album Maker.exe" | Select-Object -First 1
+          if (-not $app) { throw "EXE portable tidak ditemukan setelah extract." }
+
+          $oldPath = $env:PATH
+          try {
+            $env:GEMINI_API_KEY = $null
+            $env:GOOGLE_API_KEY = $null
+            $env:PYTHONHOME = $null
+            $env:PYTHONPATH = $null
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+
+            if (Get-Command python -ErrorAction SilentlyContinue) {
+              throw "Gate release gagal mengisolasi Python global."
+            }
+            if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+              throw "Gate release gagal mengisolasi FFmpeg global."
+            }
+
+            $smokeProcess = Start-Process -FilePath $app.FullName -ArgumentList "--portable-smoke" -Wait -PassThru
+            if ($smokeProcess.ExitCode -ne 0) {
+              throw "Portable smoke keluar dengan kode $($smokeProcess.ExitCode)."
+            }
+          }
+          finally {
+            $env:PATH = $oldPath
+          }
+
+          $smokeReport = Join-Path $app.DirectoryName "temp\portable-smoke.json"
+          if (-not (Test-Path $smokeReport)) { throw "portable-smoke.json tidak dibuat." }
+          Get-Content $smokeReport
+          $smoke = Get-Content $smokeReport -Raw | ConvertFrom-Json
+          if (-not $smoke.ok -or $smoke.api_key_present) {
+            throw "Portable smoke report tidak memenuhi kontrak offline."
+          }
+          if ($smoke.output_streams -notcontains "audio" -or $smoke.output_streams -notcontains "video") {
+            throw "Portable smoke output belum terverifikasi audio+video."
+          }
+          if ($smoke.gui_title -notlike "*v$env:APP_VERSION*") {
+            throw "GUI portable tidak menampilkan versi release $env:APP_VERSION. Title: $($smoke.gui_title)"
+          }
+
+      # actions/upload-artifact v7.0.1 — Node 24, pinned by full commit SHA.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: Full-Album-Maker-Windows-Portable
+          path: |
+            Full-Album-Maker-v*-Windows-Portable.zip
+            SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish stable GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v$env:APP_VERSION"
+          $notes = "docs/RELEASE_NOTES_$tag.md"
+          if (-not (Test-Path $notes)) {
+            throw "Release notes tidak ditemukan: $notes"
+          }
+          if (-not (Test-Path "SHA256SUMS.txt")) {
+            throw "SHA256SUMS.txt tidak ditemukan."
+          }
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag sudah ada; publikasi dilewati."
+            exit 0
+          }
+
+          gh release create $tag $env:RELEASE_ZIP SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Full Album Maker $tag" --notes-file $notes --latest
+          if ($LASTEXITCODE -ne 0) {
+            throw "Gagal membuat GitHub Release $tag."
+          }

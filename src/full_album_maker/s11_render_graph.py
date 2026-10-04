@@ -1,0 +1,261 @@
+from __future__ import annotations
+
+import re
+import subprocess
+from pathlib import Path
+
+from .editor_models import Layer, ProjectDocument
+from .render_graph import CompiledFFmpeg, FFmpegV2Compiler, ticks_to_seconds
+from .timeline_precision import song_mix
+
+
+_AUDIO_SEGMENT = re.compile(r"^\[(\d+):a\].*\[aseg(\d+)\]$")
+FILTER_GRAPH_SCRIPT_THRESHOLD = 8_192
+WINDOWS_COMMAND_SAFE_LIMIT = 30_000
+
+
+def windows_command_line_length(args: tuple[str, ...] | list[str]) -> int:
+    """Approximate CreateProcess command-line length using Windows quoting rules."""
+
+    return len(subprocess.list2cmdline([str(item) for item in args]))
+
+
+def _externalize_large_filter_graph(
+    compiled: CompiledFFmpeg,
+    work_dir: str | Path,
+) -> CompiledFFmpeg:
+    """Keep long FFmpeg graphs out of the Windows process command line.
+
+    A 200-song project can easily generate tens of thousands of filter characters.
+    FFmpeg still receives the exact same graph through the documented option-file
+    syntax `-/filter_complex <file>`. This preserves S01-S11 semantics while
+    materially lowering CreateProcess command-line risk.
+    """
+
+    args = list(compiled.args)
+    try:
+        option_index = args.index("-filter_complex")
+    except ValueError:
+        return compiled
+    if option_index + 1 >= len(args):
+        return compiled
+
+    graph = args[option_index + 1]
+    if (
+        len(graph) < FILTER_GRAPH_SCRIPT_THRESHOLD
+        and windows_command_line_length(args) < WINDOWS_COMMAND_SAFE_LIMIT
+    ):
+        return compiled
+
+    work = Path(work_dir)
+    work.mkdir(parents=True, exist_ok=True)
+    script = work / "filter-complex-s12.txt"
+    script.write_text(graph + "\n", encoding="utf-8")
+    args[option_index : option_index + 2] = [
+        "-/filter_complex",
+        str(script),
+    ]
+    return CompiledFFmpeg(
+        tuple(args),
+        compiled.render_plan,
+        compiled.text_files + (script,),
+    )
+
+
+def _explicit_fades(document: ProjectDocument, song_id: str, duration: float) -> tuple[float, float]:
+    values = song_mix(document, song_id)
+    fade_in = min(max(0.0, ticks_to_seconds(values["fade_in_tick"])), max(0.0, duration))
+    fade_out = min(max(0.0, ticks_to_seconds(values["fade_out_tick"])), max(0.0, duration))
+    return fade_in, fade_out
+
+
+def _apply_packed_mix(
+    compiled: CompiledFFmpeg,
+    document: ProjectDocument,
+) -> CompiledFFmpeg:
+    """Apply Timeline inspector gain/fades to the established Packed concat graph."""
+
+    args = list(compiled.args)
+    try:
+        filter_index = args.index("-filter_complex") + 1
+    except ValueError:
+        return compiled
+    events = list(compiled.render_plan.audio_events)
+    if not events:
+        return compiled
+    parts = args[filter_index].split(";")
+    changed = False
+    rebuilt: list[str] = []
+    for part in parts:
+        match = _AUDIO_SEGMENT.match(part)
+        if not match:
+            rebuilt.append(part)
+            continue
+        event_index = int(match.group(2))
+        if not 0 <= event_index < len(events):
+            rebuilt.append(part)
+            continue
+        event = events[event_index]
+        label = f"[aseg{event_index}]"
+        if not part.endswith(label):
+            rebuilt.append(part)
+            continue
+        duration = ticks_to_seconds(event.end_tick - event.start_tick)
+        fade_in, fade_out = _explicit_fades(document, event.song_id, duration)
+        chain = part[: -len(label)] + f",volume={float(event.gain):.8f}"
+        if fade_in > 0:
+            chain += f",afade=t=in:st=0:d={fade_in:.6f}:curve=tri"
+        if fade_out > 0:
+            fade_start = max(0.0, duration - fade_out)
+            chain += f",afade=t=out:st={fade_start:.6f}:d={fade_out:.6f}:curve=tri"
+        chain += label
+        rebuilt.append(chain)
+        changed = True
+    if not changed:
+        return compiled
+    args[filter_index] = ";".join(rebuilt)
+    return CompiledFFmpeg(tuple(args), compiled.render_plan, compiled.text_files)
+
+
+class S11FFmpegCompiler(FFmpegV2Compiler):
+    """S10 visual compiler plus Free Timeline and STEP05 clip-mix semantics.
+
+    Packed keeps the established concat topology but now applies the persisted
+    Timeline gain/fade values to each source segment. Free replaces the album
+    concat with timestamped segments over finite silence, preserving explicit
+    gap and crossfade behavior plus the same gain/fade values.
+    """
+
+    def compile_video(
+        self,
+        document: ProjectDocument,
+        destination: str | Path,
+        work_dir: str | Path,
+        *,
+        include_audio: bool = True,
+    ) -> CompiledFFmpeg:
+        compiled = super().compile_video(
+            document,
+            destination,
+            work_dir,
+            include_audio=include_audio,
+        )
+        if document.playlist.mode != "free":
+            compiled = _apply_packed_mix(compiled, document)
+            return _externalize_large_filter_graph(compiled, work_dir)
+
+        args = list(compiled.args)
+        try:
+            filter_index = args.index("-filter_complex") + 1
+        except ValueError:
+            return _externalize_large_filter_graph(compiled, work_dir)
+        graph = args[filter_index]
+        parts = graph.split(";")
+
+        input_by_event: dict[int, int] = {}
+        kept: list[str] = []
+        for part in parts:
+            match = _AUDIO_SEGMENT.match(part)
+            if match:
+                input_by_event[int(match.group(2))] = int(match.group(1))
+                continue
+            if "concat=n=" in part and part.endswith("[album_audio]"):
+                continue
+            if part.startswith("[album_audio]") and (
+                "anull[" in part or "asplit=" in part
+            ):
+                continue
+            kept.append(part)
+
+        # Accurate frame rendering without an active spectrum intentionally has
+        # no audio inputs. In that case visual free timing still comes from the
+        # shared resolver and no audio graph needs to be synthesized.
+        if not input_by_event:
+            return _externalize_large_filter_graph(compiled, work_dir)
+
+        events = list(compiled.render_plan.audio_events)
+        if set(input_by_event) != set(range(len(events))):
+            raise ValueError("Compiler S11 tidak dapat memetakan input audio free timeline.")
+
+        duration = ticks_to_seconds(compiled.render_plan.duration_tick)
+        audio_parts: list[str] = []
+        for index, event in enumerate(events):
+            input_index = input_by_event[index]
+            event_duration = ticks_to_seconds(event.end_tick - event.start_tick)
+            start = ticks_to_seconds(event.start_tick)
+            explicit_in, explicit_out = _explicit_fades(document, event.song_id, event_duration)
+            fade_in = max(explicit_in, ticks_to_seconds(event.crossfade_in_tick))
+            fade_out = explicit_out
+            if index + 1 < len(events):
+                incoming = events[index + 1]
+                if (
+                    incoming.crossfade_in_tick > 0
+                    and incoming.start_tick < event.end_tick
+                ):
+                    fade_out = max(fade_out, ticks_to_seconds(incoming.crossfade_in_tick))
+            fade_in = min(fade_in, event_duration)
+            fade_out = min(fade_out, event_duration)
+
+            chain = (
+                f"[{input_index}:a]aresample=48000,"
+                "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+                f"atrim=duration={event_duration:.6f},asetpts=PTS-STARTPTS,"
+                f"volume={float(event.gain):.8f}"
+            )
+            if fade_in > 0:
+                chain += f",afade=t=in:st=0:d={fade_in:.6f}:curve=tri"
+            if fade_out > 0:
+                fade_start = max(0.0, event_duration - fade_out)
+                chain += (
+                    f",afade=t=out:st={fade_start:.6f}:d={fade_out:.6f}:curve=tri"
+                )
+            if start > 0:
+                chain += f",asetpts=PTS+{start:.6f}/TB"
+            chain += f"[aseg{index}]"
+            audio_parts.append(chain)
+
+        audio_parts.append(
+            f"anullsrc=r=48000:cl=stereo:d={duration:.6f}[asilence]"
+        )
+        mix_inputs = "[asilence]" + "".join(
+            f"[aseg{index}]" for index in range(len(events))
+        )
+        audio_parts.append(
+            f"{mix_inputs}amix=inputs={len(events) + 1}:duration=longest:"
+            f"dropout_transition=0:normalize=0,atrim=duration={duration:.6f},"
+            "asetpts=PTS-STARTPTS[album_audio]"
+        )
+
+        track_map = {track.track_id: track for track in document.tracks}
+        spectrum_layers: list[Layer] = [
+            layer
+            for layer in sorted(document.layers, key=lambda item: item.order)
+            if layer.enabled
+            and track_map[layer.track_id].enabled
+            and layer.type == "spectrum"
+        ]
+        branch_labels: list[str] = []
+        if include_audio:
+            branch_labels.append("aout")
+        branch_labels.extend(
+            f"specaudio{index}" for index, _ in enumerate(spectrum_layers)
+        )
+        if len(branch_labels) == 1:
+            audio_parts.append(f"[album_audio]anull[{branch_labels[0]}]")
+        elif len(branch_labels) > 1:
+            outputs = "".join(f"[{label}]" for label in branch_labels)
+            audio_parts.append(
+                f"[album_audio]asplit={len(branch_labels)}{outputs}"
+            )
+
+        # Keep the video base first, then the reconstructed album audio, then all
+        # original visual filters. The old audio-only fragments were removed above.
+        video_base = [part for part in kept if part.startswith("[0:v]")]
+        remaining = [part for part in kept if not part.startswith("[0:v]")]
+        args[filter_index] = ";".join(video_base + audio_parts + remaining)
+        result = CompiledFFmpeg(
+            tuple(args),
+            compiled.render_plan,
+            compiled.text_files,
+        )
+        return _externalize_large_filter_graph(result, work_dir)

@@ -1,0 +1,393 @@
+name: STEP11 Integration validation
+
+on:
+  push:
+    branches:
+      - integration/step-11-project-state
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-integration:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+      FAM_STEP09_PROVIDER: mock
+      FAM_STEP11_NO_RECOVERY_PROMPT: '1'
+    steps:
+      - name: Checkout STEP11 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Stage pinned Noto Sans visual-QA font
+        run: |
+          mkdir -p assets/fonts
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" \
+            --output assets/fonts/NotoSans.ttf
+          test $(stat -c%s assets/fonts/NotoSans.ttf) -gt 1000000
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run STEP11 focused integration core, lifecycle, production shell, and E2E
+        run: |
+          python -m pytest -q \
+            tests/test_step11_integration_core.py \
+            tests/test_step11_lifecycle.py \
+            tests/test_step11_production_integration.py \
+            tests/test_step11_e2e.py
+      - name: Run STEP10 Render regression gate
+        run: |
+          python -m pytest -q \
+            tests/test_step10_render_model.py \
+            tests/test_step10_render_preflight.py \
+            tests/test_step10_render_queue.py \
+            tests/test_step10_render_executor.py \
+            tests/test_step10_render_ui.py
+      - name: Run STEP09 AI focused and atomic regression gate
+        run: |
+          python -m pytest -q \
+            tests/test_step09_slowmo_contract.py \
+            tests/test_step09_agent_core.py \
+            tests/test_step09_provider.py \
+            tests/test_step09_async_provider.py \
+            tests/test_step09_history_store.py \
+            tests/test_step09_session_flow.py \
+            tests/test_step09_workspace_ui.py \
+            tests/test_editor_v2_s09_ai_editor.py \
+            tests/test_editor_v2_v14_action_registry.py \
+            tests/test_editor_v2_v14_ai_parity.py \
+            tests/test_gemini_intents.py \
+            tests/test_gemini_schema_compat.py \
+            tests/test_key_pool.py \
+            tests/test_key_pool_hardening.py \
+            tests/test_key_pool_retries.py
+      - name: Run full recovered regression suite
+        timeout-minutes: 6
+        run: python -m pytest -q --disable-warnings
+
+      - name: Measure 200-song resolver performance before FFmpeg environment changes
+        run: |
+          mkdir -p step11-integration-evidence/performance
+          python - <<'PY'
+          import json
+          import time
+          from pathlib import Path
+          from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, seconds_to_tick
+          from full_album_maker.timeline_resolver import TimelineResolver
+
+          SONG_COUNT=200
+          SONG_SECONDS=54.0
+          results={}
+          for mode in ('packed','free'):
+              doc=ProjectDocument.new_empty(f'STEP11 performance {mode}')
+              doc.canvas.width=320
+              doc.canvas.height=240
+              doc.playlist.mode=mode
+              duration=seconds_to_tick(SONG_SECONDS)
+              for index in range(SONG_COUNT):
+                  locator=f'C:/STEP11 Fixture/Lagu {index+1:03d}.wav'
+                  asset=MediaAsset(kind='audio', locator=locator, original_name=Path(locator).name, source_duration_tick=duration)
+                  doc.media.append(asset)
+                  doc.playlist.entries.append(SongInstance(
+                      asset_id=asset.asset_id,
+                      display_title=f'Lagu {index+1:03d}',
+                      source_out_tick=duration,
+                      free_start_tick=(index*duration if mode=='free' else None),
+                  ))
+              doc.validate()
+              started=time.perf_counter()
+              resolved=TimelineResolver().resolve(doc)
+              elapsed=time.perf_counter()-started
+              assert resolved.errors == [], resolved.errors
+              assert len(resolved.songs) == SONG_COUNT
+              assert elapsed < 2.0, (mode, elapsed)
+              results[mode]={
+                  'song_count': SONG_COUNT,
+                  'duration_seconds': resolved.duration_tick/doc.timebase,
+                  'resolve_seconds': elapsed,
+                  'ceiling_seconds': 2.0,
+                  'status': 'PASS',
+              }
+          Path('step11-integration-evidence/performance/resolver-200-song.json').write_text(
+              json.dumps(results, indent=2)+'\n', encoding='utf-8'
+          )
+          print('STEP11_PERFORMANCE_MEASURED', json.dumps(results, sort_keys=True))
+          PY
+          python -m pytest -q tests/test_editor_v2_s12_performance.py -k "packed_200_song or free_200_song"
+
+      - name: Capture eight deterministic workspaces before FFmpeg install
+        run: |
+          mkdir -p step11-integration-evidence/current step11-integration-evidence/reports step11-integration-evidence/compare step11-integration-evidence/probes
+          python -m full_album_maker.home_capture \
+            --state recovery \
+            --output step11-integration-evidence/current/01-home.png \
+            --report step11-integration-evidence/reports/01-home.json
+          python -m full_album_maker.media_capture_final \
+            --state golden \
+            --output step11-integration-evidence/current/02-media.png \
+            --report step11-integration-evidence/reports/02-media.json
+          python -m full_album_maker.album_capture \
+            --state golden \
+            --output step11-integration-evidence/current/03-album.png \
+            --report step11-integration-evidence/reports/03-album.json
+          python -m full_album_maker.timeline_capture \
+            --state golden \
+            --output step11-integration-evidence/current/04-timeline.png \
+            --report step11-integration-evidence/reports/04-timeline.json
+          python -m full_album_maker.visual_capture_step06 \
+            --output step11-integration-evidence/current/05-visual.png \
+            --report step11-integration-evidence/reports/05-visual.json
+          python -m full_album_maker.template_capture_step07 \
+            --output step11-integration-evidence/current/06-template.png \
+            --report step11-integration-evidence/reports/06-template.json
+          python -m full_album_maker.ai_capture_step09 \
+            --output step11-integration-evidence/current/08-ai-agent.png \
+            --report step11-integration-evidence/reports/08-ai-agent.json
+          python -m full_album_maker.render_capture_step10 \
+            --output step11-integration-evidence/current/09-render.png \
+            --report step11-integration-evidence/reports/09-render.json
+
+      - name: Install FFmpeg only after all regression tests
+        run: |
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+
+      - name: Capture deterministic Spectrum and run Ubuntu real-FFmpeg verification
+        run: |
+          python -m full_album_maker.spectrum_capture_step08 \
+            --output step11-integration-evidence/current/07-spectrum.png \
+            --report step11-integration-evidence/reports/07-spectrum.json \
+            --evidence-dir step11-integration-evidence/probes
+          python -m pytest -q tests/test_step10_render_real_ffmpeg.py
+
+      - name: Record external filter-script capability without faking Windows PASS
+        run: |
+          python - <<'PY'
+          import json
+          import platform
+          import subprocess
+          from pathlib import Path
+
+          root=Path('step11-integration-evidence/probes')
+          root.mkdir(parents=True, exist_ok=True)
+          version=subprocess.run(
+              ['ffmpeg','-version'], capture_output=True, text=True, errors='replace', check=False
+          ).stdout.splitlines()
+          help_result=subprocess.run(
+              ['ffmpeg','-hide_banner','-h','full'], capture_output=True, text=True, errors='replace', check=False
+          )
+          help_text=(help_result.stdout or '')+'\n'+(help_result.stderr or '')
+          supported='-/filter_complex' in help_text
+          status='PASS' if supported else 'LOCAL_PENDING_PINNED_WINDOWS_FFMPEG'
+          payload={
+              'status':status,
+              'runner_platform':platform.platform(),
+              'ffmpeg_version':version[0] if version else 'unknown',
+              'option':'-/filter_complex',
+              'supported_by_runner_ffmpeg':supported,
+              'reason':(
+                  'Runner FFmpeg advertises the file-indirection option; execute the compatibility test.'
+                  if supported else
+                  'Ubuntu system FFmpeg does not advertise -/filter_complex. This capability belongs to the exact pinned Windows portable FFmpeg and must be verified in STEP12/native portable QA; it is not reported as PASS here.'
+              ),
+          }
+          (root/'external-filter-script-capability.json').write_text(
+              json.dumps(payload, indent=2)+'\n', encoding='utf-8'
+          )
+          print('STEP11_EXTERNAL_FILTER_SCRIPT_CAPABILITY', status)
+          if supported:
+              completed=subprocess.run([
+                  'python','-m','pytest','-q',
+                  'tests/test_editor_v2_s12_performance.py::test_real_ffmpeg_accepts_external_filter_script'
+              ], check=False)
+              raise SystemExit(completed.returncode)
+          PY
+
+      - name: Validate nine actual screenshots and workspace fixtures
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from PIL import Image
+
+          root=Path('step11-integration-evidence')
+          mapping={
+              'UI-01':('01-home.png','01-home.json','home_active'),
+              'UI-02':('02-media.png','02-media.json','media_active'),
+              'UI-03':('03-album.png','03-album.json','album_active'),
+              'UI-04':('04-timeline.png','04-timeline.json','timeline_active'),
+              'UI-05':('05-visual.png','05-visual.json','visual_active'),
+              'UI-06':('06-template.png','06-template.json','template_active'),
+              'UI-07':('07-spectrum.png','07-spectrum.json','spectrum_active'),
+              'UI-08':('08-ai-agent.png','08-ai-agent.json','ai_active'),
+              'UI-09':('09-render.png','09-render.json','render_active'),
+          }
+          summary={}
+          for ref_id,(image_name,report_name,active_key) in mapping.items():
+              image_path=root/'current'/image_name
+              report_path=root/'reports'/report_name
+              assert image_path.is_file() and image_path.stat().st_size>0, image_path
+              image=Image.open(image_path)
+              assert image.size == (1672,941), (ref_id,image.size)
+              report=json.loads(report_path.read_text(encoding='utf-8'))
+              geometry=report.get('geometry', report)
+              assert geometry.get(active_key) is True, (ref_id, active_key, geometry)
+              summary[ref_id]={
+                  'actual_file': image_name,
+                  'actual_sha256': hashlib.sha256(image_path.read_bytes()).hexdigest(),
+                  'size': list(image.size),
+                  'active_flag': active_key,
+                  'status': 'PASS',
+              }
+          (root/'reports'/'nine-workspace-actuals.json').write_text(
+              json.dumps(summary, indent=2)+'\n', encoding='utf-8'
+          )
+          assert len(summary)==9
+          print('STEP11_NINE_WORKSPACE_ACTUALS_PASS')
+          PY
+
+      - name: Verify nine immutable golden references when available
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageChops
+
+          root=Path('step11-integration-evidence')
+          manifest=json.loads(Path('docs/ui-reference/manifest.json').read_text(encoding='utf-8'))
+          actual_by_id={
+              'UI-01':'01-home.png',
+              'UI-02':'02-media.png',
+              'UI-03':'03-album.png',
+              'UI-04':'04-timeline.png',
+              'UI-05':'05-visual.png',
+              'UI-06':'06-template.png',
+              'UI-07':'07-spectrum.png',
+              'UI-08':'08-ai-agent.png',
+              'UI-09':'09-render.png',
+          }
+          statuses=[]
+          for entry in manifest['references']:
+              ref_id=entry['id']
+              actual_path=root/'current'/actual_by_id[ref_id]
+              actual=Image.open(actual_path).convert('RGB')
+              assert actual.size == tuple(manifest['golden_viewport'])
+              golden_path=Path('docs/ui-reference')/entry['file']
+              item={
+                  'id': ref_id,
+                  'workspace': entry['workspace'],
+                  'reference_file': entry['file'],
+                  'expected_sha256': entry['sha256'],
+                  'actual_file': str(actual_path),
+                  'actual_sha256': hashlib.sha256(actual_path.read_bytes()).hexdigest(),
+              }
+              if golden_path.is_file():
+                  actual_golden_sha=hashlib.sha256(golden_path.read_bytes()).hexdigest()
+                  assert actual_golden_sha == entry['sha256'], (ref_id, actual_golden_sha, entry['sha256'])
+                  golden=Image.open(golden_path).convert('RGB')
+                  assert golden.size == actual.size
+                  Image.blend(golden, actual, 0.5).save(root/'compare'/f'{ref_id.lower()}-overlay-50.png')
+                  ImageChops.difference(golden, actual).save(root/'compare'/f'{ref_id.lower()}-diff.png')
+                  item.update({'status':'PASS','actual_golden_sha256':actual_golden_sha})
+              else:
+                  item.update({
+                      'status':'LOCAL_PENDING',
+                      'reason':'Exact immutable golden PNG is external to the repository; overlay/diff cannot be fabricated.',
+                  })
+              statuses.append(item)
+          assert len(statuses)==9
+          Path(root/'compare'/'reference-status.json').write_text(
+              json.dumps({'golden_viewport':manifest['golden_viewport'],'references':statuses}, indent=2)+'\n',
+              encoding='utf-8',
+          )
+          print('STEP11_GOLDEN_STATUS', {item['id']:item['status'] for item in statuses})
+          PY
+
+      - name: Secret scan STEP11 integration surfaces
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          patterns={
+              'PRIVATE_KEY': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
+              'GITHUB_TOKEN': re.compile(r'gh[pousr]_[A-Za-z0-9]{36,255}'),
+              'GOOGLE_API_KEY': re.compile(r'AIza[0-9A-Za-z_-]{35}'),
+              'OPENAI_LIKE_KEY': re.compile(r'\bsk-[A-Za-z0-9_-]{20,}\b'),
+          }
+          hits=[]
+          for root in (Path('src/full_album_maker'),Path('tests'),Path('docs')):
+              if not root.exists():
+                  continue
+              for path in root.rglob('*'):
+                  if not path.is_file():
+                      continue
+                  try:
+                      text=path.read_text(encoding='utf-8')
+                  except Exception:
+                      continue
+                  for line_no,line in enumerate(text.splitlines(),1):
+                      for kind,pattern in patterns.items():
+                          if pattern.search(line):
+                              hits.append((str(path),line_no,kind))
+          assert not hits, hits
+          print('STEP11_SECRET_SCAN_PASS')
+          PY
+
+      - name: Write STEP11 evidence manifest
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root=Path('step11-integration-evidence')
+          actuals=json.loads((root/'reports'/'nine-workspace-actuals.json').read_text(encoding='utf-8'))
+          golden=json.loads((root/'compare'/'reference-status.json').read_text(encoding='utf-8'))
+          performance=json.loads((root/'performance'/'resolver-200-song.json').read_text(encoding='utf-8'))
+          filter_capability=json.loads((root/'probes'/'external-filter-script-capability.json').read_text(encoding='utf-8'))
+          payload={
+              'format':'step11-integration-evidence-v1',
+              'git_sha':os.environ.get('GITHUB_SHA',''),
+              'workspace_actual_count':len(actuals),
+              'workspace_actuals':actuals,
+              'golden_status':golden,
+              'performance':performance,
+              'real_ffmpeg_smoke':'PASS',
+              'external_filter_script_capability':filter_capability,
+              'secret_scan':'PASS',
+          }
+          encoded=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)+'\n'
+          manifest=root/'STEP11_EVIDENCE_MANIFEST.json'
+          manifest.write_text(encoded, encoding='utf-8')
+          digest=hashlib.sha256(manifest.read_bytes()).hexdigest()
+          print('STEP11_EVIDENCE_MANIFEST_SHA256',digest)
+          PY
+
+      - name: Upload STEP11 integration evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: step11-integration-evidence
+          path: step11-integration-evidence/
+          if-no-files-found: error
