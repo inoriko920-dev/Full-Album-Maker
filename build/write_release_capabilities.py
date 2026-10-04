@@ -17,12 +17,13 @@ from full_album_maker import __version__
 
 FFMPEG = {
     "provider": "BtbN/FFmpeg-Builds",
-    "release_id": 398275969,
-    "asset_id": 595476894,
-    "asset_name": "ffmpeg-n9.0-latest-win64-gpl-9.0.zip",
-    "sha256": "e6db684f1527f4c2280b017c7af19ebd359424eee8b35974bc35b4d7ee110989",
-    "version_family": "9.0",
-    "download_strategy": "github_release_asset_api_id",
+    "release_id": 402633211,
+    "release_tag": "autobuild-2026-10-03-18-14",
+    "asset_id": 608288215,
+    "asset_name": "ffmpeg-N-127142-g12b7b9891b-win64-gpl.zip",
+    "sha256": "a885f564dee2b60f69ab866c6c89b96ae531fc2ee1f24ff8b5b1a6d29960a96b",
+    "version_family": "master N-127142-g12b7b9891b",
+    "download_strategy": "dated_github_release_url_sha256",
 }
 
 PYTHON_BUILD = {
