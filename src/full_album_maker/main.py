@@ -56,7 +56,6 @@ from full_album_maker.post_release_template_subject_detail import install_post_r
 from full_album_maker.post_release_template_card_metadata import install_post_release_template_card_metadata
 from full_album_maker.post_release_template_timeline_surface import install_post_release_template_timeline_surface
 from full_album_maker.post_release_template_timeline_chrome_fix import install_post_release_template_timeline_chrome_fix
-from full_album_maker.post_release_template_add_placeholder import install_post_release_template_add_placeholder
 
 
 install_feature()
@@ -113,7 +112,6 @@ install_post_release_template_subject_detail()
 install_post_release_template_card_metadata()
 install_post_release_template_timeline_surface()
 install_post_release_template_timeline_chrome_fix()
-install_post_release_template_add_placeholder()
 
 
 def main(argv: list[str] | None = None) -> int:
