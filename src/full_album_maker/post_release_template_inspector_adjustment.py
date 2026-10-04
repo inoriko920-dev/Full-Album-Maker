@@ -138,13 +138,16 @@ def install_post_release_template_inspector_adjustment() -> None:
 
         root.addLayout(_field_row("Terapkan ke", self.scope))
 
-        # UI-06 exposes a single full-width primary action here. The production
-        # Preview button/signal remain alive (and preview is still available from
-        # Template cards), but its duplicate inspector presentation is hidden.
-        self.preview.hide()
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 2, 0, 0)
+        action_row.setSpacing(6)
+        self.preview.setMinimumHeight(32)
+        self.preview.setText("Preview")
         self.use.setMinimumHeight(34)
         self.use.setText("▷  Gunakan Template")
-        root.addWidget(self.use)
+        action_row.addWidget(self.preview, 1)
+        action_row.addWidget(self.use, 2)
+        root.addLayout(action_row)
 
         custom_row = QGridLayout()
         custom_row.setHorizontalSpacing(6)
