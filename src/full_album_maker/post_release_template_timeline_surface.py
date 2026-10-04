@@ -189,11 +189,25 @@ class TemplateTimelineCanvas(QFrame):
                     Qt.TextElideMode.ElideRight,
                     max(12, int(rect.width()) - 8),
                 )
+                title_rect = QRectF(rect.left() + 5, rect.top() + 1, rect.width() - 8, rect.height() * 0.58)
                 painter.drawText(
-                    rect.adjusted(5, 0, -3, 0),
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                    title_rect,
+                    Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft,
                     text,
                 )
+                original_font = painter.font()
+                duration_font = painter.font()
+                if duration_font.pointSizeF() > 0:
+                    duration_font.setPointSizeF(max(7.0, duration_font.pointSizeF() - 1.0))
+                painter.setFont(duration_font)
+                painter.setPen(QColor("#526A86"))
+                duration_rect = QRectF(rect.left() + 5, rect.top() + rect.height() * 0.52, rect.width() - 8, rect.height() * 0.42)
+                painter.drawText(
+                    duration_rect,
+                    Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+                    _format_tick(max(0, end - start), timebase),
+                )
+                painter.setFont(original_font)
             self._hits.append((song.song_id, rect, start))
 
         # Album audio overview: real packed/free song segments drive a continuous
