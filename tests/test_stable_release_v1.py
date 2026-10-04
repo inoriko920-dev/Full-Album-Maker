@@ -11,8 +11,15 @@ from full_album_maker.project_dirty import _update_window_title
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FFMPEG_ASSET_ID = "595476894"
-FFMPEG_SHA256 = "e6db684f1527f4c2280b017c7af19ebd359424eee8b35974bc35b4d7ee110989"
+FFMPEG_RELEASE_ID = 402633211
+FFMPEG_RELEASE_TAG = "autobuild-2026-10-03-18-14"
+FFMPEG_ASSET_ID = "608288215"
+FFMPEG_ASSET_NAME = "ffmpeg-N-127142-g12b7b9891b-win64-gpl.zip"
+FFMPEG_SHA256 = "a885f564dee2b60f69ab866c6c89b96ae531fc2ee1f24ff8b5b1a6d29960a96b"
+FFMPEG_URL = (
+    "https://github.com/BtbN/FFmpeg-Builds/releases/download/"
+    f"{FFMPEG_RELEASE_TAG}/{FFMPEG_ASSET_NAME}"
+)
 CHECKOUT_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 SETUP_PYTHON_SHA = "5fda3b95a4ea91299a34e894583c3862153e4b97"
 UPLOAD_ARTIFACT_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
@@ -55,9 +62,12 @@ def test_capability_report_records_release_identity_and_immutable_ffmpeg_pin(tmp
     assert payload["app_version"] == __version__
     assert payload["release_tag"] == f"v{__version__}"
     ffmpeg = payload["bundled"]["ffmpeg"]
+    assert ffmpeg["release_id"] == FFMPEG_RELEASE_ID
+    assert ffmpeg["release_tag"] == FFMPEG_RELEASE_TAG
     assert str(ffmpeg["asset_id"]) == FFMPEG_ASSET_ID
+    assert ffmpeg["asset_name"] == FFMPEG_ASSET_NAME
     assert ffmpeg["sha256"] == FFMPEG_SHA256
-    assert ffmpeg["download_strategy"] == "github_release_asset_api_id"
+    assert ffmpeg["download_strategy"] == "dated_github_release_url_sha256"
 
 
 def test_release_workflow_is_gated_versioned_checksummed_and_immutable():
@@ -82,15 +92,18 @@ def test_release_workflow_is_gated_versioned_checksummed_and_immutable():
     assert "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065" not in workflow
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" not in workflow
 
-    asset_api_base = "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/assets/"
-    assert asset_api_base in workflow
-    assert asset_api_base in local_build
-    assert f'ffmpegAssetId = "{FFMPEG_ASSET_ID}"' in workflow
-    assert f'FfmpegAssetId = "{FFMPEG_ASSET_ID}"' in local_build
+    assert FFMPEG_URL in workflow
+    assert FFMPEG_URL in local_build
+    assert FFMPEG_RELEASE_TAG in workflow
+    assert FFMPEG_RELEASE_TAG in local_build
+    assert FFMPEG_ASSET_NAME in workflow
+    assert FFMPEG_ASSET_NAME in local_build
     assert FFMPEG_SHA256 in workflow
     assert FFMPEG_SHA256 in local_build
-    assert "/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip" not in workflow
-    assert "/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip" not in local_build
+    assert "/releases/download/latest/" not in workflow
+    assert "/releases/download/latest/" not in local_build
+    assert "595476894" not in workflow
+    assert "595476894" not in local_build
 
     assert "Full-Album-Maker-v$Version-Windows-Portable.zip" in local_build
     assert "gui_title -notlike \"*v$Version*\"" in local_build
