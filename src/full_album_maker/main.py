@@ -44,7 +44,6 @@ from full_album_maker.post_release_ai_canvas_header_adjustment import install_po
 from full_album_maker.post_release_ai_preview_timeline_surface import install_post_release_ai_preview_timeline_surface
 from full_album_maker.post_release_ai_composer_adjustment import install_post_release_ai_composer_adjustment
 from full_album_maker.post_release_ai_cover_fallback import install_post_release_ai_cover_fallback
-from full_album_maker.post_release_ai_golden_conversation_fixture import install_post_release_ai_golden_conversation_fixture
 
 
 install_feature()
@@ -89,7 +88,6 @@ install_post_release_ai_canvas_header_adjustment()
 install_post_release_ai_preview_timeline_surface()
 install_post_release_ai_composer_adjustment()
 install_post_release_ai_cover_fallback()
-install_post_release_ai_golden_conversation_fixture()
 
 
 def main(argv: list[str] | None = None) -> int:
