@@ -38,6 +38,7 @@ from full_album_maker.spectrum_feature import (
     make_spectrum_layer,
     normalize_spectrum_properties,
 )
+from full_album_maker.spectrum_render_step08 import Step08FFmpegCompiler
 
 
 def _app() -> QApplication:
@@ -220,7 +221,10 @@ def test_real_ffmpeg_circular_render_and_accurate_preview_parity(tmp_path: Path)
 
     doc = _circular_doc(tmp_path, background="#f5f5f5")
     output = tmp_path / "circular-real.mp4"
-    compiler = FFmpegV2Compiler(ffmpeg)
+    # Production final render and Accurate Preview both use STEP08's enhanced
+    # compiler. Comparing the legacy base compiler to STEP08 preview would test
+    # two deliberately different spectrum generations rather than parity.
+    compiler = Step08FFmpegCompiler(ffmpeg)
     compiled = compiler.compile_video(doc, output, tmp_path / "work-video")
     subprocess.run(compiled.args, check=True, capture_output=True, text=True)
     assert output.exists() and output.stat().st_size > 0
