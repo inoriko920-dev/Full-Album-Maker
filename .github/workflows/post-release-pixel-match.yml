@@ -1,0 +1,84 @@
+name: Post-release UI pixel-match
+
+on:
+  push:
+    branches:
+      - ui/post-release-pixel-match
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-fidelity:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+      FAM_STEP09_PROVIDER: mock
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run shell and STEP10 regression
+        run: |
+          python -m pytest -q \
+            tests/test_step10_render_model.py \
+            tests/test_step10_render_preflight.py \
+            tests/test_step10_render_queue.py \
+            tests/test_step10_render_ui.py \
+            tests/test_editor_v2_toolbar_responsive.py
+      - name: Capture Render fidelity candidate
+        run: |
+          mkdir -p post-release-ui-evidence/current post-release-ui-evidence/reports
+          python -m full_album_maker.render_capture_step10 \
+            --output post-release-ui-evidence/current/render-g09-candidate.png \
+            --report post-release-ui-evidence/reports/render-g09-candidate.json
+      - name: Validate presentation geometry and contracts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path('post-release-ui-evidence/reports/render-g09-candidate.json').read_text(encoding='utf-8')
+          )['geometry']
+          assert report['window'] == [1672, 941], report
+          assert report['workspace'] == 'render' and report['render_active'] is True, report
+          assert report['inspector_active'] is True, report
+          assert report['context_width'] in range(286, 299), report
+          assert report['right_dock_width'] in range(314, 327), report
+          assert report['timeline_height'] in range(32, 37), report
+          assert report['timeline_collapsed'] is True, report
+          assert report['project_signature_unchanged_by_route_and_fixture'] is True, report
+          assert report['running_state'] == 'RUNNING' and abs(report['running_percent'] - 63.0) < 1e-9, report
+          assert report['queued_state'] == 'QUEUED', report
+          assert report['completed_state'] == 'COMPLETED' and report['completed_verified'] is True, report
+          assert report['queue_row_count'] == 3, report
+          print('POST_RELEASE_RENDER_GEOMETRY_PASS')
+          PY
+      - name: Upload fidelity evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: post-release-ui-evidence
+          path: post-release-ui-evidence/
+          if-no-files-found: error
