@@ -65,6 +65,41 @@ def _fixture_document(root: Path):
     return document
 
 
+def _seed_reference_custom_templates(window, document, root: Path):
+    """Create functional custom-template fixtures through the production API.
+
+    UI-06 contains a mixed gallery: eight built-ins followed by four user custom
+    templates.  The clean CI account naturally has no user templates, so the
+    fidelity capture creates four *real* portable customs in a temporary store.
+    Nothing is written to the normal user data directory and built-in catalog
+    semantics remain unchanged.
+    """
+
+    from .custom_template_builder import CustomTemplateStore
+    from .template_portability_step07 import duplicate_portable_template
+    from .template_studio_step07 import TemplateStudioDraft
+
+    store = CustomTemplateStore(root / "custom-templates")
+    window._s07_store = store
+    targets = tuple(song.song_id for song in document.playlist.entries)
+    fixtures = (
+        ("spotify_clean", "Momen Bahagia", "Keluarga • Custom"),
+        ("cafe_acoustic", "Jejak Perjalanan", "Travel • Custom"),
+        ("neon_spectrum", "Harmoni", "Musik • Custom"),
+        ("photo_album", "Warna Hidup", "Modern • Custom"),
+    )
+    for source_id, label, description in fixtures:
+        duplicate_portable_template(
+            document,
+            TemplateStudioDraft(template_id=source_id, ratio="16:9"),
+            targets,
+            label=label,
+            description=description,
+            store=store,
+        )
+    return store
+
+
 def capture(output: Path, width: int, height: int, scale: float) -> dict[str, object]:
     # Thumbnail cards intentionally use their deterministic painted fallback in
     # golden capture. Runtime async thumbnail behavior has separate focused tests.
@@ -79,6 +114,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
 
     from .foundation_font import install_foundation_font
     from .foundation_window import FoundationMainWindow
+    from .template_studio_step07 import builtin_descriptors, custom_descriptors
 
     app = QApplication.instance() or QApplication([])
     font_family = install_foundation_font(app)
@@ -91,6 +127,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     window.foundation_shell.set_compact_mode(width < TOKENS.compact_breakpoint)
     window._foundation_project_open = True
     window.editor_workspace.set_document(document)
+    _seed_reference_custom_templates(window, document, fixture_root)
     signature_before = window.editor_workspace.document().content_signature()
     first = document.playlist.entries[0].song_id
     second = document.playlist.entries[1].song_id
@@ -101,6 +138,19 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     window._s07_refresh()
     window._s07_select_template("spotify_clean")
     window._s07_preview()
+
+    # Reference UI-06 shows one overview gallery containing its eight core
+    # built-ins plus four real user customs. Keep the actual filter/state owners
+    # untouched and project that deterministic overview only into this QA capture.
+    customs, custom_errors = window._s07_store.scan()
+    if custom_errors:
+        raise RuntimeError(f"Custom template fixture invalid: {custom_errors}")
+    overview = (*builtin_descriptors()[:8], *custom_descriptors(customs))
+    window.template_workspace_s07.set_templates(
+        overview,
+        selected_id="spotify_clean",
+        favorites=(),
+    )
     window.show()
 
     loop = QEventLoop()
@@ -133,6 +183,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "timeline_height": shell.timeline.height(),
         "status_height": shell.status_bar.height(),
         "card_count": len(window.template_workspace_s07._cards),
+        "custom_card_count": len(customs),
         "song_count": len(live_document.playlist.entries),
         "selected_template_id": descriptor.template_id,
         "selected_template_name": descriptor.name,
