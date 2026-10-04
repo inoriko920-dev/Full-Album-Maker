@@ -152,7 +152,16 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     customs, custom_errors = window._s07_store.scan()
     if custom_errors:
         raise RuntimeError(f"Custom template fixture invalid: {custom_errors}")
-    overview = (*builtin_descriptors()[:8], *custom_descriptors(customs))
+    custom_cards = custom_descriptors(customs)
+    custom_by_name = {descriptor.name: descriptor for descriptor in custom_cards}
+    reference_order = (
+        "Momen Bahagia",
+        "Jejak Perjalanan",
+        "Harmoni",
+        "Warna Hidup",
+    )
+    ordered_customs = tuple(custom_by_name[name] for name in reference_order)
+    overview = (*builtin_descriptors()[:8], *ordered_customs)
     window.template_workspace_s07.set_templates(
         overview,
         selected_id="spotify_clean",
@@ -186,6 +195,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "status_height": shell.status_bar.height(),
         "card_count": len(window.template_workspace_s07._cards),
         "custom_card_count": len(customs),
+        "custom_card_order": [descriptor.name for descriptor in ordered_customs],
         "song_count": len(live_document.playlist.entries),
         "selected_template_id": descriptor.template_id,
         "selected_template_name": descriptor.name,
