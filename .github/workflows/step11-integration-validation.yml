@@ -40,12 +40,13 @@ jobs:
           python -m pip install -e .
       - name: Compile source
         run: python -m compileall -q src
-      - name: Run STEP11 focused integration core, lifecycle, and production shell
+      - name: Run STEP11 focused integration core, lifecycle, production shell, and E2E
         run: |
           python -m pytest -q \
             tests/test_step11_integration_core.py \
             tests/test_step11_lifecycle.py \
-            tests/test_step11_production_integration.py
+            tests/test_step11_production_integration.py \
+            tests/test_step11_e2e.py
       - name: Run STEP10 Render regression gate
         run: |
           python -m pytest -q \
