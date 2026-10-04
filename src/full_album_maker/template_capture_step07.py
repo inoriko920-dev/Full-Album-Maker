@@ -14,106 +14,25 @@ from .foundation_capture import (
 from .foundation_tokens import TOKENS
 
 
-def _fixture_covers(root: Path):
-    """Create four deterministic capture-only covers shaped like UI-06 moods."""
-    from PySide6.QtCore import QPointF, Qt
-    from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPolygonF
-
-    specs = (
-        ("senja", "#172C43", "#D77B45", "sunset"),
-        ("pulang", "#15374A", "#4F7E86", "mountain"),
-        ("perjalanan", "#335B43", "#8EA166", "valley"),
-        ("cerita", "#9E5A32", "#F0B868", "people"),
-    )
-    paths: list[Path] = []
-    for name, top, bottom, motif in specs:
-        path = root / f"cover-{name}.png"
-        image = QImage(1280, 720, QImage.Format.Format_ARGB32_Premultiplied)
-        image.fill(QColor(top))
-        painter = QPainter(image)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        gradient = QLinearGradient(0, 0, 0, 720)
-        gradient.setColorAt(0.0, QColor(top))
-        gradient.setColorAt(1.0, QColor(bottom))
-        painter.fillRect(image.rect(), gradient)
-        painter.setPen(Qt.PenStyle.NoPen)
-
-        if motif == "sunset":
-            painter.setBrush(QColor("#EAA05B"))
-            painter.drawEllipse(170, 220, 165, 165)
-            painter.setBrush(QColor("#18222C"))
-            painter.drawPolygon(QPolygonF([
-                QPointF(0, 550), QPointF(260, 470), QPointF(510, 535),
-                QPointF(760, 455), QPointF(1280, 565), QPointF(1280, 720),
-                QPointF(0, 720),
-            ]))
-            painter.setBrush(QColor("#111820"))
-            painter.drawEllipse(930, 180, 105, 105)
-            painter.drawPolygon(QPolygonF([
-                QPointF(980, 270), QPointF(870, 650), QPointF(1115, 650),
-            ]))
-        elif motif == "mountain":
-            painter.setBrush(QColor("#244B5C"))
-            painter.drawPolygon(QPolygonF([
-                QPointF(0, 610), QPointF(300, 250), QPointF(600, 610),
-            ]))
-            painter.setBrush(QColor("#193A49"))
-            painter.drawPolygon(QPolygonF([
-                QPointF(360, 610), QPointF(760, 185), QPointF(1130, 610),
-            ]))
-            painter.setBrush(QColor("#607E79"))
-            painter.drawPolygon(QPolygonF([
-                QPointF(725, 225), QPointF(760, 185), QPointF(815, 248),
-            ]))
-            painter.setBrush(QColor("#142C36"))
-            painter.drawRect(0, 600, 1280, 120)
-        elif motif == "valley":
-            painter.setBrush(QColor("#294D3A"))
-            painter.drawPolygon(QPolygonF([
-                QPointF(0, 490), QPointF(290, 305), QPointF(580, 520),
-                QPointF(860, 260), QPointF(1280, 500), QPointF(1280, 720),
-                QPointF(0, 720),
-            ]))
-            painter.setBrush(QColor("#B8B07A"))
-            painter.drawPolygon(QPolygonF([
-                QPointF(580, 720), QPointF(695, 520), QPointF(760, 720),
-            ]))
-            painter.setBrush(QColor(255, 255, 255, 55))
-            painter.drawEllipse(425, 190, 420, 150)
-        else:
-            painter.setBrush(QColor("#E6A25D"))
-            painter.drawEllipse(120, 165, 145, 145)
-            painter.setBrush(QColor("#5A342B"))
-            painter.drawRect(0, 535, 1280, 185)
-            for cx in (735, 885):
-                painter.setBrush(QColor("#302827"))
-                painter.drawEllipse(cx, 250, 82, 82)
-                painter.drawPolygon(QPolygonF([
-                    QPointF(cx + 42, 320), QPointF(cx - 38, 560), QPointF(cx + 122, 560),
-                ]))
-
-        painter.end()
-        if not image.save(str(path), "PNG"):
-            raise RuntimeError(f"Gagal membuat cover fixture STEP07: {path.name}")
-        paths.append(path)
-    return tuple(paths)
-
-
 def _fixture_document(root: Path):
+    from PySide6.QtGui import QColor, QImage
+
     from .editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
 
     document = ProjectDocument.new_empty("Video Full Album")
     document.album_title = "Perjalanan Kita"
 
-    cover_assets = []
-    for cover_path in _fixture_covers(root):
-        cover_asset = MediaAsset(
-            kind="image",
-            locator=str(cover_path),
-            original_name=cover_path.name,
-        )
-        document.media.append(cover_asset)
-        cover_assets.append(cover_asset)
+    cover_path = root / "cover-perjalanan.png"
+    cover = QImage(1280, 720, QImage.Format.Format_ARGB32_Premultiplied)
+    cover.fill(QColor("#7899C8"))
+    if not cover.save(str(cover_path), "PNG"):
+        raise RuntimeError("Gagal membuat cover fixture STEP07.")
+    cover_asset = MediaAsset(
+        kind="image",
+        locator=str(cover_path),
+        original_name=cover_path.name,
+    )
+    document.media.append(cover_asset)
 
     titles = (
         "Senja di Kota Ini",
@@ -143,7 +62,7 @@ def _fixture_document(root: Path):
                 display_title=title,
                 display_artist="Perjalanan Kita",
                 source_out_tick=duration * TIMEBASE,
-                cover_asset_id=cover_assets[index].asset_id,
+                cover_asset_id=cover_asset.asset_id,
             )
         )
     document.validate()
