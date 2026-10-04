@@ -3,12 +3,16 @@ from __future__ import annotations
 """Presentation-only metadata labels for UI-06 Template cards.
 
 Filter/search semantics continue to use TemplateStudioDescriptor.categories and
-ratios. This layer only replaces the small subtitle shown under built-in cards,
-matching the approved UI language while avoiding the duplicate 16:9 label that
-is already rendered as a thumbnail badge.
+ratios. This layer only replaces the small subtitle shown under cards, matching
+the approved UI language while avoiding the duplicate 16:9 label that is already
+rendered as a thumbnail badge. Custom templates surface their real saved
+description when available instead of collapsing every custom card to the generic
+"Modern" category.
 """
 
 from PySide6.QtWidgets import QLabel
+
+from .template_studio_step07 import ORIGIN_CUSTOM
 
 _installed = False
 
@@ -24,6 +28,17 @@ _PRESENTATION_SUBTITLE = {
     "cassette_retro": "Klasik • Retro",
     "music_channel_pro": "Modern • Profesional",
 }
+
+
+def _display_subtitle(descriptor) -> str:
+    if descriptor.origin == ORIGIN_CUSTOM:
+        description = " ".join(str(descriptor.description or "").split()).strip()
+        if description:
+            return description
+    return _PRESENTATION_SUBTITLE.get(
+        descriptor.template_id,
+        " • ".join(descriptor.categories[:2]),
+    )
 
 
 def _replace_subtitle(card, descriptor) -> None:
@@ -42,12 +57,7 @@ def _replace_subtitle(card, descriptor) -> None:
                 target = label
                 break
     if target is not None:
-        target.setText(
-            _PRESENTATION_SUBTITLE.get(
-                descriptor.template_id,
-                " • ".join(descriptor.categories[:2]),
-            )
-        )
+        target.setText(_display_subtitle(descriptor))
 
 
 def install_post_release_template_card_metadata() -> None:
