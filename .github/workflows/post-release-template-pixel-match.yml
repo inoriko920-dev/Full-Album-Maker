@@ -1,0 +1,94 @@
+name: Post-release Template pixel-match
+
+on:
+  push:
+    branches:
+      - ui/post-release-pixel-match
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  template-fidelity:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Stage pinned Noto Sans visual-QA font
+        run: |
+          mkdir -p assets/fonts
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" \
+            --output assets/fonts/NotoSans.ttf
+          test $(stat -c%s assets/fonts/NotoSans.ttf) -gt 1000000
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run Template regression
+        run: |
+          python -m pytest -q \
+            tests/test_step07_template_model.py \
+            tests/test_step07_template_ui.py \
+            tests/test_step07_template_thumbnail_cache.py \
+            tests/test_step07_template_acceptance.py \
+            tests/test_editor_v2_s07_templates.py \
+            tests/test_editor_v2_s08_custom_templates.py
+      - name: Capture Template fidelity candidate
+        run: |
+          mkdir -p post-release-template-evidence/current post-release-template-evidence/reports
+          python -m full_album_maker.template_capture_step07 \
+            --output post-release-template-evidence/current/template-g06-candidate.png \
+            --report post-release-template-evidence/reports/template-g06-candidate.json
+      - name: Validate Template contracts and current shell geometry
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path('post-release-template-evidence/reports/template-g06-candidate.json').read_text(encoding='utf-8')
+          )['geometry']
+          assert report['window'] == [1672, 941], report
+          assert report['workspace'] == 'template' and report['template_active'] is True, report
+          assert report['context_visible'] is True and report['inspector_active'] is True, report
+          assert report['timeline_visible'] is True, report
+          assert report['context_width'] in range(250, 305), report
+          assert report['right_dock_width'] in range(315, 365), report
+          assert report['timeline_height'] in range(140, 180), report
+          assert report['status_height'] in range(26, 31), report
+          assert report['card_count'] == 10 and report['song_count'] == 4, report
+          assert report['selected_template_id'] == 'spotify_clean', report
+          assert report['selected_template_name'] == 'Senja di Kota Ini', report
+          assert report['ratio_filter'] == '16:9' and report['draft_ratio'] == '16:9', report
+          assert report['content_unchanged_by_route_and_preview'] is True, report
+          print('POST_RELEASE_TEMPLATE_CONTRACT_PASS')
+          print(json.dumps(report, sort_keys=True))
+          PY
+      - name: Upload Template fidelity evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: post-release-template-evidence
+          path: post-release-template-evidence/
+          if-no-files-found: warn
