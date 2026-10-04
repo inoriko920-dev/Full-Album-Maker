@@ -171,15 +171,56 @@ jobs:
           sudo apt-get install -y ffmpeg
           ffmpeg -version | head -n 1
 
-      - name: Capture deterministic Spectrum and run real-FFmpeg verification
+      - name: Capture deterministic Spectrum and run Ubuntu real-FFmpeg verification
         run: |
           python -m full_album_maker.spectrum_capture_step08 \
             --output step11-integration-evidence/current/07-spectrum.png \
             --report step11-integration-evidence/reports/07-spectrum.json \
             --evidence-dir step11-integration-evidence/probes
-          python -m pytest -q \
-            tests/test_step10_render_real_ffmpeg.py \
-            tests/test_editor_v2_s12_performance.py::test_real_ffmpeg_accepts_external_filter_script
+          python -m pytest -q tests/test_step10_render_real_ffmpeg.py
+
+      - name: Record external filter-script capability without faking Windows PASS
+        run: |
+          python - <<'PY'
+          import json
+          import platform
+          import subprocess
+          from pathlib import Path
+
+          root=Path('step11-integration-evidence/probes')
+          root.mkdir(parents=True, exist_ok=True)
+          version=subprocess.run(
+              ['ffmpeg','-version'], capture_output=True, text=True, errors='replace', check=False
+          ).stdout.splitlines()
+          help_result=subprocess.run(
+              ['ffmpeg','-hide_banner','-h','full'], capture_output=True, text=True, errors='replace', check=False
+          )
+          help_text=(help_result.stdout or '')+'\n'+(help_result.stderr or '')
+          supported='-/filter_complex' in help_text
+          status='PASS' if supported else 'LOCAL_PENDING_PINNED_WINDOWS_FFMPEG'
+          payload={
+              'status':status,
+              'runner_platform':platform.platform(),
+              'ffmpeg_version':version[0] if version else 'unknown',
+              'option':'-/filter_complex',
+              'supported_by_runner_ffmpeg':supported,
+              'reason':(
+                  'Runner FFmpeg advertises the file-indirection option; execute the compatibility test.'
+                  if supported else
+                  'Ubuntu system FFmpeg does not advertise -/filter_complex. This capability belongs to the exact pinned Windows portable FFmpeg and must be verified in STEP12/native portable QA; it is not reported as PASS here.'
+              ),
+          }
+          (root/'external-filter-script-capability.json').write_text(
+              json.dumps(payload, indent=2)+'\n', encoding='utf-8'
+          )
+          print('STEP11_EXTERNAL_FILTER_SCRIPT_CAPABILITY', status)
+          if supported:
+              completed=subprocess.run([
+                  'python','-m','pytest','-q',
+                  'tests/test_editor_v2_s12_performance.py::test_real_ffmpeg_accepts_external_filter_script'
+              ], check=False)
+              raise SystemExit(completed.returncode)
+          PY
 
       - name: Validate nine actual screenshots and workspace fixtures
         run: |
@@ -325,6 +366,7 @@ jobs:
           actuals=json.loads((root/'reports'/'nine-workspace-actuals.json').read_text(encoding='utf-8'))
           golden=json.loads((root/'compare'/'reference-status.json').read_text(encoding='utf-8'))
           performance=json.loads((root/'performance'/'resolver-200-song.json').read_text(encoding='utf-8'))
+          filter_capability=json.loads((root/'probes'/'external-filter-script-capability.json').read_text(encoding='utf-8'))
           payload={
               'format':'step11-integration-evidence-v1',
               'git_sha':os.environ.get('GITHUB_SHA',''),
@@ -333,6 +375,7 @@ jobs:
               'golden_status':golden,
               'performance':performance,
               'real_ffmpeg_smoke':'PASS',
+              'external_filter_script_capability':filter_capability,
               'secret_scan':'PASS',
           }
           encoded=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)+'\n'
