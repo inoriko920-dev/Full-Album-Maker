@@ -122,6 +122,7 @@ def test_spectrum_preset_normalizes_and_keeps_visual_gain_only():
     props = apply_spectrum_preset({}, "neon_bars")
     assert props["style"] == "bars"
     assert props["gain"] > 1.0
+    assert props["mirror"] is True
 
 
 def test_session_adds_album_bound_spectrum_and_dynamic_title_with_undo():
