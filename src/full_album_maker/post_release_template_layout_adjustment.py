@@ -13,7 +13,7 @@ from .foundation_tokens import TOKENS
 
 _installed = False
 _TEMPLATE_CONTEXT_WIDTH = 205
-_RIGHT_DOCK_WIDTH = 328
+_RIGHT_DOCK_WIDTH = 339
 
 
 def install_post_release_template_layout_adjustment() -> None:
