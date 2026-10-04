@@ -25,15 +25,13 @@ Assert-NativeSuccess "Pin pip"
 python -m pip install -r build/requirements-windows.lock
 Assert-NativeSuccess "Install dependency Python terkunci"
 
-# BtbN release 398275969 / asset 595476894, observed 2026-09-29.
-# Pin by release-asset API ID, not the mutable /download/latest/ alias.
-$FfmpegAssetId = "595476894"
-$FfmpegUrl = "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/assets/$FfmpegAssetId"
-$FfmpegSha256 = "e6db684f1527f4c2280b017c7af19ebd359424eee8b35974bc35b4d7ee110989"
+# BtbN Auto-Build autobuild-2026-10-03-18-14, master N-127142-g12b7b9891b.
+# Pin the dated release URL and SHA-256. Never use the mutable /latest/ alias
+# for release QA because latest assets can be replaced and old asset IDs removed.
+$FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-03-18-14/ffmpeg-N-127142-g12b7b9891b-win64-gpl.zip"
+$FfmpegSha256 = "a885f564dee2b60f69ab866c6c89b96ae531fc2ee1f24ff8b5b1a6d29960a96b"
 $FfmpegHeaders = @{
-    Accept = "application/octet-stream"
     "User-Agent" = "Full-Album-Maker-Build"
-    "X-GitHub-Api-Version" = "2022-11-28"
 }
 if (Test-Path ffmpeg.zip) { Remove-Item ffmpeg.zip -Force }
 if (Test-Path ffmpeg_unpack) { Remove-Item ffmpeg_unpack -Recurse -Force }
