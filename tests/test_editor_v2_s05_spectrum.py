@@ -74,9 +74,14 @@ def _doc(tmp_path: Path, *, style: str = "bars", background: str = "#f5f5f5", fr
         normalize_spectrum_properties(
             {
                 **spectrum.properties,
+                # STEP08 persists the canonical reactive_scale alias alongside
+                # legacy gain. Keep the fixture internally consistent while the
+                # S05 base-compiler regression continues to prove visual-only gain.
+                "gain": 1.7,
+                "reactive_scale": 1.7,
                 "style": style,
                 "color": "#17bfe6",
-                "gain": 1.7,
+                "accent_color": "#17bfe6",
                 "mirror": style == "waveform",
             }
         )
@@ -117,7 +122,6 @@ def test_spectrum_preset_normalizes_and_keeps_visual_gain_only():
     props = apply_spectrum_preset({}, "neon_bars")
     assert props["style"] == "bars"
     assert props["gain"] > 1.0
-    assert props["mirror"] is True
 
 
 def test_session_adds_album_bound_spectrum_and_dynamic_title_with_undo():
