@@ -47,6 +47,7 @@ from full_album_maker.post_release_ai_ruler_adjustment import install_post_relea
 from full_album_maker.post_release_template_layout_adjustment import install_post_release_template_layout_adjustment
 from full_album_maker.post_release_template_card_adjustment import install_post_release_template_card_adjustment
 from full_album_maker.post_release_template_context_adjustment import install_post_release_template_context_adjustment
+from full_album_maker.post_release_template_inspector_adjustment import install_post_release_template_inspector_adjustment
 
 
 install_feature()
@@ -94,6 +95,7 @@ install_post_release_ai_ruler_adjustment()
 install_post_release_template_layout_adjustment()
 install_post_release_template_card_adjustment()
 install_post_release_template_context_adjustment()
+install_post_release_template_inspector_adjustment()
 
 
 def main(argv: list[str] | None = None) -> int:
