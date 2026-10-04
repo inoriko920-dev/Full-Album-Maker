@@ -33,6 +33,7 @@ from full_album_maker.render_feature_step10 import install_step10_render
 from full_album_maker.integration_feature_step11 import install_step11_integration
 from full_album_maker.integration_completion_step11 import install_step11_integration_completion
 from full_album_maker.post_release_pixel_match import install_post_release_pixel_match
+from full_album_maker.post_release_inspector_adjustment import install_post_release_inspector_adjustment
 
 
 install_feature()
@@ -66,6 +67,7 @@ install_step10_render()
 install_step11_integration()
 install_step11_integration_completion()
 install_post_release_pixel_match()
+install_post_release_inspector_adjustment()
 
 
 def main(argv: list[str] | None = None) -> int:
