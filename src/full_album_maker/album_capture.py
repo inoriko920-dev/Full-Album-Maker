@@ -18,7 +18,7 @@ def _fixture_art(path: Path, index: int, *, size: tuple[int, int] = (160, 96)) -
 
     These images are fixture media, not copies of the immutable UI golden.
     """
-    from PySide6.QtCore import QPointF, QRectF
+    from PySide6.QtCore import QPointF, QRectF, Qt
     from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPen
 
     width, height = size
