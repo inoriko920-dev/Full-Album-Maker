@@ -74,9 +74,9 @@ jobs:
           assert report['workspace'] == 'template' and report['template_active'] is True, report
           assert report['context_visible'] is True and report['inspector_active'] is True, report
           assert report['timeline_visible'] is True, report
-          assert report['context_width'] in range(250, 305), report
-          assert report['right_dock_width'] in range(315, 365), report
-          assert report['timeline_height'] in range(140, 180), report
+          assert report['context_width'] in range(198, 213), report
+          assert report['right_dock_width'] in range(322, 335), report
+          assert report['timeline_height'] in range(150, 166), report
           assert report['status_height'] in range(26, 31), report
           assert report['card_count'] == 10 and report['song_count'] == 4, report
           assert report['selected_template_id'] == 'spotify_clean', report
