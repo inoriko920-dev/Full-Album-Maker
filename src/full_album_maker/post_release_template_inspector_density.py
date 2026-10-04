@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Small UI-06 inspector density refinement.
 
-The production TemplateInspector widgets remain authoritative.  This layer only
+The production TemplateInspector widgets remain authoritative. This layer only
 aligns the preview/field density and renders the existing scope QComboBox as
 three visible radio choices like the approved reference. Scope values still
 live in the original QComboBox so all STEP07 apply semantics remain unchanged.
@@ -32,6 +32,10 @@ def install_post_release_template_inspector_density() -> None:
         if preview is not None:
             preview.setMinimumHeight(152)
             preview.setMaximumHeight(152)
+            # QVBoxLayout already contributes its normal spacing on both sides
+            # of this inserted item; 10 px here yields roughly +14 px effective
+            # separation versus the previous preview-to-heading geometry.
+            root.insertSpacing(1, 10)
 
         self.heading.setMinimumHeight(22)
         self.heading.setMaximumHeight(26)
@@ -40,12 +44,20 @@ def install_post_release_template_inspector_density() -> None:
         root.setSpacing(4)
 
         # The compact inspector layout installed earlier keeps the scope row at
-        # index 8: label + production QComboBox. Hide only the combo presentation
-        # and mirror its exact values with radio controls.
-        if root.count() > 8:
-            scope_row = root.itemAt(8).layout()
-        else:
-            scope_row = None
+        # index 8 before the presentation spacer is inserted. Resolve the scope
+        # row by locating the production combo's parent layout after insertion.
+        scope_row = None
+        for index in range(root.count()):
+            candidate = root.itemAt(index).layout()
+            if candidate is None:
+                continue
+            for child_index in range(candidate.count()):
+                item = candidate.itemAt(child_index)
+                if item is not None and item.widget() is self.scope:
+                    scope_row = candidate
+                    break
+            if scope_row is not None:
+                break
         if scope_row is None:
             return
 
