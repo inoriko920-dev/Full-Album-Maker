@@ -40,10 +40,14 @@ def _fixture_document(root: Path):
         "Perjalanan Kita",
         "Cerita Baru",
     )
+    # Capture-only timings are shaped to the immutable UI-06 reference. They do
+    # not change runtime timeline semantics; they only make the QA fixture use the
+    # same long-form spacing proportions as the approved screenshot.
+    durations = (46, 39, 46, 54)
     for index, title in enumerate(titles):
         audio_path = root / f"lagu-{index + 1}.mp3"
         audio_path.write_bytes(b"STEP07 deterministic audio placeholder")
-        duration = 26 + index * 3
+        duration = durations[index]
         audio = MediaAsset(
             kind="audio",
             locator=str(audio_path),
@@ -110,7 +114,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     import full_album_maker.main  # noqa: F401
 
     from PySide6.QtCore import QEventLoop, QTimer
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QSlider
 
     from .foundation_font import install_foundation_font
     from .foundation_window import FoundationMainWindow
@@ -133,7 +137,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     second = document.playlist.entries[1].song_id
     window._s06_primary_song_id = first
     window._s06_selected_ids = {first, second}
-    window.editor_workspace.set_playhead(7 * document.timebase)
+    window.editor_workspace.set_playhead(int(round(84.25 * document.timebase)))
     window.foundation_shell.set_workspace("template")
     window._s07_refresh()
     window._s07_select_template("spotify_clean")
@@ -143,6 +147,15 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     loop = QEventLoop()
     QTimer.singleShot(300, loop.quit)
     loop.exec()
+    app.processEvents()
+
+    # Use the same long-form visual scale seen in UI-06. The production toolbar
+    # remains fully functional; this deterministic value is capture-only.
+    for slider in window.foundation_shell.timeline.findChildren(QSlider):
+        if slider.minimum() == 50 and slider.maximum() == 180:
+            slider.setValue(69)
+    if hasattr(window.template_timeline_s07, "set_zoom_percent"):
+        window.template_timeline_s07.set_zoom_percent(69)
     app.processEvents()
 
     # Showing the window can legitimately trigger a route refresh, which restores
