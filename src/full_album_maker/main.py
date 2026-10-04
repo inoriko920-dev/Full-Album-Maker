@@ -54,7 +54,7 @@ from full_album_maker.post_release_template_inspector_density import install_pos
 from full_album_maker.post_release_template_thumbnail_lift import install_post_release_template_thumbnail_lift
 from full_album_maker.post_release_template_subject_detail import install_post_release_template_subject_detail
 from full_album_maker.post_release_template_card_metadata import install_post_release_template_card_metadata
-from full_album_maker.post_release_template_timeline_adjustment import install_post_release_template_timeline_adjustment
+from full_album_maker.post_release_template_timeline_surface import install_post_release_template_timeline_surface
 
 
 install_feature()
@@ -109,7 +109,7 @@ install_post_release_template_inspector_density()
 install_post_release_template_thumbnail_lift()
 install_post_release_template_subject_detail()
 install_post_release_template_card_metadata()
-install_post_release_template_timeline_adjustment()
+install_post_release_template_timeline_surface()
 
 
 def main(argv: list[str] | None = None) -> int:
