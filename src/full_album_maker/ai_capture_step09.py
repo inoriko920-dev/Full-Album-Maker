@@ -22,7 +22,7 @@ GOLDEN_PROMPT = (
 
 
 def _fixture_document(root: Path):
-    from .editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
+    from .editor_models import Layer, MediaAsset, ProjectDocument, SongInstance, TimeBinding, TIMEBASE
 
     document = ProjectDocument.new_empty("AI Agent Golden Project")
     document.album_title = "Perjalanan Kita — Full Album"
@@ -60,6 +60,42 @@ def _fixture_document(root: Path):
         document.playlist.entries.append(song)
         song_ids.append(song.song_id)
         video_ids.append(video.asset_id)
+
+    # UI-08 is an AI editing preview for a real full-album project, not an
+    # empty-text project. Seed ordinary project text layers so the timeline QA
+    # exercises the same real Layer/TimeBinding path used by runtime projects.
+    text_track_id = document.tracks[0].track_id
+    document.layers.extend(
+        [
+            Layer(
+                track_id=text_track_id,
+                type="text",
+                name="Judul Album",
+                order=100,
+                time_binding=TimeBinding(kind="absolute", start_tick=0, duration_tick=180 * TIMEBASE),
+                properties={"text": "Perjalanan Kita"},
+                origin="manual",
+            ),
+            Layer(
+                track_id=text_track_id,
+                type="subtitle",
+                name="Lirik Berjalan",
+                order=101,
+                time_binding=TimeBinding(kind="absolute", start_tick=180 * TIMEBASE, duration_tick=360 * TIMEBASE),
+                properties={"text": "Lirik Berjalan"},
+                origin="manual",
+            ),
+            Layer(
+                track_id=text_track_id,
+                type="text",
+                name="Credit",
+                order=102,
+                time_binding=TimeBinding(kind="absolute", start_tick=540 * TIMEBASE, duration_tick=60 * TIMEBASE),
+                properties={"text": "Credit"},
+                origin="manual",
+            ),
+        ]
+    )
     document.validate()
     return document, tuple(song_ids), tuple(video_ids)
 
