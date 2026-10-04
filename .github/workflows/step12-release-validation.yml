@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: step12-release-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows-release-qa:
     runs-on: windows-2025
@@ -105,7 +109,7 @@ jobs:
       - name: Validate immutable UI golden pack only when exact binaries exist
         shell: pwsh
         run: |
-          python - <<'PY'
+          @'
           import hashlib
           import json
           from pathlib import Path
@@ -134,38 +138,41 @@ jobs:
           out = Path('step12-release-evidence/ui-golden-status.json')
           out.write_text(json.dumps({'references': report}, indent=2) + '\n', encoding='utf-8')
           print({item['id']: item['status'] for item in report})
-          PY
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Validasi immutable UI golden gagal.' }
 
       - name: Secret scan release candidate
         shell: pwsh
         run: |
-          python - <<'PY'
+          @'
           import re
           from pathlib import Path
+
           patterns = {
               'PRIVATE_KEY': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
               'GITHUB_TOKEN': re.compile(r'gh[pousr]_[A-Za-z0-9]{36,255}'),
               'GOOGLE_API_KEY': re.compile(r'AIza[0-9A-Za-z_-]{35}'),
               'OPENAI_LIKE_KEY': re.compile(r'\bsk-[A-Za-z0-9_-]{20,}\b'),
           }
-          hits=[]
+          hits = []
           for root in (Path('src'), Path('tests'), Path('docs'), Path('build')):
               for path in root.rglob('*'):
                   if not path.is_file():
                       continue
                   try:
-                      text=path.read_text(encoding='utf-8')
+                      text = path.read_text(encoding='utf-8')
                   except Exception:
                       continue
-                  for line_no,line in enumerate(text.splitlines(),1):
-                      for kind,pattern in patterns.items():
+                  for line_no, line in enumerate(text.splitlines(), 1):
+                      for kind, pattern in patterns.items():
                           if pattern.search(line):
-                              hits.append((str(path),line_no,kind))
+                              hits.append((str(path), line_no, kind))
           if hits:
               raise SystemExit(f'Secret scan gagal: {hits[:10]}')
           Path('step12-release-evidence/secret-scan.txt').write_text('PASS\n', encoding='utf-8')
           print('STEP12_SECRET_SCAN_PASS')
-          PY
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Secret scan kandidat gagal.' }
 
       - name: Upload STEP12 evidence and portable candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
