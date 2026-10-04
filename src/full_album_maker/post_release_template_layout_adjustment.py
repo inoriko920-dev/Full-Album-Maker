@@ -2,10 +2,10 @@ from __future__ import annotations
 
 """Route-local UI-06 geometry alignment.
 
-Template uses a compact filter rail in the approved reference. Other workspaces
-keep the shared post-release shell widths. This patch changes presentation only;
-Template data, filters, preview/apply commands, inspector state and project state
-remain untouched.
+Template uses a compact filter rail and no empty inspector dock title strip in
+the approved reference. Other workspaces keep the shared post-release shell
+geometry. This patch changes presentation only; Template data, filters,
+preview/apply commands, inspector state and project state remain untouched.
 """
 
 from .foundation_shell import FoundationShellWidget
@@ -25,6 +25,14 @@ def install_post_release_template_layout_adjustment() -> None:
 
     def template_route_sizes(self: FoundationShellWidget, route: str) -> None:
         previous_sizes(self, route)
+
+        # UI-06 starts the Properti / AI tab surface directly under the global
+        # command bar. The shared STEP01 dock header has no title on this route
+        # and only creates an empty strip, so hide that presentation chrome for
+        # Template and restore it everywhere else. Collapse state/content remain
+        # authoritative in InspectorDockHost.
+        self.inspector.header.setVisible(route != "template")
+
         if route != "template" or self._responsive_compact:
             return
 
