@@ -3,9 +3,9 @@ from __future__ import annotations
 """Presentation-only UI-06 gallery header alignment.
 
 Moves the existing authoritative sort QComboBox from the narrow context rail to
-the gallery header.  No sorting/filtering semantics are reimplemented.  Preview
-state stays available as tooltip metadata while the header matches the approved
-Template Video composition.
+the gallery header. No sorting/filtering semantics are reimplemented. Preview
+state remains owned by the production QLabel while the header matches the
+approved Template Video composition.
 """
 
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
@@ -35,11 +35,11 @@ def _install_header(window) -> None:
         elif text == "Preview non-destruktif • Built-in immutable • Custom portabel":
             label.setText("Pilih template untuk video album Anda. Sesuaikan dengan mudah dan gunakan langsung.")
 
-    # Preview state remains updated by production code, but its long diagnostic
-    # sentence is better exposed as a tooltip than as permanent header chrome.
+    # Keep the production preview-state QLabel alive and writable so STEP07
+    # behavior/tests remain authoritative. It is only hidden from permanent
+    # header chrome; the current value is exposed as a passive tooltip snapshot.
     gallery.preview_state.hide()
     gallery.setToolTip(gallery.preview_state.text())
-    gallery.preview_state.textChanged.connect(gallery.setToolTip)
 
     # The context rail already owns and wires this sort control. Reparent/move
     # that exact widget so sort_key and filters_changed behavior remain unchanged.
