@@ -37,7 +37,6 @@ from full_album_maker.post_release_inspector_adjustment import install_post_rele
 from full_album_maker.post_release_render_context_adjustment import install_post_release_render_context_adjustment
 from full_album_maker.post_release_render_preflight_adjustment import install_post_release_render_preflight_adjustment
 from full_album_maker.post_release_render_content_adjustment import install_post_release_render_content_adjustment
-from full_album_maker.post_release_render_queue_adjustment import install_post_release_render_queue_adjustment
 
 
 install_feature()
@@ -75,7 +74,6 @@ install_post_release_inspector_adjustment()
 install_post_release_render_context_adjustment()
 install_post_release_render_preflight_adjustment()
 install_post_release_render_content_adjustment()
-install_post_release_render_queue_adjustment()
 
 
 def main(argv: list[str] | None = None) -> int:
