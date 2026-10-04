@@ -1,4 +1,5 @@
 name: Post-release Template pixel-match
+# Registered post-release fidelity gate for UI-06.
 
 on:
   push:
