@@ -25,16 +25,9 @@ def _doc(tmp_path: Path) -> ProjectDocument:
     path = tmp_path / "song.wav"
     path.write_bytes(b"fixture-audio")
     doc = ProjectDocument.new_empty("Render UI")
-    asset = MediaAsset(
-        kind="audio",
-        locator=str(path),
-        original_name=path.name,
-        source_duration_tick=4 * TIMEBASE,
-    )
+    asset = MediaAsset(kind="audio", locator=str(path), original_name=path.name, source_duration_tick=4 * TIMEBASE)
     doc.media.append(asset)
-    doc.playlist.entries.append(
-        SongInstance(asset_id=asset.asset_id, display_title="Senja di Kota Ini", source_out_tick=4 * TIMEBASE)
-    )
+    doc.playlist.entries.append(SongInstance(asset_id=asset.asset_id, display_title="Senja di Kota Ini", source_out_tick=4 * TIMEBASE))
     doc.validate()
     return doc
 
@@ -60,7 +53,6 @@ def test_copy_log_helper_redacts_and_verified_output_gate_is_fail_closed(tmp_pat
     assert "secret-value" not in text
     assert "[REDACTED]" in text
     assert verified_output_path(job) is None
-
     output = settings.final_output
     output.write_bytes(b"verified-mp4")
     job.state = RenderJobState.COMPLETED
@@ -80,7 +72,7 @@ def test_production_render_route_uses_step10_surfaces_without_project_mutation(t
         os.environ.setdefault("FAM_STEP09_PROVIDER", "mock")
         os.environ.setdefault("FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER", "1")
         from PySide6.QtWidgets import QApplication
-        import full_album_maker.main  # installs all production layers through STEP10
+        import full_album_maker.main
         from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
         from full_album_maker.foundation_window import FoundationMainWindow
 
@@ -94,32 +86,26 @@ def test_production_render_route_uses_step10_surfaces_without_project_mutation(t
             doc.media.append(asset)
             doc.playlist.entries.append(SongInstance(asset_id=asset.asset_id, display_title="Senja di Kota Ini", source_out_tick=5 * TIMEBASE))
             doc.validate()
-
             window = FoundationMainWindow()
             window._foundation_project_open = True
             window.editor_workspace.set_document(doc)
             before = window.editor_workspace.document().content_signature()
             window.foundation_shell.set_workspace("render")
             app.processEvents()
-
             assert window.foundation_state.workspace == "render"
             assert window.foundation_shell.workspace_stack.currentWidget() is window.render_workspace_s10
             assert window._inspector_router.currentWidget() is window.render_inspector_s10
-            # Post-release UI-09 restores the canonical Render context rail.
-            # Keep this semantic rather than binding the unit test to one
-            # desktop/compact pixel width; the screenshot gate owns exact geometry.
             assert window.foundation_shell.context.minimumWidth() > 0
             assert window.foundation_shell.context.maximumWidth() == 420
             assert not window.render_history_s10.isHidden()
             assert window.foundation_shell.timeline.collapsed is True
             assert window.render_inspector_s10.pause.isEnabled() is False
-            assert window.render_add_queue_s10.text() == "Tambah ke Antrian"
-            assert window.render_copy_log_s10.text() == "Salin Log"
+            assert window.render_add_queue_s10.text() == "Tambah ke Antrean"
+            assert window.render_copy_log_s10.text() == "Copy Log"
             assert window.render_open_output_s10.text() == "Buka Output"
             assert window.render_add_queue_s10.isEnabled() is False
             assert window.render_performance_s10.point_count == 0
             assert window.editor_workspace.document().content_signature() == before
-
             window._s10_async.close()
             window.hide()
             window.deleteLater()
@@ -130,11 +116,5 @@ def test_production_render_route_uses_step10_surfaces_without_project_mutation(t
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["FAM_STEP09_PROVIDER"] = "mock"
     env["FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER"] = "1"
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=35,
-    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, timeout=35)
     assert result.returncode == 0, (result.stdout + "\n" + result.stderr)
