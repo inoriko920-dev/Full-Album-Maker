@@ -75,8 +75,8 @@ jobs:
           assert report['workspace'] == 'timeline' and report['timeline_active'] is True, report
           assert report['context_visible'] is True and report['inspector_active'] is True, report
           assert report['precision_visible'] is True, report
-          assert report['context_width'] in range(286, 299), report
-          assert report['right_dock_width'] in range(322, 335), report
+          assert report['context_width'] in range(323, 336), report
+          assert report['right_dock_width'] in range(349, 362), report
           assert report['timeline_height'] in range(350, 355), report
           assert report['precision_height'] in range(245, 258), report
           assert report['status_height'] in range(26, 31), report
