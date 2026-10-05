@@ -11,6 +11,7 @@ owned by STEP05.
 """
 
 from PySide6.QtCore import QMargins
+from PySide6.QtWidgets import QAbstractButton
 
 _installed = False
 
@@ -27,18 +28,32 @@ def _layout_widgets(layout) -> tuple:
     return tuple(widgets)
 
 
+def _step01_placeholder_widgets(timeline) -> tuple:
+    """Return only the legacy STEP01 controls owned directly by timeline.body."""
+    widgets = []
+    mode = getattr(timeline, "mode", None)
+    if mode is not None:
+        widgets.append(mode)
+
+    body = getattr(timeline, "body", None)
+    if body is not None:
+        for button in body.findChildren(QAbstractButton):
+            if button.parentWidget() is body and button.text().strip() in {
+                "Split",
+                "Ripple",
+                "Snap",
+                "Marker",
+            }:
+                widgets.append(button)
+    return tuple(dict.fromkeys(widgets))
+
+
 def _prepare(timeline) -> None:
     if getattr(timeline, "_post_timeline_chrome_prepared", False):
         return
 
     outer = timeline.layout()
     head = outer.itemAt(0).layout() if outer is not None and outer.count() else None
-    body_layout = timeline.body.layout() if getattr(timeline, "body", None) is not None else None
-    placeholder = (
-        body_layout.itemAt(0).layout()
-        if body_layout is not None and body_layout.count() and body_layout.itemAt(0).layout() is not None
-        else None
-    )
 
     timeline._post_timeline_head_layout = head
     timeline._post_timeline_head_widgets = _layout_widgets(head)
@@ -52,8 +67,7 @@ def _prepare(timeline) -> None:
         )
         timeline._post_timeline_head_spacing = head.spacing()
 
-    timeline._post_timeline_placeholder_layout = placeholder
-    timeline._post_timeline_placeholder_widgets = _layout_widgets(placeholder)
+    timeline._post_timeline_step01_widgets = _step01_placeholder_widgets(timeline)
     timeline._post_timeline_chrome_prepared = True
 
 
@@ -70,9 +84,9 @@ def _apply(window, route: str) -> None:
             head.setContentsMargins(0, 0, 0, 0)
             head.setSpacing(0)
 
-        # Hide only the direct STEP01 placeholder toolbar. Do not scan children:
-        # STEP05 intentionally has functional Ripple/Snap buttons with similar text.
-        for widget in getattr(timeline, "_post_timeline_placeholder_widgets", ()):
+        # Hide the exact STEP01 owners. STEP05 precision buttons are children of
+        # timeline_precision_s05, so they remain visible and functional.
+        for widget in _step01_placeholder_widgets(timeline):
             widget.hide()
     else:
         for widget in getattr(timeline, "_post_timeline_head_widgets", ()):
