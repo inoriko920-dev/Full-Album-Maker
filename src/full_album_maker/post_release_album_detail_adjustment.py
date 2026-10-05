@@ -6,7 +6,7 @@ Presentation only. The authoritative Album document, selection, transition value
 signals, and bulk-action semantics remain owned by the STEP04 production widgets.
 """
 
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, QTimer
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QFrame,
@@ -54,8 +54,17 @@ def _sync_album_timeline_chrome(window) -> None:
 
     active = getattr(window.foundation_state, "workspace", "") == "album"
     host.setVisible(active)
+    original_sizes = getattr(timeline, "_post_album_placeholder_sizes", {})
     for widget in getattr(timeline, "_post_album_placeholder_controls", ()):
-        widget.setVisible(not active)
+        if active:
+            widget.hide()
+            widget.setMinimumSize(0, 0)
+            widget.setMaximumSize(0, 0)
+        else:
+            minimum, maximum = original_sizes.get(widget, (QSize(0, 0), QSize(16777215, 16777215)))
+            widget.setMinimumSize(minimum)
+            widget.setMaximumSize(maximum)
+            widget.show()
     timeline.message.setVisible(not active)
 
     source_undo = window.foundation_shell.command_bar.buttons.get("undo")
@@ -97,6 +106,10 @@ def _install_album_timeline_chrome(window) -> None:
         if button.text() in {"Split", "Ripple", "Snap", "Marker"}:
             placeholder_controls.append(button)
     timeline._post_album_placeholder_controls = tuple(placeholder_controls)
+    timeline._post_album_placeholder_sizes = {
+        widget: (widget.minimumSize(), widget.maximumSize())
+        for widget in placeholder_controls
+    }
 
     host = QFrame(body)
     host.setObjectName("postAlbumTimelineToolbar")
@@ -318,11 +331,13 @@ def install_post_release_album_detail_adjustment() -> None:
     def window_init(self, *args, **kwargs) -> None:
         previous_init(self, *args, **kwargs)
         _install_album_timeline_chrome(self)
+        QTimer.singleShot(0, lambda: _sync_album_timeline_chrome(self))
 
     def album_route(self, route: str) -> None:
         previous_route(self, route)
         _install_album_timeline_chrome(self)
         _sync_album_timeline_chrome(self)
+        QTimer.singleShot(0, lambda: _sync_album_timeline_chrome(self))
 
     Window.__init__ = window_init
     Window._s04_route = album_route
