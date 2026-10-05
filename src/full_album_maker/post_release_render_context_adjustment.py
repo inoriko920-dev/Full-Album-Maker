@@ -25,6 +25,24 @@ def _decorate_render_context(window) -> None:
     # UI-09 starts the first heading slightly lower than the recovered rail.
     root.setContentsMargins(left, top + 7, right, bottom)
 
+    # The immutable reference gives both context sections a small visual glyph.
+    # Keep these as decoration only: the heading labels and all history/preset
+    # behavior remain the production widgets.
+    preset_heading = next(
+        (label for label in context.findChildren(QLabel) if label.text() == "Preset Render"),
+        None,
+    )
+    if preset_heading is not None:
+        gear = QLabel("⚙", context)
+        gear.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        gear.setFixedSize(26, 26)
+        gear.move(max(0, context.width() - 38), max(8, preset_heading.y() - 3))
+        gear.setStyleSheet("color:#30466D;font-size:19px;font-weight:600;background:transparent;")
+        gear.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        gear.show()
+        gear.raise_()
+        context._pixel_preset_heading_icon = gear
+
     preset_titles = {"YouTube 1080p", "YouTube 1440p", "YouTube 4K", "Custom"}
     cards: list[tuple[FAMCard, str]] = []
     for card in context.findChildren(FAMCard):
@@ -78,6 +96,8 @@ def _decorate_render_context(window) -> None:
                 "QFrame#pixelRenderContextDivider{border:none;border-bottom:1px solid #D8E4F2;}"
             )
             root.insertWidget(index, divider_box)
+        previous.setText("◷  Proyek Sebelumnya")
+        previous.setStyleSheet(previous.styleSheet() + "color:#10234A;")
 
 
 def install_post_release_render_context_adjustment() -> None:
