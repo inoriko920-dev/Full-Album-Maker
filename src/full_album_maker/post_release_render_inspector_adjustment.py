@@ -150,8 +150,26 @@ def _apply_field_density(inspector) -> None:
         inspector.hardware,
     ):
         _compact_control(widget, "QComboBox")
+        # Remove the heavy native drop-down box. Keep Qt's arrow primitive while
+        # presenting it in the same borderless right-side area as the UI-09
+        # reference. Selection/value ownership stays on the production combo.
+        widget.setStyleSheet(
+            widget.styleSheet()
+            + "QComboBox{border:1px solid #C6D7EC;border-radius:6px;"
+              "background:#FFFFFF;color:#10234A;padding-left:9px;padding-right:27px;}"
+              "QComboBox::drop-down{border:none;background:transparent;width:25px;}"
+        )
     for widget in (inspector.width, inspector.height, inspector.video_bitrate):
         _compact_control(widget, "QSpinBox")
+        # UI-09 shows these values as clean fields, not native desktop steppers.
+        # Keyboard/input semantics remain unchanged; only the painted step
+        # buttons are suppressed in this inspector.
+        widget.setStyleSheet(
+            widget.styleSheet()
+            + "QSpinBox{border:1px solid #C6D7EC;border-radius:6px;"
+              "background:#FFFFFF;color:#10234A;padding-left:9px;padding-right:9px;}"
+              "QSpinBox::up-button,QSpinBox::down-button{width:0px;border:none;}"
+        )
 
 
 def _style_completion_actions(window) -> None:
