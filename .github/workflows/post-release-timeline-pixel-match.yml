@@ -1,0 +1,99 @@
+name: Post-release Timeline pixel-match
+
+on:
+  push:
+    branches:
+      - ui/post-release-pixel-match
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  timeline-fidelity:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: '1'
+      PYTHONUNBUFFERED: '1'
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+      FAM_STEP09_PROVIDER: mock
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install Linux Qt runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+      - name: Stage pinned Noto Sans visual-QA font
+        run: |
+          mkdir -p assets/fonts
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" \
+            --output assets/fonts/NotoSans.ttf
+          test $(stat -c%s assets/fonts/NotoSans.ttf) -gt 1000000
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run Timeline regression
+        run: |
+          python -m pytest -q \
+            tests/test_step05_timeline_precision.py \
+            tests/test_step05_timeline_audio.py \
+            tests/test_step05_timeline_ui.py \
+            tests/test_step05_timeline_integration.py \
+            tests/test_step05_timeline_render_mix.py \
+            tests/test_step05_timeline_completion.py
+      - name: Capture Timeline fidelity candidate
+        run: |
+          mkdir -p post-release-timeline-evidence/current post-release-timeline-evidence/reports
+          python -m full_album_maker.timeline_capture \
+            --state golden \
+            --output post-release-timeline-evidence/current/timeline-g04-candidate.png \
+            --report post-release-timeline-evidence/reports/timeline-g04-candidate.json
+      - name: Validate Timeline geometry and contracts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path('post-release-timeline-evidence/reports/timeline-g04-candidate.json').read_text(encoding='utf-8')
+          )['geometry']
+          assert report['window'] == [1672, 941], report
+          assert report['workspace'] == 'timeline' and report['timeline_active'] is True, report
+          assert report['context_visible'] is True and report['inspector_active'] is True, report
+          assert report['precision_visible'] is True, report
+          assert report['context_width'] in range(254, 275), report
+          assert report['right_dock_width'] in range(338, 359), report
+          assert report['timeline_height'] in range(350, 355), report
+          assert report['status_height'] in range(26, 31), report
+          assert report['playlist_mode'] == 'free', report
+          assert report['song_count'] == 3, report
+          assert report['marker_count'] == 4, report
+          assert report['gap_count'] == 1, report
+          assert report['crossfade_count'] == 1, report
+          assert report['audio_errors'] == [], report
+          assert report['route_preserved_content'] is True, report
+          assert report['selected_inspector'] == 'Lagu Utama', report
+          assert report['monitor_audio_available'] is False, report
+          print('POST_RELEASE_TIMELINE_GEOMETRY_PASS')
+          PY
+      - name: Upload Timeline fidelity evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: post-release-timeline-evidence
+          path: post-release-timeline-evidence/
+          if-no-files-found: error
