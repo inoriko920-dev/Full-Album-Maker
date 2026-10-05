@@ -208,8 +208,8 @@ def install_post_release_render_queue_adjustment() -> None:
             item.setSizeHint(QSize(0, 76))
         card = self.queue_list.parentWidget()
         if card is not None:
-            card.setMinimumHeight(286)
-            card.setMaximumHeight(300)
+            card.setMinimumHeight(300)
+            card.setMaximumHeight(312)
 
     pixel.PixelMatchRenderCenterWorkspace.apply_queue = apply_queue_with_golden_geometry
     _installed = True
