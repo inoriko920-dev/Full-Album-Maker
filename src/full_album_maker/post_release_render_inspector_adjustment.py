@@ -204,6 +204,10 @@ def install_post_release_render_inspector_adjustment() -> None:
         # Render reference has a larger gap between segmented tabs and the
         # output heading than Template. Keep this route-specific.
         root.setContentsMargins(left, 20, right, bottom)
+        # Golden UI-09 uses compact controls but generous vertical rhythm.
+        # Increasing layout spacing consumes the otherwise-empty lower dock and
+        # aligns the action stack without inflating field hitboxes again.
+        root.setSpacing(9)
 
         for value in ("24", "25", "30", "50", "60"):
             _set_item_text(self.fps, value, f"{value} fps")
