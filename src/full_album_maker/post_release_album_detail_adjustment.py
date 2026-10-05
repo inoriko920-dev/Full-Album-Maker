@@ -66,6 +66,11 @@ def install_post_release_album_detail_adjustment() -> None:
     def table_set_rows(self, values, selected_ids, *, page: int) -> None:
         original_table_set_rows(self, values, selected_ids, page=page)
         for row_index, row in enumerate(values):
+            item = self.item(row_index, 4)
+            if item is not None:
+                # The thumbnail cell-widget owns the visible Visual label. Clear
+                # the underlying item text so Qt does not paint a duplicate string.
+                item.setText("")
             host = self.cellWidget(row_index, 4)
             if host is None:
                 continue
@@ -87,15 +92,16 @@ def install_post_release_album_detail_adjustment() -> None:
 
     def context_init(self, *args, **kwargs) -> None:
         original_context_init(self, *args, **kwargs)
-        self.cover.setFixedSize(92, 92)
+        self.cover.setFixedSize(88, 88)
         self.album_title.setWordWrap(False)
-        self.album_title.setStyleSheet("font-size:13px;font-weight:700;color:#10234A;")
+        self.album_title.setMinimumWidth(0)
+        self.album_title.setStyleSheet("font-size:12px;font-weight:700;color:#10234A;")
         for button in self.findChildren(QPushButton):
             if button.text() == "✎":
-                button.setFixedWidth(22)
+                button.setFixedWidth(18)
                 button.setStyleSheet(
                     "QPushButton{background:transparent;border:none;color:#31527E;"
-                    "font-size:15px;padding:0;}"
+                    "font-size:14px;padding:0;}"
                 )
 
     PixelAlbumContextWidget.__init__ = context_init
