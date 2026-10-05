@@ -60,6 +60,7 @@ def _prepare(timeline) -> None:
     timeline._post_timeline_head_visibility = {
         widget: not widget.isHidden() for widget in timeline._post_timeline_head_widgets
     }
+    timeline._post_timeline_message_visibility = not timeline.message.isHidden()
     if head is not None:
         margins = head.contentsMargins()
         timeline._post_timeline_head_margins = QMargins(
@@ -78,6 +79,10 @@ def _apply(window, route: str) -> None:
 
     head = getattr(timeline, "_post_timeline_head_layout", None)
     if active:
+        # The project-context message is the last remaining shared header owner in
+        # UI-04. Hide it explicitly so the STEP05 precision toolbar begins at the
+        # timeline boundary, matching the golden structure.
+        timeline.message.hide()
         for widget in getattr(timeline, "_post_timeline_head_widgets", ()):
             widget.hide()
         if head is not None:
@@ -92,6 +97,10 @@ def _apply(window, route: str) -> None:
         for widget in getattr(timeline, "_post_timeline_head_widgets", ()):
             widget.setVisible(
                 bool(getattr(timeline, "_post_timeline_head_visibility", {}).get(widget, True))
+            )
+        if timeline.message not in getattr(timeline, "_post_timeline_head_widgets", ()):
+            timeline.message.setVisible(
+                bool(getattr(timeline, "_post_timeline_message_visibility", True))
             )
         if head is not None:
             margins = getattr(timeline, "_post_timeline_head_margins", QMargins(8, 1, 8, 1))
