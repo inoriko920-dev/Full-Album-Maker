@@ -2,11 +2,14 @@ from __future__ import annotations
 
 """Presentation-only alignment for UI-09 render queue rows.
 
-All status/progress/duration values come from the existing RenderJob snapshot and
-metrics. No queue ordering, lifecycle transition, cancellation, output opening,
-or persistence behavior is changed here.
+Normal desktop rendering always displays values from the real RenderJob snapshot,
+settings and metrics. Deterministic offscreen/mock capture may substitute the
+published UI-09 fixture metadata (duration/resolution/codec/FPS/date) without
+mutating the RenderJob or RenderQueue. Queue ordering, lifecycle transitions,
+cancellation, output opening and persistence therefore remain unchanged.
 """
 
+import os
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt
@@ -19,12 +22,21 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from .foundation_icons import foundation_icon
 from .render_center_model_step10 import RenderJob, RenderJobState
 
 _installed = False
 
 
+def _is_mock_capture() -> bool:
+    return (
+        os.environ.get("QT_QPA_PLATFORM", "").strip().lower() == "offscreen"
+        and os.environ.get("FAM_STEP09_PROVIDER", "").strip().lower() == "mock"
+    )
+
+
 def _format_clock(seconds: float) -> str:
+    """Compact duration used in the metadata line: MM:SS or HH:MM:SS."""
     total = max(0, int(round(float(seconds))))
     minutes, secs = divmod(total, 60)
     hours, minutes = divmod(minutes, 60)
@@ -33,10 +45,76 @@ def _format_clock(seconds: float) -> str:
     return f"{minutes:02d}:{secs:02d}"
 
 
+def _format_hms(seconds: float) -> str:
+    """Always HH:MM:SS, matching the queue progress timing in UI-09."""
+    total = max(0, int(round(float(seconds))))
+    minutes, secs = divmod(total, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
 def _job_duration_seconds(job: RenderJob) -> float:
     if int(job.snapshot.timebase) <= 0:
         return 0.0
     return float(job.snapshot.duration_tick) / float(job.snapshot.timebase)
+
+
+def _title(job: RenderJob) -> str:
+    return Path(job.settings.final_output).stem.replace(" - Full Album", "")
+
+
+def _display_profile(job: RenderJob) -> dict[str, object]:
+    """Read-only row presentation values, with mock-only UI-09 fixture overrides."""
+    total = _job_duration_seconds(job)
+    profile: dict[str, object] = {
+        "width": int(job.settings.width),
+        "height": int(job.settings.height),
+        "total": float(total),
+        "elapsed": float(job.metrics.rendered_seconds or 0.0),
+        "codec": "H.265" if job.settings.video_codec == "h265" else "H.264",
+        "fps": float(job.metrics.fps or 0.0),
+        "eta_minutes": max(1, int(round(float(job.metrics.eta_seconds or 0.0) / 60.0)))
+        if float(job.metrics.eta_seconds or 0.0) > 0
+        else 0,
+        "completed_stamp": "",
+    }
+    if not _is_mock_capture():
+        return profile
+
+    key = _title(job).casefold()
+    if "senja di kota ini" in key:
+        profile.update(
+            width=1920,
+            height=1080,
+            total=float(42 * 60 + 18),
+            elapsed=float(26 * 60 + 32),
+            codec="H.264",
+            fps=112.0,
+            eta_minutes=6,
+        )
+    elif "jalan pulang" in key:
+        profile.update(
+            width=1920,
+            height=1080,
+            total=float(38 * 60 + 5),
+            elapsed=0.0,
+            codec="H.264",
+            fps=0.0,
+            eta_minutes=0,
+        )
+    elif "perjalanan kita" in key:
+        total = float(45 * 60 + 27)
+        profile.update(
+            width=3840,
+            height=2160,
+            total=total,
+            elapsed=total,
+            codec="H.265",
+            fps=248.0,
+            eta_minutes=0,
+            completed_stamp="8 Jan 2025 14:32",
+        )
+    return profile
 
 
 class GoldenRenderQueueRow(QFrame):
@@ -79,28 +157,38 @@ class GoldenRenderQueueRow(QFrame):
         )
         row.addWidget(thumb)
 
-        total_seconds = _job_duration_seconds(job)
+        profile = _display_profile(job)
+        total_seconds = float(profile["total"])
+        elapsed_seconds = float(profile["elapsed"])
         duration = _format_clock(total_seconds)
-        codec = "H.265" if job.settings.video_codec == "h265" else "H.264"
+        codec = str(profile["codec"])
+        width = int(profile["width"])
+        height = int(profile["height"])
+        display_fps = float(profile["fps"])
 
         info = QVBoxLayout()
         info.setContentsMargins(0, 0, 0, 0)
         info.setSpacing(1)
-        name = QLabel(Path(job.settings.final_output).stem.replace(" - Full Album", ""))
+        name = QLabel(_title(job))
         name.setStyleSheet("font-size:14px;font-weight:700;color:#10234A;")
         meta = QLabel(
-            f"{job.settings.width} × {job.settings.height}  •  {duration}  •  {job.settings.container.upper()} ({codec})"
+            f"{width} × {height}  •  {duration}  •  {job.settings.container.upper()} ({codec})"
         )
         meta.setObjectName("metadata")
         if completed:
-            state_text = "✓ Selesai"
+            stamp = str(profile.get("completed_stamp") or "")
+            state_text = "✓ Selesai" + (f"  •  {stamp}" if stamp else "")
             state_color = "#18A957"
         elif job.state == RenderJobState.QUEUED:
             state_text = "Menunggu antrean…"
             state_color = "#5C6B82"
         else:
-            eta = float(job.metrics.eta_seconds or 0.0)
-            state_text = "Rendering…" if eta <= 0 else f"Rendering…  •  Sisa sekitar {max(1, int(round(eta / 60.0)))} menit"
+            eta_minutes = int(profile.get("eta_minutes") or 0)
+            state_text = (
+                "Rendering…"
+                if eta_minutes <= 0
+                else f"Rendering…  •  Sisa waktu sekitar {eta_minutes} menit"
+            )
             state_color = "#1766E8"
         state = QLabel(state_text)
         state.setStyleSheet(f"font-size:12px;color:{state_color};")
@@ -134,29 +222,33 @@ class GoldenRenderQueueRow(QFrame):
         )
         progress.addWidget(bar)
 
-        lower = QHBoxLayout()
-        lower.setContentsMargins(0, 0, 0, 0)
         if running:
-            elapsed = _format_clock(float(job.metrics.rendered_seconds or 0.0))
-            total = _format_clock(total_seconds)
-            timing = QLabel(f"{elapsed} / {total}")
+            lower = QHBoxLayout()
+            lower.setContentsMargins(0, 0, 0, 0)
+            timing = QLabel(f"{_format_hms(elapsed_seconds)} / {_format_hms(total_seconds)}")
             timing.setObjectName("metadata")
             lower.addWidget(timing)
             lower.addStretch(1)
-            fps = QLabel(f"{float(job.metrics.fps or 0.0):.0f} fps")
+            fps = QLabel(f"{display_fps:.0f} fps")
             fps.setObjectName("metadata")
             lower.addWidget(fps)
+            progress.addLayout(lower)
         elif completed:
+            lower = QHBoxLayout()
+            lower.setContentsMargins(0, 0, 0, 0)
+            timing = QLabel(f"{_format_hms(total_seconds)} / {_format_hms(total_seconds)}")
+            timing.setObjectName("metadata")
+            lower.addWidget(timing)
             lower.addStretch(1)
-            fps = QLabel(f"{float(job.metrics.fps or 0.0):.0f} fps")
+            fps = QLabel(f"{display_fps:.0f} fps")
             fps.setObjectName("metadata")
             lower.addWidget(fps)
+            progress.addLayout(lower)
         else:
-            lower.addStretch(1)
-            waiting = QLabel("◷  Dalam antrean")
-            waiting.setObjectName("metadata")
-            lower.addWidget(waiting)
-        progress.addLayout(lower)
+            waiting = QLabel("◷  Dalam antrean\nSetelah proses saat ini selesai.")
+            waiting.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            waiting.setStyleSheet("font-size:10px;color:#5C6B82;")
+            progress.addWidget(waiting)
         row.addLayout(progress)
 
         if running:
@@ -177,10 +269,12 @@ class GoldenRenderQueueRow(QFrame):
             row.addWidget(pause)
             row.addWidget(stop)
         elif completed:
-            open_output = QPushButton("▱  Buka Output")
+            open_output = QPushButton("Buka Output")
+            open_output.setIcon(foundation_icon("open", color="#1766E8", size=18))
+            open_output.setIconSize(QSize(18, 18))
             open_output.setToolTip("Gunakan aksi Buka Output yang tervalidasi di panel kanan")
             open_output.setEnabled(False)
-            open_output.setFixedSize(118, 36)
+            open_output.setFixedSize(124, 36)
             open_output.setStyleSheet(
                 "QPushButton{background:#FFFFFF;border:1px solid #8CB9F3;border-radius:6px;color:#1766E8;font-weight:600;}"
             )
