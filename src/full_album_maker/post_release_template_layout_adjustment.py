@@ -13,7 +13,9 @@ from .foundation_tokens import TOKENS
 
 _installed = False
 _TEMPLATE_CONTEXT_WIDTH = 205
-_RIGHT_DOCK_WIDTH = 328
+# UI-06 vertical boundary measurement at 1672x941 places the right dock start
+# near x=1296; 339 logical px reproduces that boundary in the shared splitter.
+_RIGHT_DOCK_WIDTH = 339
 
 
 def install_post_release_template_layout_adjustment() -> None:
