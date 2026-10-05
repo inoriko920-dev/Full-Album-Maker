@@ -36,8 +36,16 @@ def install_post_release_template_inspector_density() -> None:
         settings_heading = getattr(self, "_post_template_settings_heading", None)
         if settings_heading is not None:
             settings_heading.setMinimumHeight(24)
-            settings_heading.setMaximumHeight(26)
+            settings_heading.setMaximumHeight(24)
             settings_heading.show()
+
+        header_host = getattr(self, "_post_template_header_host", None)
+        if header_host is not None:
+            # 152 preview + 7 inner spacing + 24 heading. Locking the composite
+            # height prevents any overlap while keeping the first field aligned
+            # immediately below the section heading.
+            header_host.setMinimumHeight(183)
+            header_host.setMaximumHeight(183)
 
         for combo in (
             self.title_layout,

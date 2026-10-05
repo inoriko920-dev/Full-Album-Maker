@@ -115,22 +115,28 @@ def install_post_release_template_inspector_adjustment() -> None:
                 child.hide()
 
         root.setContentsMargins(10, 8, 10, 8)
-        root.setSpacing(5)
+        root.setSpacing(4)
 
-        self._post_template_preview = TemplateInspectorPreview(self)
-        root.addWidget(self._post_template_preview)
+        # Treat preview + title as one fixed presentation block. Keeping these two
+        # widgets in their own layout prevents the legacy inspector's size policy
+        # from placing the title over the preview when the dock is constrained.
+        self._post_template_header_host = QWidget(self)
+        header_layout = QVBoxLayout(self._post_template_header_host)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(7)
+        self._post_template_preview = TemplateInspectorPreview(self._post_template_header_host)
+        header_layout.addWidget(self._post_template_preview)
 
-        # Keep the original production heading widget alive for compatibility,
-        # but use a dedicated presentation heading. The production label can be
-        # squeezed to zero by the legacy inspector size policy after re-layout;
-        # the dedicated fixed-height label makes UI-06 deterministic.
         self.heading.hide()
-        self._post_template_settings_heading = QLabel("Pengaturan Template", self)
+        self._post_template_settings_heading = QLabel(
+            "Pengaturan Template", self._post_template_header_host
+        )
         self._post_template_settings_heading.setObjectName("sectionHeading")
         self._post_template_settings_heading.setStyleSheet(
             "font-size:15px;font-weight:700;color:#10234A;"
         )
-        root.addWidget(self._post_template_settings_heading)
+        header_layout.addWidget(self._post_template_settings_heading)
+        root.addWidget(self._post_template_header_host)
         self.identity.hide()
 
         _set_combo_icon(self.title_layout, "template")
@@ -176,8 +182,6 @@ def install_post_release_template_inspector_adjustment() -> None:
 
         # Preview remains a live production control/signal but UI-06 presents the
         # selected preview through the preview canvas and global Preview command.
-        # Keep the control instance for tests/automation while removing duplicate
-        # visual chrome from this inspector.
         self.preview.hide()
         action_row = QHBoxLayout()
         action_row.setContentsMargins(0, 2, 0, 0)
@@ -211,8 +215,6 @@ def install_post_release_template_inspector_adjustment() -> None:
         preview = getattr(self, "_post_template_preview", None)
         if preview is not None:
             preview.set_template(descriptor.template_id, descriptor.name)
-        # original_set_template still owns all data/state. Presentation heading is
-        # static and intentionally independent of the selected template name.
         settings_heading = getattr(self, "_post_template_settings_heading", None)
         if settings_heading is not None:
             settings_heading.setText("Pengaturan Template")
