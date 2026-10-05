@@ -2,35 +2,72 @@ from __future__ import annotations
 
 """Post-release shell adjustment for canonical inspector geometry.
 
-The shared STEP01 inspector shell keeps a tall empty collapsible dock header
-above the Properti/AI tabs. UI-06 Template has no such strip, while UI-09 Render
-retains only a shallow breathing area. Apply those presentation rules per route
-and restore the normal dock everywhere else. No project, render, template,
-provider, queue, or persistence state is changed here.
+The canonical 9-reference pack places the shared Properti/AI segmented control
+at the top of the inspector content without the legacy empty collapsible header
+on the Template and Render routes. Apply those presentation rules per route and
+restore the normal dock everywhere else. No project, render, template, provider,
+queue, or persistence state is changed here.
 
-The canonical 9-reference pack also uses the same full-width segmented
-Properti/AI control on every workspace. Keep the production tab buttons and
-stack semantics, but align their presentation globally here instead of creating
-route-specific copies.
+The same full-width segmented Properti/AI control is shared by every workspace.
+Keep the production tab buttons and stack semantics, but align their presentation
+globally here instead of creating route-specific copies.
 """
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QSizePolicy
+import math
 
-from .foundation_icons import foundation_icon
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtWidgets import QSizePolicy
 
 _installed = False
 
 
-def _stateful_foundation_icon(name: str, *, size: int = 18) -> QIcon:
+def _gear_pixmap(color: str, size: int = 18) -> QPixmap:
+    """Draw the compact outlined gear used by the canonical Properti tab."""
+    pix = QPixmap(size, size)
+    pix.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    pen = QPen(QColor(color), max(1.25, size / 13.0))
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+
+    cx = cy = size / 2.0
+    outer = size * 0.39
+    tooth_root = size * 0.315
+    valley = size * 0.285
+    path = QPainterPath()
+    # Four vertices per tooth: outer tip pair, root, then valley. This stays
+    # legible at 18 px while reading as a gear rather than the old bullseye.
+    points: list[QPointF] = []
+    for tooth in range(8):
+        base = tooth * math.tau / 8.0 - math.pi / 2.0
+        for offset, radius in (
+            (-0.18, tooth_root),
+            (-0.095, outer),
+            (0.095, outer),
+            (0.18, tooth_root),
+            (math.pi / 8.0, valley),
+        ):
+            a = base + offset
+            points.append(QPointF(cx + math.cos(a) * radius, cy + math.sin(a) * radius))
+    if points:
+        path.moveTo(points[0])
+        for point in points[1:]:
+            path.lineTo(point)
+        path.closeSubpath()
+        painter.drawPath(path)
+    painter.drawEllipse(QPointF(cx, cy), size * 0.105, size * 0.105)
+    painter.end()
+    return pix
+
+
+def _stateful_gear_icon(*, size: int = 18) -> QIcon:
     icon = QIcon()
-    off = foundation_icon(name, color="#536B8E", size=size).pixmap(size, size)
-    on = foundation_icon(name, color="#1766E8", size=size).pixmap(size, size)
-    icon.addPixmap(off, QIcon.Mode.Normal, QIcon.State.Off)
-    icon.addPixmap(on, QIcon.Mode.Normal, QIcon.State.On)
-    icon.addPixmap(off, QIcon.Mode.Disabled, QIcon.State.Off)
-    icon.addPixmap(on, QIcon.Mode.Disabled, QIcon.State.On)
+    icon.addPixmap(_gear_pixmap("#536B8E", size), QIcon.Mode.Normal, QIcon.State.Off)
+    icon.addPixmap(_gear_pixmap("#1766E8", size), QIcon.Mode.Normal, QIcon.State.On)
     return icon
 
 
@@ -54,7 +91,6 @@ def _sparkle_pixmap(color: str, size: int = 18) -> QPixmap:
     painter.drawLine(QPointF(c + short_r * .62, c + short_r * .62), QPointF(c + long_r * .68, c + long_r * .68))
     painter.drawLine(QPointF(c + long_r * .68, c - long_r * .68), QPointF(c + short_r * .62, c - short_r * .62))
     painter.drawLine(QPointF(c - short_r * .62, c + short_r * .62), QPointF(c - long_r * .68, c + long_r * .68))
-    # Small secondary sparkle in the canonical AI glyph.
     sx, sy = size * .79, size * .22
     r = size * .09
     painter.drawLine(QPointF(sx, sy - r), QPointF(sx, sy + r))
@@ -91,10 +127,8 @@ def _align_shared_inspector_tabs(content) -> None:
 
     properties = content.properties
     ai = content.ai
-    properties.setIcon(_stateful_foundation_icon("settings"))
+    properties.setIcon(_stateful_gear_icon())
     ai.setIcon(_stateful_sparkle_icon())
-    properties.setIconSize(properties.iconSize().expandedTo(properties.icon().actualSize(properties.iconSize())))
-    ai.setIconSize(ai.iconSize().expandedTo(ai.icon().actualSize(ai.iconSize())))
     for button in (properties, ai):
         button.setMinimumWidth(0)
         button.setMinimumHeight(42)
@@ -136,19 +170,13 @@ def install_post_release_inspector_adjustment() -> None:
         inspector = self.foundation_shell.inspector
         _align_shared_inspector_tabs(inspector.content)
         header = inspector.header
-        if route == "template":
+        if route in {"template", "render"}:
             header.hide()
-            return
-        if route == "render":
-            header.show()
-            header.title.hide()
-            header.collapse_button.hide()
-            header.setMinimumHeight(28)
-            header.setMaximumHeight(28)
             return
 
         header.setMinimumHeight(0)
         header.setMaximumHeight(16777215)
+        header.title.show()
         header.collapse_button.show()
         header.show()
 
