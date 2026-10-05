@@ -126,7 +126,7 @@ def capture(state: str, output: Path, width: int, height: int, scale: float) -> 
     import full_album_maker.main  # noqa: F401
 
     from PySide6.QtCore import QEventLoop, QTimer
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QAbstractButton
 
     from .foundation_font import install_foundation_font
     from .foundation_window import FoundationMainWindow
@@ -168,6 +168,12 @@ def capture(state: str, output: Path, width: int, height: int, scale: float) -> 
 
     shell = window.foundation_shell
     precision = window.timeline_precision_s05
+    legacy_buttons = [
+        button
+        for button in shell.timeline.body.findChildren(QAbstractButton)
+        if button.parentWidget() is shell.timeline.body
+        and button.text().strip() in {"Split", "Ripple", "Snap", "Marker"}
+    ]
     geometry = {
         "window": [width, height],
         "workspace": window.foundation_state.workspace,
@@ -175,6 +181,9 @@ def capture(state: str, output: Path, width: int, height: int, scale: float) -> 
         "context_visible": not window.timeline_context_s05.isHidden(),
         "inspector_active": window._inspector_router.currentWidget() is window.timeline_inspector_s05,
         "precision_visible": not precision.isHidden(),
+        "shared_message_visible": shell.timeline.message.isVisible(),
+        "foundation_mode_visible": shell.timeline.mode.isVisible(),
+        "legacy_step01_buttons_visible": any(button.isVisible() for button in legacy_buttons),
         "context_width": shell.context.width(),
         "right_dock_width": shell.inspector.width(),
         "timeline_height": shell.timeline.height(),
