@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Small UI-06 inspector density refinement.
 
-The production TemplateInspector widgets remain authoritative.  This layer only
+The production TemplateInspector widgets remain authoritative. This layer only
 aligns the preview/field density and renders the existing scope QComboBox as
 three visible radio choices like the approved reference. Scope values still
 live in the original QComboBox so all STEP07 apply semantics remain unchanged.
@@ -33,19 +33,26 @@ def install_post_release_template_inspector_density() -> None:
             preview.setMinimumHeight(152)
             preview.setMaximumHeight(152)
 
-        self.heading.setMinimumHeight(22)
-        self.heading.setMaximumHeight(26)
-        self.title_layout.setMinimumHeight(29)
-        self.title_layout.setMaximumHeight(31)
+        # The golden keeps a visible breathing gap between the preview and the
+        # section title; use the heading box itself so the layout item order stays
+        # deterministic for automation.
+        self.heading.setMinimumHeight(30)
+        self.heading.setMaximumHeight(34)
+        for combo in (
+            self.title_layout,
+            self.cover_position,
+            self.background,
+            self.spacing,
+            self.typography,
+        ):
+            combo.setMinimumHeight(29)
+            combo.setMaximumHeight(31)
         root.setSpacing(4)
 
-        # The compact inspector layout installed earlier keeps the scope row at
-        # index 8: label + production QComboBox. Hide only the combo presentation
-        # and mirror its exact values with radio controls.
-        if root.count() > 8:
-            scope_row = root.itemAt(8).layout()
-        else:
-            scope_row = None
+        # The compact inspector layer exposes the production scope row directly.
+        # This avoids relying on a fragile layout index when presentation rows are
+        # refined later.
+        scope_row = getattr(self, "_post_template_scope_row", None)
         if scope_row is None:
             return
 
@@ -53,11 +60,11 @@ def install_post_release_template_inspector_density() -> None:
         host = QWidget(self)
         row = QHBoxLayout(host)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
+        row.setSpacing(10)
         self._post_template_scope_buttons = {}
         for key, label in (("current", "Lagu Ini"), ("selected", "Pilihan"), ("all", "Semua Lagu")):
             button = QRadioButton(label, host)
-            button.setMinimumHeight(24)
+            button.setMinimumHeight(26)
             button.setChecked(str(self.scope.currentData() or "current") == key)
             button.toggled.connect(
                 lambda checked, value=key: (
