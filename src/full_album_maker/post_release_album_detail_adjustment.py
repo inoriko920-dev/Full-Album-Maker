@@ -7,7 +7,14 @@ signals, and bulk-action semantics remain owned by the STEP04 production widgets
 """
 
 from PySide6.QtCore import QSize
-from PySide6.QtWidgets import QAbstractSpinBox, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from .foundation_components import FAMButton
 from .foundation_icons import foundation_icon
@@ -39,6 +46,124 @@ def _quick_row(label_text: str, control) -> QHBoxLayout:
     return row
 
 
+def _sync_album_timeline_chrome(window) -> None:
+    timeline = window.foundation_shell.timeline
+    host = getattr(timeline, "_post_album_toolbar_host", None)
+    if host is None:
+        return
+
+    active = getattr(window.foundation_state, "workspace", "") == "album"
+    host.setVisible(active)
+    for widget in getattr(timeline, "_post_album_placeholder_controls", ()):
+        widget.setVisible(not active)
+    timeline.message.setVisible(not active)
+
+    source_undo = window.foundation_shell.command_bar.buttons.get("undo")
+    source_redo = window.foundation_shell.command_bar.buttons.get("redo")
+    timeline._post_album_undo.setEnabled(bool(source_undo and source_undo.isEnabled()))
+    timeline._post_album_redo.setEnabled(bool(source_redo and source_redo.isEnabled()))
+
+    selected = set()
+    if hasattr(window, "album_workspace"):
+        selected = window.album_workspace.selected_song_ids
+    timeline._post_album_delete.setEnabled(bool(selected))
+
+    has_precision_selection = bool(
+        getattr(window, "_s05_selected_song_id", "")
+        or getattr(window, "_s05_selected_layer_id", "")
+    )
+    timeline._post_album_split.setEnabled(has_precision_selection)
+
+    precision = getattr(window, "timeline_precision_s05", None)
+    if precision is not None:
+        timeline._post_album_ripple.blockSignals(True)
+        timeline._post_album_ripple.setChecked(precision.ripple.isChecked())
+        timeline._post_album_ripple.blockSignals(False)
+
+
+def _install_album_timeline_chrome(window) -> None:
+    timeline = window.foundation_shell.timeline
+    if getattr(timeline, "_post_album_toolbar_host", None) is not None:
+        _sync_album_timeline_chrome(window)
+        return
+
+    body = timeline.canvas.parentWidget()
+    body_layout = body.layout() if body is not None else None
+    if body is None or body_layout is None:
+        return
+
+    placeholder_controls = [timeline.mode]
+    for button in body.findChildren(QPushButton):
+        if button.text() in {"Split", "Ripple", "Snap", "Marker"}:
+            placeholder_controls.append(button)
+    timeline._post_album_placeholder_controls = tuple(placeholder_controls)
+
+    host = QFrame(body)
+    host.setObjectName("postAlbumTimelineToolbar")
+    host.setStyleSheet("QFrame#postAlbumTimelineToolbar{background:#FFFFFF;border:none;}")
+    row = QHBoxLayout(host)
+    row.setContentsMargins(4, 1, 4, 1)
+    row.setSpacing(4)
+
+    undo = FAMButton("", icon_name="undo", kind="ghost")
+    undo.setToolTip("Undo")
+    undo.setFixedWidth(32)
+    redo = FAMButton("", icon_name="redo", kind="ghost")
+    redo.setToolTip("Redo")
+    redo.setFixedWidth(32)
+    undo.clicked.connect(lambda: window.foundation_shell.command_bar.buttons["undo"].click())
+    redo.clicked.connect(lambda: window.foundation_shell.command_bar.buttons["redo"].click())
+    row.addWidget(undo)
+    row.addWidget(redo)
+
+    divider = QFrame(host)
+    divider.setFrameShape(QFrame.Shape.VLine)
+    divider.setStyleSheet("color:#D8E4F2;")
+    divider.setFixedHeight(24)
+    row.addWidget(divider)
+
+    split = FAMButton("Pisah", kind="ghost")
+    split.setToolTip("Pisah clip pada playhead — aktif saat clip Timeline dipilih")
+    if hasattr(window, "_s05_split"):
+        split.clicked.connect(window._s05_split)
+    row.addWidget(split)
+
+    delete = FAMButton("Hapus", kind="ghost")
+    delete.setToolTip("Hapus lagu yang dipilih dari Album")
+    delete.clicked.connect(window._s04_delete)
+    row.addWidget(delete)
+
+    ripple = FAMButton("Ripple", kind="ghost")
+    ripple.setCheckable(True)
+    ripple.setToolTip("Mode Ripple Timeline")
+    precision = getattr(window, "timeline_precision_s05", None)
+    if precision is not None:
+        ripple.toggled.connect(precision.ripple.setChecked)
+    else:
+        ripple.setEnabled(False)
+    row.addWidget(ripple)
+    row.addStretch(1)
+
+    timeline._post_album_toolbar_host = host
+    timeline._post_album_undo = undo
+    timeline._post_album_redo = redo
+    timeline._post_album_split = split
+    timeline._post_album_delete = delete
+    timeline._post_album_ripple = ripple
+    body_layout.insertWidget(0, host)
+
+    if hasattr(window, "album_workspace"):
+        window.album_workspace.selection_changed.connect(
+            lambda _ids: _sync_album_timeline_chrome(window)
+        )
+    if hasattr(window, "editor_workspace"):
+        window.editor_workspace.documentChanged.connect(
+            lambda _document: _sync_album_timeline_chrome(window)
+        )
+
+    _sync_album_timeline_chrome(window)
+
+
 def install_post_release_album_detail_adjustment() -> None:
     global _installed
     if _installed:
@@ -48,7 +173,9 @@ def install_post_release_album_detail_adjustment() -> None:
         PixelAlbumContextWidget,
         PixelAlbumMassToolsWidget,
         PixelAlbumSongTable,
+        PixelAlbumTimelineOverviewCanvas,
     )
+    from .post_release_album_timeline_adjustment import _paint_album_timeline
 
     original_table_init = PixelAlbumSongTable.__init__
     original_table_set_rows = PixelAlbumSongTable.set_rows
@@ -177,4 +304,26 @@ def install_post_release_album_detail_adjustment() -> None:
         root.insertWidget(summary_index + 1, quick)
 
     PixelAlbumMassToolsWidget.__init__ = mass_init
+
+    # The detailed painter already exists in the Album layer, but the pixel-match
+    # subclass owns paintEvent. Apply it explicitly so UI-03 gets thumbnails,
+    # ruler, add-slot and waveform without changing timeline state.
+    PixelAlbumTimelineOverviewCanvas.paintEvent = _paint_album_timeline
+
+    from .foundation_window import FoundationMainWindow as Window
+
+    previous_init = Window.__init__
+    previous_route = Window._s04_route
+
+    def window_init(self, *args, **kwargs) -> None:
+        previous_init(self, *args, **kwargs)
+        _install_album_timeline_chrome(self)
+
+    def album_route(self, route: str) -> None:
+        previous_route(self, route)
+        _install_album_timeline_chrome(self)
+        _sync_album_timeline_chrome(self)
+
+    Window.__init__ = window_init
+    Window._s04_route = album_route
     _installed = True
