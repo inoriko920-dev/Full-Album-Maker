@@ -73,15 +73,16 @@ def _prepare(timeline) -> None:
 
 
 def _apply(window, route: str) -> None:
+    if not hasattr(window, "foundation_shell"):
+        return
     timeline = window.foundation_shell.timeline
     _prepare(timeline)
     active = str(route) == "timeline"
 
     head = getattr(timeline, "_post_timeline_head_layout", None)
     if active:
-        # The project-context message is the last remaining shared header owner in
-        # UI-04. Hide it explicitly so the STEP05 precision toolbar begins at the
-        # timeline boundary, matching the golden structure.
+        # Project context remains valid state and continues to be shown in the
+        # status bar. UI-04 simply does not duplicate it in the timeline header.
         timeline.message.hide()
         for widget in getattr(timeline, "_post_timeline_head_widgets", ()):
             widget.hide()
@@ -112,6 +113,10 @@ def _apply(window, route: str) -> None:
         # AI and the shared shell each own their non-Timeline presentation state.
 
 
+def _current_route(window) -> str:
+    return str(getattr(getattr(window, "foundation_state", None), "workspace", ""))
+
+
 def install_post_release_timeline_chrome_adjustment() -> None:
     global _installed
     if _installed:
@@ -120,15 +125,32 @@ def install_post_release_timeline_chrome_adjustment() -> None:
     from .foundation_window import FoundationMainWindow as Window
 
     previous_init = Window.__init__
+    previous_sync = Window._sync_foundation_state
+    previous_s05_refresh = Window._s05_refresh
 
     def wrapped_init(self, *args, **kwargs) -> None:
         previous_init(self, *args, **kwargs)
-        # Installed last: this connection runs after STEP04/05 and the Template
-        # chrome listener, so UI-04 gets final ownership of its own route chrome.
+        # Installed last: these listeners run after the production state/status
+        # listeners and re-assert only route-local presentation ownership.
         self.foundation_state.workspace_changed.connect(
             lambda route: _apply(self, str(route))
         )
-        _apply(self, str(getattr(self.foundation_state, "workspace", "")))
+        self.foundation_state.status_changed.connect(
+            lambda: _apply(self, _current_route(self))
+        )
+        _apply(self, _current_route(self))
+
+    def wrapped_sync(self, *args, **kwargs):
+        result = previous_sync(self, *args, **kwargs)
+        _apply(self, _current_route(self))
+        return result
+
+    def wrapped_s05_refresh(self, *args, **kwargs):
+        result = previous_s05_refresh(self, *args, **kwargs)
+        _apply(self, _current_route(self))
+        return result
 
     Window.__init__ = wrapped_init
+    Window._sync_foundation_state = wrapped_sync
+    Window._s05_refresh = wrapped_s05_refresh
     _installed = True
