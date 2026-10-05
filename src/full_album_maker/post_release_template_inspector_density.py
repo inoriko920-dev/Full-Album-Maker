@@ -33,11 +33,12 @@ def install_post_release_template_inspector_density() -> None:
             preview.setMinimumHeight(152)
             preview.setMaximumHeight(152)
 
-        # The golden keeps a visible breathing gap between the preview and the
-        # section title; use the heading box itself so the layout item order stays
-        # deterministic for automation.
-        self.heading.setMinimumHeight(30)
-        self.heading.setMaximumHeight(34)
+        settings_heading = getattr(self, "_post_template_settings_heading", None)
+        if settings_heading is not None:
+            settings_heading.setMinimumHeight(24)
+            settings_heading.setMaximumHeight(26)
+            settings_heading.show()
+
         for combo in (
             self.title_layout,
             self.cover_position,

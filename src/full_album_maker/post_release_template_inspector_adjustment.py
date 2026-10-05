@@ -120,11 +120,17 @@ def install_post_release_template_inspector_adjustment() -> None:
         self._post_template_preview = TemplateInspectorPreview(self)
         root.addWidget(self._post_template_preview)
 
-        self.heading.setText("Pengaturan Template")
-        self.heading.setStyleSheet(
-            "font-size:15px;font-weight:700;color:#10234A;padding-top:6px;"
+        # Keep the original production heading widget alive for compatibility,
+        # but use a dedicated presentation heading. The production label can be
+        # squeezed to zero by the legacy inspector size policy after re-layout;
+        # the dedicated fixed-height label makes UI-06 deterministic.
+        self.heading.hide()
+        self._post_template_settings_heading = QLabel("Pengaturan Template", self)
+        self._post_template_settings_heading.setObjectName("sectionHeading")
+        self._post_template_settings_heading.setStyleSheet(
+            "font-size:15px;font-weight:700;color:#10234A;"
         )
-        root.addWidget(self.heading)
+        root.addWidget(self._post_template_settings_heading)
         self.identity.hide()
 
         _set_combo_icon(self.title_layout, "template")
@@ -205,9 +211,13 @@ def install_post_release_template_inspector_adjustment() -> None:
         preview = getattr(self, "_post_template_preview", None)
         if preview is not None:
             preview.set_template(descriptor.template_id, descriptor.name)
-        # original_set_template writes the selected name into heading; restore
-        # the UI-06 section heading while selection remains stored internally.
-        self.heading.setText("Pengaturan Template")
+        # original_set_template still owns all data/state. Presentation heading is
+        # static and intentionally independent of the selected template name.
+        settings_heading = getattr(self, "_post_template_settings_heading", None)
+        if settings_heading is not None:
+            settings_heading.setText("Pengaturan Template")
+            settings_heading.show()
+        self.heading.hide()
 
     TemplateInspector.__init__ = compact_init
     TemplateInspector.set_template = set_template_with_preview
