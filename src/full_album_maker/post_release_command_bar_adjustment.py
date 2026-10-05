@@ -2,11 +2,14 @@ from __future__ import annotations
 
 """Post-release shared command-bar geometry matching.
 
-Only widget sizing/order is changed. Existing buttons, shortcuts, callbacks and
-enabled-state logic remain owned by the recovered foundation command adapter.
+Only widget sizing/order/icon presentation is changed. Existing buttons,
+shortcuts, callbacks and enabled-state logic remain owned by the recovered
+foundation command adapter.
 """
 
 from PySide6.QtCore import QSize
+
+from .foundation_icons import foundation_icon
 
 _installed = False
 
@@ -25,6 +28,33 @@ _DESKTOP_WIDTHS = {
     "render": 145,
 }
 
+_ICON_NAMES = {
+    "new": "new",
+    "open": "open",
+    "save": "save",
+    "undo": "undo",
+    "redo": "redo",
+    "import": "import",
+    "auto": "auto",
+    "preview": "preview",
+    "render": "render",
+}
+
+
+def _refresh_command_icons(bar, *, compact: bool) -> None:
+    # FAMButton creates these icons from the 18 px inline token. Merely asking
+    # QPushButton for a larger icon therefore left the visible glyph at ~12 px.
+    # Re-render the source pixmap at the canonical visual scale instead.
+    source_size = 28 if compact else 32
+    display_size = 27 if compact else 32
+    for key, icon_name in _ICON_NAMES.items():
+        button = bar.buttons.get(key)
+        if button is None:
+            continue
+        color = "#FFFFFF" if key == "render" else "#1766E8"
+        button.setIcon(foundation_icon(icon_name, color=color, size=source_size))
+        button.setIconSize(QSize(display_size, display_size))
+
 
 def _apply_geometry(bar, *, compact: bool) -> None:
     row = bar.layout()
@@ -33,9 +63,12 @@ def _apply_geometry(bar, *, compact: bool) -> None:
         bar.app_name.setMinimumWidth(118)
         for key, button in bar.buttons.items():
             button.setMinimumWidth(0 if key != "render" else 96)
-            button.setIconSize(QSize(16, 16))
+        _refresh_command_icons(bar, compact=True)
         return
 
+    # Candidate bottom edge was y=95/96 while the canonical edge is y=92/93.
+    # The original token is 55 px, so 52 px aligns the shared command surface.
+    bar.setFixedHeight(52)
     row.setSpacing(18)
     bar.app_name.setMinimumWidth(152)
     for key, width in _DESKTOP_WIDTHS.items():
@@ -44,7 +77,7 @@ def _apply_geometry(bar, *, compact: bool) -> None:
             continue
         button.setMinimumWidth(width)
         button.setMinimumHeight(36)
-        button.setIconSize(QSize(20, 20))
+    _refresh_command_icons(bar, compact=False)
 
 
 def install_post_release_command_bar_adjustment() -> None:
