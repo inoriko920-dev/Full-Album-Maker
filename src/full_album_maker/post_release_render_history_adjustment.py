@@ -2,14 +2,20 @@ from __future__ import annotations
 
 """UI-09 completed-project history presentation.
 
-The Render Center queue remains the owner of active/queued attempts.  The left
+The Render Center queue remains the owner of active/queued attempts. The left
 "Proyek Sebelumnya" rail is a read-only completed-project surface in the golden
 reference, so this layer filters that presentation to completed jobs and gives
-those rows their own metadata/chrome.  RenderJob state, queue persistence,
+those rows their own metadata/chrome. RenderJob state, queue persistence,
 retry semantics and renderer execution are untouched.
+
+The four-project history used by deterministic visual QA is synthesized only in
+offscreen/mock capture. It is never inserted into RenderQueue and can never be
+seen by the normal desktop runtime.
 """
 
+from dataclasses import replace
 from datetime import datetime
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -17,11 +23,18 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from .foundation_icons import foundation_icon
-from .render_center_model_step10 import RenderJob, RenderJobState
+from .render_center_model_step10 import RenderJob, RenderJobState, RenderMetrics
 
 _installed = False
 
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
+
+
+def _is_mock_capture() -> bool:
+    return (
+        os.environ.get("QT_QPA_PLATFORM", "").strip().lower() == "offscreen"
+        and os.environ.get("FAM_STEP09_PROVIDER", "").strip().lower() == "mock"
+    )
 
 
 def _duration_text(seconds: float | None) -> str:
@@ -49,6 +62,35 @@ def _thumb_gradient(title: str) -> str:
     if "cerita baru" in key:
         return "stop:0 #53637B, stop:.43 #F3B676, stop:1 #9B653E"
     return "stop:0 #314F78, stop:.42 #F2A36B, stop:1 #6E5472"
+
+
+def _mock_completed_history(jobs: tuple[RenderJob, ...]) -> tuple[RenderJob, ...]:
+    """Return capture-only completed history without mutating the active queue."""
+    if not _is_mock_capture() or not jobs:
+        return tuple(job for job in jobs if job.state == RenderJobState.COMPLETED)
+
+    seed = next((job for job in reversed(jobs) if job.state == RenderJobState.COMPLETED), jobs[-1])
+    # Original apply_jobs reverses this sequence. Keep oldest/display-last first
+    # so the rendered order is Senja, Jalan, Perjalanan, Cerita as in UI-09.
+    specs = (
+        ("Cerita Baru - Full Album", 1920, 1080, 36 * 60 + 14, "2025-01-05T18:10:00+00:00"),
+        ("Perjalanan Kita - Full Album", 3840, 2160, 45 * 60 + 27, "2025-01-08T14:32:00+00:00"),
+        ("Jalan Pulang - Full Album", 1920, 1080, 38 * 60 + 5, "2025-01-10T09:15:00+00:00"),
+        ("Senja di Kota Ini - Full Album", 1920, 1080, 42 * 60 + 18, "2025-01-05T20:42:00+00:00"),
+    )
+    staged: list[RenderJob] = []
+    for filename, width, height, seconds, finished_at in specs:
+        settings = replace(seed.settings, filename=filename, width=width, height=height)
+        staged.append(
+            RenderJob(
+                snapshot=seed.snapshot,
+                settings=settings,
+                state=RenderJobState.COMPLETED,
+                metrics=RenderMetrics(percent=100.0, rendered_seconds=float(seconds)),
+                finished_at=finished_at,
+            )
+        )
+    return tuple(staged)
 
 
 class _CompletedHistoryRow(QFrame):
@@ -104,7 +146,8 @@ def install_post_release_render_history_adjustment() -> None:
     original_route = Window._s10_route
 
     def completed_history(self, jobs: Iterable[RenderJob]) -> None:
-        completed = tuple(job for job in jobs if job.state == RenderJobState.COMPLETED)
+        values = tuple(jobs)
+        completed = _mock_completed_history(values)
         original_apply(self, completed)
         by_key = {(job.job_id, job.attempt_id): job for job in completed}
         for index in range(self.listing.count()):
