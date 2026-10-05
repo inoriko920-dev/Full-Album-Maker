@@ -3,7 +3,7 @@ from __future__ import annotations
 """Small UI-09 chrome details that are safe to keep presentation-only.
 
 The timeline slider/expand control and inspector copy below are shown only by
-deterministic offscreen/mock Render capture.  They never change project zoom,
+deterministic offscreen/mock Render capture. They never change project zoom,
 RenderSettings, queue state, or render execution.
 """
 
@@ -36,7 +36,6 @@ def _fullscreen_icon(size: int = 17, color: str = "#536B8E") -> QIcon:
     painter.setPen(pen)
     m = size * .18
     d = size * .26
-    # Four open corners read more like the UI-09 expand control than a chevron.
     painter.drawLine(QPointF(m, m + d), QPointF(m, m))
     painter.drawLine(QPointF(m, m), QPointF(m + d, m))
     painter.drawLine(QPointF(size - m - d, m), QPointF(size - m, m))
@@ -49,10 +48,31 @@ def _fullscreen_icon(size: int = 17, color: str = "#536B8E") -> QIcon:
     return QIcon(pix)
 
 
+def _timeline_header_layout(timeline):
+    """Return the foundation timeline header layout without relying on a private attr.
+
+    TimelineDockHost intentionally keeps its QHBoxLayout as a local variable in
+    foundation_shell.py. The first item in the root QVBoxLayout is that header.
+    Looking it up structurally keeps this presentation layer compatible with the
+    production foundation widget and avoids inventing attributes such as
+    ``control_bar``/``zoom``/``plus`` that do not exist.
+    """
+    root = timeline.layout()
+    if root is None or root.count() <= 0:
+        return None
+    item = root.itemAt(0)
+    return item.layout() if item is not None else None
+
+
 def _install_timeline_chrome(window) -> None:
     timeline = window.foundation_shell.timeline
     if getattr(timeline, "_pixel_render_chrome_detail", False):
         return
+
+    header = _timeline_header_layout(timeline)
+    if header is None:
+        return
+
     timeline._pixel_render_chrome_detail = True
 
     icon = QLabel(timeline)
@@ -60,8 +80,8 @@ def _install_timeline_chrome(window) -> None:
     icon.setPixmap(foundation_icon("timeline", color="#536B8E", size=15).pixmap(QSize(15, 15)))
     icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
     icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-    message_index = timeline.control_bar.indexOf(timeline.message)
-    timeline.control_bar.insertWidget(max(0, message_index), icon)
+    message_index = header.indexOf(timeline.message)
+    header.insertWidget(message_index if message_index >= 0 else 1, icon)
 
     slider = QSlider(Qt.Orientation.Horizontal, timeline)
     slider.setRange(25, 200)
@@ -76,8 +96,11 @@ def _install_timeline_chrome(window) -> None:
         "background:#1766E8;border:none;border-radius:5px;}"
         "QSlider:disabled{color:#1766E8;}"
     )
-    zoom_index = timeline.control_bar.indexOf(timeline.zoom)
-    timeline.control_bar.insertWidget(max(0, zoom_index), slider)
+    # Foundation order is zoom-out, 100%, zoom-in. Place the slider immediately
+    # after zoom-out so the mock reads as minus / slider / 100% / plus.
+    zoom_out_index = header.indexOf(timeline.zoom_out)
+    slider_index = zoom_out_index + 1 if zoom_out_index >= 0 else max(0, header.count() - 2)
+    header.insertWidget(slider_index, slider)
 
     expand = QPushButton(timeline)
     expand.setObjectName("pixelRenderTimelineExpand")
@@ -89,8 +112,8 @@ def _install_timeline_chrome(window) -> None:
         "QPushButton{border:none;background:transparent;padding:0;}"
         "QPushButton:disabled{background:transparent;}"
     )
-    plus_index = timeline.control_bar.indexOf(timeline.plus)
-    timeline.control_bar.insertWidget(plus_index + 1, expand)
+    zoom_in_index = header.indexOf(timeline.zoom_in)
+    header.insertWidget(zoom_in_index + 1 if zoom_in_index >= 0 else header.count(), expand)
 
     timeline._pixel_render_timeline_icon = icon
     timeline._pixel_render_zoom_slider = slider
@@ -152,8 +175,8 @@ def install_post_release_render_chrome_detail() -> None:
 
     def route_with_ui09_chrome_detail(self, route: str) -> None:
         original_route(self, route)
-        _install_timeline_chrome(self)
         if _is_mock_capture():
+            _install_timeline_chrome(self)
             _install_inspector_detail(self)
         _set_visible(self, route == "render" and _is_mock_capture())
 
