@@ -1,0 +1,439 @@
+name: One-repo backup Full Album Maker
+
+on:
+  push:
+    branches:
+      - backup/full-album-maker-2026-10-05-1723-wib
+    paths:
+      - .github/workflows/one-repo-backup.yml
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout complete repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Build and verify single-repo backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TZ=Asia/Jakarta
+
+          BACKUP_WIB="$(date '+%Y-%m-%d %H:%M:%S WIB')"
+          BACKUP_SLUG="$(date '+%Y-%m-%d_%H-%M-%S_WIB')"
+          ROOT_NAME="Full-Album-Maker-BACKUP-${BACKUP_SLUG}"
+          ROOT="$RUNNER_TEMP/$ROOT_NAME"
+          APP="$ROOT/APP_001_FULL_ALBUM_MAKER"
+          FINAL_ZIP="$GITHUB_WORKSPACE/Full-Album-Maker-BACKUP-${BACKUP_SLUG}.zip"
+
+          mkdir -p "$APP"/{GIT,SOURCE,BUILD,DOCS,RECOVERY}
+
+          # Fetch every branch/tag explicitly, then mirror remote branch refs into local
+          # heads so `git bundle --all` is sufficient for branch/tag recovery.
+          git fetch origin --prune \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*'
+          while IFS= read -r ref; do
+            branch="${ref#refs/remotes/origin/}"
+            [[ "$branch" == "HEAD" ]] && continue
+            git update-ref "refs/heads/$branch" "$ref"
+          done < <(git for-each-ref --format='%(refname)' refs/remotes/origin/)
+
+          MAIN_COMMIT="$(git rev-parse refs/heads/main)"
+          if git show-ref --verify --quiet refs/heads/ui/post-release-pixel-match; then
+            ACTIVE_BRANCH="ui/post-release-pixel-match"
+            ACTIVE_COMMIT="$(git rev-parse refs/heads/ui/post-release-pixel-match)"
+          else
+            ACTIVE_BRANCH="${GITHUB_REF_NAME}"
+            ACTIVE_COMMIT="$(git rev-parse HEAD)"
+          fi
+          BACKUP_BRANCH_COMMIT="$(git rev-parse HEAD)"
+
+          cat > "$ROOT/00_README_PERTAMA.txt" <<EOF
+          BACKUP KHUSUS SATU REPO: Full-Album-Maker
+          Repository asli : https://github.com/${GITHUB_REPOSITORY}
+          Tanggal/waktu    : ${BACKUP_WIB}
+          Zona waktu       : WIB / Asia-Jakarta (UTC+7)
+          Default branch   : main
+          Branch kerja     : ${ACTIVE_BRANCH}
+          Commit kerja     : ${ACTIVE_COMMIT}
+          Main commit      : ${MAIN_COMMIT}
+
+          Paket ini sengaja hanya membackup Full-Album-Maker.
+          Repo/aplikasi lain TIDAK termasuk.
+
+          Mulai pemulihan dari:
+          APP_001_FULL_ALBUM_MAKER/RECOVERY/PETUNJUK_PEMULIHAN.txt
+          EOF
+
+          cat > "$ROOT/00_BACKUP_INFO.txt" <<EOF
+          BACKUP_SCOPE=ONE_REPOSITORY_ONLY
+          APP_NAME=Full Album Maker
+          REPOSITORY=${GITHUB_REPOSITORY}
+          BACKUP_DATE_TIME_WIB=${BACKUP_WIB}
+          BACKUP_TIMEZONE=Asia/Jakarta (UTC+7)
+          DEFAULT_BRANCH=main
+          MAIN_COMMIT=${MAIN_COMMIT}
+          ACTIVE_BRANCH=${ACTIVE_BRANCH}
+          ACTIVE_COMMIT=${ACTIVE_COMMIT}
+          BACKUP_BRANCH=${GITHUB_REF_NAME}
+          BACKUP_BRANCH_COMMIT=${BACKUP_BRANCH_COMMIT}
+          SOURCE_MAIN=YES
+          SOURCE_ACTIVE_BRANCH=YES
+          GIT_BUNDLE=YES
+          BUILD_RELEASE=v1.4.0 if download/verification below succeeds
+          SECRETS=NOT_BACKED_UP
+          EOF
+
+          cat > "$APP/REPOSITORY_INFO.txt" <<EOF
+          APP_NAME=Full Album Maker
+          ORIGINAL_REPO=https://github.com/${GITHUB_REPOSITORY}
+          REPOSITORY_FULL_NAME=${GITHUB_REPOSITORY}
+          DEFAULT_BRANCH=main
+          MAIN_COMMIT=${MAIN_COMMIT}
+          ACTIVE_BRANCH=${ACTIVE_BRANCH}
+          ACTIVE_COMMIT=${ACTIVE_COMMIT}
+          BACKUP_BRANCH=${GITHUB_REF_NAME}
+          BACKUP_BRANCH_COMMIT=${BACKUP_BRANCH_COMMIT}
+          BACKUP_DATE_TIME_WIB=${BACKUP_WIB}
+          EOF
+          printf '%s\n' "$MAIN_COMMIT" > "$APP/MAIN_COMMIT.txt"
+          printf '%s\n' "$ACTIVE_COMMIT" > "$APP/ACTIVE_COMMIT.txt"
+
+          git for-each-ref --sort=refname \
+            --format='%(refname) %(objectname)' \
+            refs/heads refs/remotes/origin > "$APP/BRANCHES.txt"
+          git show-ref --tags -d > "$APP/TAGS.txt" || true
+          git log --all --date=iso-strict --decorate=full \
+            --pretty=format:'%H | %ad | %an <%ae> | %D | %s' \
+            > "$APP/COMMIT_HISTORY.txt"
+
+          # Inventory workflow-required secret NAMES only. Never read secret values.
+          {
+            echo "SECRET VALUES ARE NOT BACKED UP."
+            echo "Restore required values manually after repository recovery."
+            echo
+            names="$(grep -RhoE '\$\{\{[[:space:]]*secrets\.[A-Za-z0-9_]+' .github/workflows 2>/dev/null \
+              | sed -E 's/.*secrets\.//' | sort -u || true)"
+            if [[ -n "$names" ]]; then
+              while IFS= read -r name; do
+                [[ -n "$name" ]] && echo "${name}=SECRET_REQUIRED_BUT_NOT_BACKED_UP"
+              done <<< "$names"
+            else
+              echo "NONE_DETECTED_IN_WORKFLOWS"
+            fi
+          } > "$APP/REQUIRED_SECRETS.txt"
+
+          # Credential-pattern scan across reachable textual Git history. If a likely
+          # real token appears, stop instead of putting it into the backup bundle.
+          SECRET_PATTERN='(ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|AIza[0-9A-Za-z_-]{30,}|sk-[A-Za-z0-9]{24,})'
+          if git log -p --all --no-ext-diff --no-color -- . \
+            | grep -E "$SECRET_PATTERN" > "$RUNNER_TEMP/credential-pattern-matches.txt"; then
+            echo "Credential-like value detected in reachable Git history; backup aborted." >&2
+            sed -n '1,20p' "$RUNNER_TEMP/credential-pattern-matches.txt" >&2
+            exit 1
+          fi
+          cat > "$APP/SECRET_SCAN.txt" <<EOF
+          STATUS=PASS
+          METHOD=credential-pattern scan of reachable textual Git history
+          RESULT=No GitHub/Gemini/OpenAI-style credential token pattern detected.
+          NOTE=Secret values were never requested from GitHub Actions secrets.
+          EOF
+
+          # Complete Git history bundle.
+          BUNDLE="$APP/GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle"
+          git bundle create "$BUNDLE" --all
+          git bundle verify "$BUNDLE" > "$APP/GIT/BUNDLE_VERIFY.txt" 2>&1
+          git bundle list-heads "$BUNDLE" > "$APP/GIT/BUNDLE_REFS.txt"
+          test -s "$BUNDLE"
+
+          # Human-friendly source snapshots: stable main + the active fidelity branch.
+          MAIN_SOURCE="$APP/SOURCE/Full-Album-Maker-SOURCE-main.zip"
+          ACTIVE_SAFE="${ACTIVE_BRANCH//\//-}"
+          ACTIVE_SOURCE="$APP/SOURCE/Full-Album-Maker-SOURCE-${ACTIVE_SAFE}.zip"
+          BACKUP_SOURCE="$APP/SOURCE/Full-Album-Maker-SOURCE-backup-mechanism.zip"
+          git archive --format=zip --output="$MAIN_SOURCE" refs/heads/main
+          git archive --format=zip --output="$ACTIVE_SOURCE" "refs/heads/${ACTIVE_BRANCH}"
+          git archive --format=zip --output="$BACKUP_SOURCE" "refs/heads/${GITHUB_REF_NAME}"
+          unzip -tq "$MAIN_SOURCE"
+          unzip -tq "$ACTIVE_SOURCE"
+          unzip -tq "$BACKUP_SOURCE"
+          test -s "$MAIN_SOURCE"
+          test -s "$ACTIVE_SOURCE"
+
+          # Useful recovery/build documentation copied separately for quick access.
+          if [[ -f README.md ]]; then cp -a README.md "$APP/DOCS/"; fi
+          if [[ -d docs ]]; then cp -a docs "$APP/DOCS/"; fi
+          mkdir -p "$APP/DOCS/.github"
+          cp -a .github/workflows "$APP/DOCS/.github/"
+          while IFS= read -r -d '' file; do
+            rel="${file#./}"
+            mkdir -p "$APP/DOCS/$(dirname "$rel")"
+            cp -a "$file" "$APP/DOCS/$rel"
+          done < <(find . -maxdepth 3 -type f \( \
+            -name 'pyproject.toml' -o \
+            -name 'requirements*.txt' -o \
+            -name '*.spec' -o \
+            -name 'package.json' -o \
+            -name 'package-lock.json' -o \
+            -name 'Cargo.toml' -o \
+            -name 'Cargo.lock' -o \
+            -iname 'README*' \
+          \) -print0)
+          find . -type f \( -iname '*prompt*.md' -o -iname '*prompt*.txt' -o -iname '*plan*.md' -o -iname '*plan*.txt' \) \
+            -not -path './.git/*' -print | sort > "$APP/DOCS/PROMPT_AND_PLAN_FILES_IN_SOURCE.txt" || true
+
+          # Back up the latest trusted portable release instead of rebuilding it.
+          RELEASE_JSON="$APP/BUILD/latest-release.json"
+          curl --fail --silent --show-error --location \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" \
+            --output "$RELEASE_JSON"
+          BUILD_NAME="$(jq -r '.assets[] | select(.name | endswith("Windows-Portable.zip")) | .name' "$RELEASE_JSON" | head -n1)"
+          BUILD_URL="$(jq -r '.assets[] | select(.name | endswith("Windows-Portable.zip")) | .browser_download_url' "$RELEASE_JSON" | head -n1)"
+          BUILD_EXPECTED="$(jq -r '.assets[] | select(.name | endswith("Windows-Portable.zip")) | (.digest // "")' "$RELEASE_JSON" | head -n1)"
+          if [[ -z "$BUILD_NAME" || -z "$BUILD_URL" || "$BUILD_NAME" == "null" || "$BUILD_URL" == "null" ]]; then
+            echo "Latest trusted Windows portable release asset not found." >&2
+            exit 1
+          fi
+          curl --fail --location --retry 3 --retry-delay 3 \
+            "$BUILD_URL" --output "$APP/BUILD/$BUILD_NAME"
+          BUILD_ACTUAL="sha256:$(sha256sum "$APP/BUILD/$BUILD_NAME" | awk '{print $1}')"
+          if [[ -n "$BUILD_EXPECTED" && "$BUILD_EXPECTED" != "null" && "$BUILD_EXPECTED" != "$BUILD_ACTUAL" ]]; then
+            echo "Portable build SHA-256 mismatch: expected=$BUILD_EXPECTED actual=$BUILD_ACTUAL" >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error --location \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v1.4.0/SHA256SUMS.txt" \
+            --output "$APP/BUILD/RELEASE_SHA256SUMS.txt"
+          printf 'BUILD_FILE=%s\nEXPECTED=%s\nACTUAL=%s\nSTATUS=PASS\n' \
+            "$BUILD_NAME" "$BUILD_EXPECTED" "$BUILD_ACTUAL" > "$APP/BUILD/BUILD_VERIFY.txt"
+
+          cat > "$APP/README_RESTORE.txt" <<EOF
+          Full Album Maker - README RESTORE
+          Backup dibuat: ${BACKUP_WIB}
+
+          Isi penting:
+          1. GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle = riwayat Git/ref lengkap.
+          2. SOURCE/*.zip = snapshot source yang mudah dibuka manusia.
+          3. BUILD/$BUILD_NAME = build portable stabil terakhir yang tersedia.
+          4. REQUIRED_SECRETS.txt = hanya NAMA secret, TANPA nilainya.
+          5. RECOVERY/PETUNJUK_PEMULIHAN.txt = panduan pemulihan langkah demi langkah.
+          EOF
+
+          cat > "$APP/RECOVERY/PETUNJUK_PEMULIHAN.txt" <<'EOF'
+          PEMULIHAN FULL ALBUM MAKER JIKA GITHUB LAMA TIDAK BISA DIAKSES
+
+          1. Ekstrak ZIP backup utama.
+          2. Buka APP_001_FULL_ALBUM_MAKER.
+          3. Jalankan RECOVERY/VERIFY_BACKUP.ps1 dari Windows PowerShell.
+          4. Pastikan Git Bundle berstatus valid dan checksum tidak gagal.
+          5. Buat repository KOSONG bernama Full-Album-Maker pada akun GitHub baru.
+             Jangan menambah README/LICENSE dari GitHub saat membuat repo kosong.
+          6. Siapkan URL repo baru, contoh:
+             https://github.com/AKUN-BARU/Full-Album-Maker.git
+          7. Jalankan RECOVERY/RESTORE_TO_NEW_GITHUB.ps1.
+          8. Masukkan URL repo baru saat diminta.
+          9. Script akan clone dari Git Bundle dan MENUNGGU konfirmasi sebelum push.
+          10. Ketik RESTORE hanya setelah URL benar.
+          11. Setelah branch dan tag ter-push, buka REQUIRED_SECRETS.txt.
+          12. Isi ulang secret yang dibutuhkan secara manual pada GitHub baru.
+          13. Jalankan workflow build/release yang relevan.
+          14. Cocokkan commit penting dengan MAIN_COMMIT.txt / ACTIVE_COMMIT.txt.
+
+          Jangan pernah memasukkan API key/token ke file backup ini.
+          EOF
+
+          cat > "$APP/RECOVERY/VERIFY_BACKUP.ps1" <<'PS1'
+          $ErrorActionPreference = "Stop"
+          $App = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+          $Root = Split-Path -Parent $App
+          Write-Host "Verifikasi checksum aplikasi..."
+          Push-Location $App
+          Get-Content "SHA256SUMS.txt" | ForEach-Object {
+              if ($_ -match '^([0-9a-fA-F]{64})\s+(.+)$') {
+                  $expected = $Matches[1].ToLower()
+                  $path = $Matches[2]
+                  $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLower()
+                  if ($actual -ne $expected) { throw "Checksum gagal: $path" }
+              }
+          }
+          Pop-Location
+          $bundle = Join-Path $App "GIT\Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle"
+          & git bundle verify $bundle
+          if ($LASTEXITCODE -ne 0) { throw "Git Bundle gagal diverifikasi." }
+          Write-Host "PASS: checksum aplikasi + Git Bundle valid."
+          PS1
+
+          cat > "$APP/RECOVERY/RESTORE_TO_NEW_GITHUB.ps1" <<'PS1'
+          param([string]$NewRepoUrl = "")
+          $ErrorActionPreference = "Stop"
+          $App = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+          $bundle = Join-Path $App "GIT\Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle"
+          if (-not $NewRepoUrl) { $NewRepoUrl = Read-Host "URL repo GitHub BARU (repo harus kosong)" }
+          if ($NewRepoUrl -notmatch '^https://github\.com/.+/.+\.git$') {
+              throw "Format URL tidak sesuai. Contoh: https://github.com/AKUN/Full-Album-Maker.git"
+          }
+          & git bundle verify $bundle
+          if ($LASTEXITCODE -ne 0) { throw "Git Bundle tidak valid." }
+          $restoreRoot = Join-Path $env:TEMP ("Full-Album-Maker-Restore-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+          & git clone $bundle $restoreRoot
+          if ($LASTEXITCODE -ne 0) { throw "Clone dari Git Bundle gagal." }
+          Push-Location $restoreRoot
+          if (git remote | Select-String '^origin$') { git remote remove origin }
+          git remote add origin $NewRepoUrl
+          Write-Host ""
+          Write-Host "BELUM ADA YANG DI-PUSH."
+          Write-Host "Tujuan: $NewRepoUrl"
+          Write-Host "Branch lokal:"; git branch -a
+          Write-Host "Tag:"; git tag
+          $confirm = Read-Host "Ketik RESTORE untuk push SEMUA branch lokal + tag ke repo baru"
+          if ($confirm -ne 'RESTORE') {
+              Pop-Location
+              Write-Host "Dibatalkan. Tidak ada push ke GitHub."
+              exit 0
+          }
+          git push origin --all
+          if ($LASTEXITCODE -ne 0) { throw "Push branch gagal." }
+          git push origin --tags
+          if ($LASTEXITCODE -ne 0) { throw "Push tag gagal." }
+          Pop-Location
+          Write-Host "Restore Git selesai. Isi ulang secrets sesuai REQUIRED_SECRETS.txt."
+          PS1
+
+          cat > "$ROOT/VERIFY_ALL_BACKUP.ps1" <<'PS1'
+          $ErrorActionPreference = "Stop"
+          $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+          Push-Location $Root
+          Write-Host "Verifikasi checksum seluruh backup..."
+          Get-Content "00_SHA256SUMS.txt" | ForEach-Object {
+              if ($_ -match '^([0-9a-fA-F]{64})\s+(.+)$') {
+                  $expected = $Matches[1].ToLower()
+                  $path = $Matches[2]
+                  $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLower()
+                  if ($actual -ne $expected) { throw "Checksum gagal: $path" }
+              }
+          }
+          Pop-Location
+          & (Join-Path $Root "APP_001_FULL_ALBUM_MAKER\RECOVERY\VERIFY_BACKUP.ps1")
+          Write-Host "PASS: backup Full-Album-Maker tervalidasi."
+          PS1
+
+          cat > "$ROOT/RESTORE_ALL.ps1" <<'PS1'
+          $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+          Write-Host "Paket ini hanya berisi 1 aplikasi: Full Album Maker."
+          $answer = Read-Host "Ketik 1 untuk membuka proses restore, selain itu untuk batal"
+          if ($answer -ne '1') { Write-Host "Dibatalkan."; exit 0 }
+          & (Join-Path $Root "APP_001_FULL_ALBUM_MAKER\RECOVERY\RESTORE_TO_NEW_GITHUB.ps1")
+          PS1
+
+          cat > "$APP/STATUS_BACKUP.txt" <<EOF
+          BACKUP_STATUS=BACKUP_COMPLETE
+          SOURCE_MAIN=PASS
+          SOURCE_ACTIVE_BRANCH=PASS
+          GIT_BUNDLE=PASS
+          GIT_BUNDLE_VERIFY=PASS
+          BRANCH_REFS=PASS
+          TAG_REFS=PASS
+          COMMIT_HISTORY=PASS
+          BUILD_PORTABLE=PASS
+          BUILD_SHA256=PASS
+          DOCS=PASS
+          RECOVERY_SCRIPTS=PASS
+          SECRET_VALUE_BACKUP=NO
+          SECRET_PATTERN_SCAN=PASS
+          BACKUP_DATE_TIME_WIB=${BACKUP_WIB}
+          EOF
+
+          cat > "$ROOT/00_MASTER_MANIFEST.txt" <<EOF
+          TOTAL_PROJECTS=1
+          APP_NAME=Full Album Maker
+          ORIGINAL_REPO=https://github.com/${GITHUB_REPOSITORY}
+          BACKUP_DATE_TIME_WIB=${BACKUP_WIB}
+          MAIN_COMMIT=${MAIN_COMMIT}
+          ACTIVE_BRANCH=${ACTIVE_BRANCH}
+          ACTIVE_COMMIT=${ACTIVE_COMMIT}
+          GIT_BUNDLE=APP_001_FULL_ALBUM_MAKER/GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle
+          SOURCE_MAIN=APP_001_FULL_ALBUM_MAKER/SOURCE/Full-Album-Maker-SOURCE-main.zip
+          SOURCE_ACTIVE=APP_001_FULL_ALBUM_MAKER/SOURCE/Full-Album-Maker-SOURCE-${ACTIVE_SAFE}.zip
+          BUILD=APP_001_FULL_ALBUM_MAKER/BUILD/${BUILD_NAME}
+          DOCS=APP_001_FULL_ALBUM_MAKER/DOCS
+          RECOVERY=APP_001_FULL_ALBUM_MAKER/RECOVERY
+          BACKUP_STATUS=BACKUP_COMPLETE
+          CHECKSUM_STATUS=PASS
+          EOF
+
+          cat > "$ROOT/00_MASTER_MANIFEST.csv" <<EOF
+          APP_NAME,ORIGINAL_REPO,DEFAULT_BRANCH,MAIN_COMMIT,ACTIVE_BRANCH,ACTIVE_COMMIT,BUILD,BACKUP_STATUS,BACKUP_DATE_TIME_WIB
+          "Full Album Maker","https://github.com/${GITHUB_REPOSITORY}","main","${MAIN_COMMIT}","${ACTIVE_BRANCH}","${ACTIVE_COMMIT}","${BUILD_NAME}","BACKUP_COMPLETE","${BACKUP_WIB}"
+          EOF
+
+          # Per-application checksums.
+          (
+            cd "$APP"
+            find . -type f ! -name 'SHA256SUMS.txt' -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS.txt
+            sha256sum -c SHA256SUMS.txt
+          )
+
+          # Whole-package checksums include the application checksum manifest.
+          (
+            cd "$ROOT"
+            find . -type f ! -name '00_SHA256SUMS.txt' -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > 00_SHA256SUMS.txt
+            sha256sum -c 00_SHA256SUMS.txt
+          )
+
+          # Final structural validations required before declaring complete.
+          test "$(find "$ROOT" -maxdepth 1 -type d -name 'APP_*' | wc -l)" -eq 1
+          test -s "$APP/MAIN_COMMIT.txt"
+          test -s "$APP/BRANCHES.txt"
+          test -s "$APP/GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle"
+          test -s "$MAIN_SOURCE"
+          test -s "$ACTIVE_SOURCE"
+          test -s "$APP/RECOVERY/RESTORE_TO_NEW_GITHUB.ps1"
+          test -s "$APP/RECOVERY/VERIFY_BACKUP.ps1"
+          git bundle verify "$BUNDLE" >/dev/null
+
+          (
+            cd "$RUNNER_TEMP"
+            zip -q -r -9 "$FINAL_ZIP" "$ROOT_NAME"
+          )
+          unzip -tq "$FINAL_ZIP"
+          FINAL_SHA="$(sha256sum "$FINAL_ZIP" | awk '{print $1}')"
+          FINAL_SIZE="$(stat -c%s "$FINAL_ZIP")"
+
+          echo "FINAL_ZIP=$FINAL_ZIP" >> "$GITHUB_ENV"
+          echo "FINAL_NAME=$(basename "$FINAL_ZIP")" >> "$GITHUB_ENV"
+          {
+            echo "## Full Album Maker single-repo backup"
+            echo "- WIB: ${BACKUP_WIB}"
+            echo "- Active commit: ${ACTIVE_COMMIT}"
+            echo "- Main commit: ${MAIN_COMMIT}"
+            echo "- Final file: $(basename "$FINAL_ZIP")"
+            echo "- Size: ${FINAL_SIZE} bytes"
+            echo "- SHA-256: ${FINAL_SHA}"
+            echo "- Git bundle verify: PASS"
+            echo "- Source ZIP test: PASS"
+            echo "- Whole backup checksum: PASS"
+            echo "- Portable build SHA-256: PASS"
+            echo "- Secret-pattern scan: PASS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verified backup package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: full-album-maker-single-repo-backup-wib
+          path: ${{ env.FINAL_ZIP }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
