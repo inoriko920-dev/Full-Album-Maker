@@ -13,6 +13,7 @@ import os
 
 from PySide6.QtCore import QPointF, QSize, Qt, QSignalBlocker
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtWidgets import QFrame
 
 from .foundation_icons import foundation_icon
 
@@ -198,6 +199,12 @@ def install_post_release_render_inspector_adjustment() -> None:
 
     def adjusted_init(self, *args, **kwargs) -> None:
         original_init(self, *args, **kwargs)
+        root = self.layout()
+        left, _top, right, bottom = root.getContentsMargins()
+        # Render reference has a larger gap between segmented tabs and the
+        # output heading than Template. Keep this route-specific.
+        root.setContentsMargins(left, 20, right, bottom)
+
         for value in ("24", "25", "30", "50", "60"):
             _set_item_text(self.fps, value, f"{value} fps")
         _set_item_text(self.video_codec, "h264", "H.264 (AVC)")
@@ -230,6 +237,27 @@ def install_post_release_render_inspector_adjustment() -> None:
         button.setMaximumHeight(40)
         button.setMinimumWidth(177)
 
+        root = self.layout()
+        header = next(
+            (frame for frame in self.findChildren(QFrame) if frame.objectName() == "pixelRenderHeader"),
+            None,
+        )
+        if header is not None:
+            header.setMinimumHeight(80)
+            header.setMaximumHeight(80)
+
+        # Compress only the oversized hero card, then return its released space
+        # before the queue. This moves preflight cards upward while preserving
+        # the already-close queue/performance geometry below.
+        grid_index = -1
+        for index in range(root.count()):
+            candidate = root.itemAt(index).layout()
+            if candidate is not None and candidate.count() >= 5:
+                grid_index = index
+                break
+        if grid_index >= 0:
+            root.insertSpacing(grid_index + 1, 21)
+
     def adjusted_settings(self):
         settings = original_settings(self)
         if (
@@ -255,6 +283,14 @@ def install_post_release_render_inspector_adjustment() -> None:
     def route_with_action_chrome(self, route: str) -> None:
         original_route(self, route)
         if route == "render":
+            # UI-09 intentionally has a shallow breathing strip above the shared
+            # tabs. Template does not, so keep it local to Render.
+            header = self.foundation_shell.inspector.header
+            header.title.hide()
+            header.collapse_button.hide()
+            header.setMinimumHeight(16)
+            header.setMaximumHeight(16)
+            header.show()
             _style_completion_actions(self)
 
     PixelMatchRenderSettingsInspector.__init__ = adjusted_init
