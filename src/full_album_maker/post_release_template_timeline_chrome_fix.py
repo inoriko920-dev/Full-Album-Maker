@@ -16,8 +16,15 @@ _installed = False
 
 
 def _apply_template_timeline_chrome(window, route: str) -> None:
+    route = str(route)
+    # UI-04 has its own STEP05 precision toolbar/chrome owner. A Template refresh
+    # may still run after a Timeline playhead/selection update, so it must not
+    # restore the shared STEP01 controls while Timeline is active.
+    if route == "timeline":
+        return
+
     timeline = window.foundation_shell.timeline
-    active = str(route) == "template"
+    active = route == "template"
 
     # The foundation mode is a composite widget. Enforce the hidden state on the
     # owner and its child buttons because other workspace refresh layers may show
