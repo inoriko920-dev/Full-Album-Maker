@@ -47,6 +47,14 @@ def install_post_release_template_inspector_density() -> None:
             header_host.setMinimumHeight(183)
             header_host.setMaximumHeight(183)
 
+        # FOUNDATION_STYLE gives every QComboBox a 34 px *content* minimum plus
+        # 3 px vertical padding and a 1 px border. The resulting ~42 px control
+        # is much taller than UI-06. Override only these five production Template
+        # controls: 23 px content + 6 px padding + 2 px border = 31 px total.
+        compact_combo_style = (
+            "QComboBox { min-height: 23px; max-height: 23px; "
+            "padding-top: 3px; padding-bottom: 3px; }"
+        )
         for combo in (
             self.title_layout,
             self.cover_position,
@@ -54,8 +62,9 @@ def install_post_release_template_inspector_density() -> None:
             self.spacing,
             self.typography,
         ):
-            combo.setMinimumHeight(29)
+            combo.setMinimumHeight(0)
             combo.setMaximumHeight(31)
+            combo.setStyleSheet(compact_combo_style)
         root.setSpacing(4)
 
         # The compact inspector layer exposes the production scope row directly.
