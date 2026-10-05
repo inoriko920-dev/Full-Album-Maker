@@ -76,7 +76,7 @@ jobs:
           assert report['timeline_visible'] is True, report
           assert report['context_width'] in range(198, 213), report
           assert report['right_dock_width'] in range(322, 335), report
-          assert report['timeline_height'] in range(150, 166), report
+          assert report['timeline_height'] in range(138, 149), report
           assert report['status_height'] in range(26, 31), report
           assert report['card_count'] == 12 and report['custom_card_count'] == 4, report
           assert report['song_count'] == 4, report

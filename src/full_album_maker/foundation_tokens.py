@@ -76,7 +76,9 @@ TIMELINE_HEIGHT_BY_WORKSPACE = {
     "album": TOKENS.timeline_compact_height,
     "timeline": TOKENS.timeline_dominant_height,
     "visual": TOKENS.timeline_medium_height,
-    "template": 158,
+    # Measured from the immutable UI-06 1672x941 reference: the Template
+    # timeline occupies ~142-144 logical px above the fixed status bar.
+    "template": 142,
     "spectrum": 252,
     "ai_agent": 178,
     "render": TOKENS.timeline_collapsed_height,
