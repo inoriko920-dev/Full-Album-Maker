@@ -3,9 +3,9 @@ from __future__ import annotations
 """UI-09 collapsed-timeline and footer presentation alignment.
 
 The real desktop runtime must continue to expose the live project/capability
-state.  Only deterministic offscreen/mock visual QA substitutes the immutable
-UI-09 footer copy.  No FoundationUiState values are mutated; this layer changes
-only the widgets that paint the capture.
+state. Only deterministic offscreen/mock visual QA substitutes the immutable
+UI-09 footer copy and bottom-chrome geometry. No FoundationUiState values are
+mutated; this layer changes only the widgets that paint the capture.
 """
 
 import os
@@ -14,7 +14,14 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QLabel
 
+from .foundation_tokens import TOKENS
+
 _installed = False
+
+# Measured against the immutable 1672x941 UI-09 reference. Foundation defaults
+# are 34 px timeline + 28 px status; the golden bottom chrome occupies ~54 px.
+_UI09_TIMELINE_HEIGHT = 32
+_UI09_STATUS_HEIGHT = 22
 
 
 def _is_mock_capture() -> bool:
@@ -63,6 +70,26 @@ def _restore_native_badge(status_item) -> None:
     status_item.dot.show()
 
 
+def _apply_ui09_bottom_geometry(window, active: bool) -> None:
+    """Apply capture-only heights without changing runtime token defaults."""
+    timeline = window.foundation_shell.timeline
+    status = window.foundation_shell.status_bar
+    if active:
+        timeline.setMinimumHeight(_UI09_TIMELINE_HEIGHT)
+        timeline.setMaximumHeight(_UI09_TIMELINE_HEIGHT)
+        status.setFixedHeight(_UI09_STATUS_HEIGHT)
+        splitter = window.foundation_shell.vertical_splitter
+        sizes = splitter.sizes()
+        if sizes:
+            available = sum(sizes)
+            splitter.setSizes([max(0, available - _UI09_TIMELINE_HEIGHT), _UI09_TIMELINE_HEIGHT])
+        return
+
+    # Other routes are restored to the shell's normal status height. Timeline
+    # geometry is already route-owned by TimelineDockHost.set_workspace().
+    status.setFixedHeight(TOKENS.status_height)
+
+
 def install_post_release_render_footer_adjustment() -> None:
     global _installed
     if _installed:
@@ -102,7 +129,9 @@ def install_post_release_render_footer_adjustment() -> None:
     def route_with_ui09_bottom(self, route: str) -> None:
         original_route(self, route)
         status = self.foundation_shell.status_bar
-        if route == "render" and _is_mock_capture():
+        active = route == "render" and _is_mock_capture()
+        _apply_ui09_bottom_geometry(self, active)
+        if active:
             self.foundation_shell.timeline.set_project_context("Belum ada proyek yang dibuka")
             status.refresh()
         else:
