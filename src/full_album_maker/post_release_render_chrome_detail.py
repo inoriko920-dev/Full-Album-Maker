@@ -9,7 +9,7 @@ RenderSettings, queue state, or render execution.
 
 import os
 
-from PySide6.QtCore import QPointF, QSize, Qt
+from PySide6.QtCore import QEvent, QObject, QPointF, QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QLabel, QPushButton, QSlider
 
@@ -48,15 +48,55 @@ def _fullscreen_icon(size: int = 17, color: str = "#536B8E") -> QIcon:
     return QIcon(pix)
 
 
-def _timeline_header_layout(timeline):
-    """Return the foundation timeline header layout without relying on a private attr.
+def _chevron_pixmap(size: int = 14, color: str = "#536B8E") -> QPixmap:
+    pix = QPixmap(size, size)
+    pix.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    pen = QPen(QColor(color), max(1.25, size / 10.5))
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.drawLine(QPointF(size * .30, size * .40), QPointF(size * .50, size * .60))
+    painter.drawLine(QPointF(size * .50, size * .60), QPointF(size * .70, size * .40))
+    painter.end()
+    return pix
 
-    TimelineDockHost intentionally keeps its QHBoxLayout as a local variable in
-    foundation_shell.py. The first item in the root QVBoxLayout is that header.
-    Looking it up structurally keeps this presentation layer compatible with the
-    production foundation widget and avoids inventing attributes such as
-    ``control_bar``/``zoom``/``plus`` that do not exist.
-    """
+
+class _ComboChevron(QObject):
+    """Non-interactive painted chevron that tracks a production QComboBox."""
+
+    def __init__(self, combo) -> None:
+        super().__init__(combo)
+        self.combo = combo
+        self.label = QLabel(combo)
+        self.label.setFixedSize(16, 16)
+        self.label.setPixmap(_chevron_pixmap())
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.label.setStyleSheet("background:transparent;border:none;")
+        combo.installEventFilter(self)
+        self._place()
+        self.label.show()
+
+    def _place(self) -> None:
+        x = max(0, self.combo.width() - 23)
+        y = max(0, (self.combo.height() - self.label.height()) // 2)
+        self.label.move(x, y)
+        self.label.raise_()
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self.combo and event.type() in {
+            QEvent.Type.Resize,
+            QEvent.Type.Show,
+            QEvent.Type.LayoutRequest,
+        }:
+            self._place()
+        return False
+
+
+def _timeline_header_layout(timeline):
+    """Return the foundation timeline header layout without relying on a private attr."""
     root = timeline.layout()
     if root is None or root.count() <= 0:
         return None
@@ -96,8 +136,6 @@ def _install_timeline_chrome(window) -> None:
         "background:#1766E8;border:none;border-radius:5px;}"
         "QSlider:disabled{color:#1766E8;}"
     )
-    # Foundation order is zoom-out, 100%, zoom-in. Place the slider immediately
-    # after zoom-out so the mock reads as minus / slider / 100% / plus.
     zoom_out_index = header.indexOf(timeline.zoom_out)
     slider_index = zoom_out_index + 1 if zoom_out_index >= 0 else max(0, header.count() - 2)
     header.insertWidget(slider_index, slider)
@@ -134,8 +172,31 @@ def _install_inspector_detail(window) -> None:
     if index >= 0:
         inspector.audio_bitrate.setItemText(index, "AAC (Stereo)")
 
+    # The local inspector stylesheet deliberately removes Qt's native drop-down
+    # box. Add a deterministic vector chevron instead of relying on platform
+    # theme primitives, while keeping each real QComboBox interactive/stateful.
+    chevrons = []
+    for combo in (
+        inspector.preset,
+        inspector.fps,
+        inspector.video_codec,
+        inspector.audio_bitrate,
+        inspector.sample_rate,
+        inspector.hardware,
+    ):
+        combo.setStyleSheet(combo.styleSheet() + "QComboBox::down-arrow{image:none;width:0;height:0;}")
+        chevrons.append(_ComboChevron(combo))
+    inspector._pixel_combo_chevrons = chevrons
+
+    # Base STEP10 labels are hidden by the pixel-match inspector and new labels
+    # are added afterwards. Choose the visible replacement, not the hidden base
+    # label, so the help badge is actually painted in the capture.
     hardware_label = next(
-        (label for label in inspector.findChildren(QLabel) if label.text() == "Akselerasi Hardware"),
+        (
+            label
+            for label in inspector.findChildren(QLabel)
+            if label.text() == "Akselerasi Hardware" and not label.isHidden()
+        ),
         None,
     )
     if hardware_label is not None:
@@ -149,6 +210,7 @@ def _install_inspector_detail(window) -> None:
         x = hardware_label.fontMetrics().horizontalAdvance(hardware_label.text()) + 5
         help_label.move(x, max(0, (hardware_label.height() - 14) // 2))
         help_label.show()
+        help_label.raise_()
         inspector._pixel_hardware_help = help_label
 
 
