@@ -168,7 +168,8 @@ def _decorate_preflight(window) -> None:
         card.state.setStyleSheet(card.state.styleSheet() + "font-size:15px;font-weight:700;")
 
         title_icon = QLabel(card)
-        title_icon.setPixmap(_line_pixmap(key))
+        icon_kind = "timeline" if key == "snapshot" else key
+        title_icon.setPixmap(_line_pixmap(icon_kind))
         title_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_icon.setGeometry(11, 12, 31, 31)
         title_icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
