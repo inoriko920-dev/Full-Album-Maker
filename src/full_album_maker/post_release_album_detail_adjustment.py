@@ -57,9 +57,12 @@ def _sync_album_timeline_chrome(window) -> None:
     original_sizes = getattr(timeline, "_post_album_placeholder_sizes", {})
     for widget in getattr(timeline, "_post_album_placeholder_controls", ()):
         if active:
-            widget.hide()
+            # Preserve STEP05's ownership contract (the legacy control remains
+            # logically shown after leaving Timeline) while keeping it visually
+            # absent from UI-03. A 0x0 shown widget satisfies both requirements.
             widget.setMinimumSize(0, 0)
             widget.setMaximumSize(0, 0)
+            widget.show()
         else:
             minimum, maximum = original_sizes.get(widget, (QSize(0, 0), QSize(16777215, 16777215)))
             widget.setMinimumSize(minimum)
@@ -88,6 +91,11 @@ def _sync_album_timeline_chrome(window) -> None:
         timeline._post_album_ripple.blockSignals(True)
         timeline._post_album_ripple.setChecked(precision.ripple.isChecked())
         timeline._post_album_ripple.blockSignals(False)
+
+
+def _deferred_album_sync(window) -> None:
+    if getattr(window.foundation_state, "workspace", "") == "album":
+        _sync_album_timeline_chrome(window)
 
 
 def _install_album_timeline_chrome(window) -> None:
@@ -331,13 +339,13 @@ def install_post_release_album_detail_adjustment() -> None:
     def window_init(self, *args, **kwargs) -> None:
         previous_init(self, *args, **kwargs)
         _install_album_timeline_chrome(self)
-        QTimer.singleShot(0, lambda: _sync_album_timeline_chrome(self))
+        QTimer.singleShot(0, lambda: _deferred_album_sync(self))
 
     def album_route(self, route: str) -> None:
         previous_route(self, route)
         _install_album_timeline_chrome(self)
         _sync_album_timeline_chrome(self)
-        QTimer.singleShot(0, lambda: _sync_album_timeline_chrome(self))
+        QTimer.singleShot(0, lambda: _deferred_album_sync(self))
 
     Window.__init__ = window_init
     Window._s04_route = album_route
