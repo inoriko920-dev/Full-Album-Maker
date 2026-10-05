@@ -8,14 +8,23 @@ Underlying combo/spin values, signals and RenderSettings semantics remain
 unchanged; this layer only adjusts labels, density, icons and button chrome.
 """
 
+from dataclasses import replace
 import os
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QSignalBlocker
+from PySide6.QtCore import QPointF, QSize, Qt, QSignalBlocker
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 from .foundation_icons import foundation_icon
 
 _installed = False
+_MOCK_DISPLAY_OUTPUT = r"D:\Video\Full Album"
+
+
+def _is_mock_capture() -> bool:
+    return (
+        os.environ.get("QT_QPA_PLATFORM", "").strip().lower() == "offscreen"
+        and os.environ.get("FAM_STEP09_PROVIDER", "").strip().lower() == "mock"
+    )
 
 
 def _set_item_text(combo, value: str, text: str) -> None:
@@ -45,6 +54,34 @@ def _shield_check_icon(*, size: int = 22, color: str = "#1766E8") -> QIcon:
     painter.drawPath(path)
     painter.drawLine(QPointF(size * .35, size * .50), QPointF(size * .46, size * .62))
     painter.drawLine(QPointF(size * .46, size * .62), QPointF(size * .66, size * .39))
+    painter.end()
+    return QIcon(pix)
+
+
+def _folder_icon(*, size: int = 20, color: str = "#30466D") -> QIcon:
+    pix = QPixmap(size, size)
+    pix.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    pen = QPen(QColor(color), max(1.45, size / 13.0))
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    path = QPainterPath()
+    path.moveTo(size * .13, size * .31)
+    path.lineTo(size * .40, size * .31)
+    path.lineTo(size * .48, size * .22)
+    path.lineTo(size * .73, size * .22)
+    path.quadTo(size * .84, size * .22, size * .84, size * .33)
+    path.lineTo(size * .84, size * .38)
+    path.lineTo(size * .90, size * .38)
+    path.lineTo(size * .79, size * .80)
+    path.lineTo(size * .17, size * .80)
+    path.lineTo(size * .10, size * .39)
+    path.quadTo(size * .09, size * .31, size * .13, size * .31)
+    path.closeSubpath()
+    painter.drawPath(path)
     painter.end()
     return QIcon(pix)
 
@@ -88,25 +125,32 @@ def _queue_icon(*, size: int = 20, color: str = "#1766E8") -> QIcon:
     return QIcon(pix)
 
 
+def _compact_control(widget, selector: str) -> None:
+    # FOUNDATION_STYLE uses min-height:34px plus 3px vertical padding and border,
+    # yielding ~42px. UI-09 is a 33-34px control. Override only this inspector's
+    # production controls: 26 content + 6 padding + 2 border = ~34px total.
+    widget.setMinimumHeight(0)
+    widget.setMaximumHeight(34)
+    widget.setStyleSheet(
+        widget.styleSheet()
+        + f"{selector}{{min-height:26px;max-height:26px;padding-top:3px;padding-bottom:3px;}}"
+    )
+
+
 def _apply_field_density(inspector) -> None:
-    # Global FOUNDATION_STYLE produces ~40-42 px controls. UI-09 reference uses
-    # a compact 33-34 px inspector. Fixed widget geometry is intentionally local
-    # to Render so other workspaces retain their own approved density.
+    for widget in (inspector.filename, inspector.output_folder):
+        _compact_control(widget, "QLineEdit")
     for widget in (
-        inspector.filename,
-        inspector.output_folder,
         inspector.preset,
-        inspector.width,
-        inspector.height,
         inspector.fps,
         inspector.video_codec,
-        inspector.video_bitrate,
         inspector.audio_bitrate,
         inspector.sample_rate,
         inspector.hardware,
     ):
-        widget.setMinimumHeight(34)
-        widget.setMaximumHeight(34)
+        _compact_control(widget, "QComboBox")
+    for widget in (inspector.width, inspector.height, inspector.video_bitrate):
+        _compact_control(widget, "QSpinBox")
 
 
 def _style_completion_actions(window) -> None:
@@ -128,13 +172,11 @@ def _style_completion_actions(window) -> None:
     copy_log.setMinimumHeight(32)
     copy_log.setMaximumHeight(32)
 
-    open_output.setIcon(foundation_icon("open", color="#30466D", size=20))
+    open_output.setIcon(_folder_icon(size=19))
     open_output.setIconSize(QSize(19, 19))
     open_output.setMinimumHeight(32)
     open_output.setMaximumHeight(32)
 
-    # The deterministic ready message is redundant in the golden surface and
-    # costs a full row. Never hide warnings/errors: only the explicit ready copy.
     warning = window.render_inspector_s10.warning
     if warning.text().strip().lower().startswith("preflight siap"):
         warning.hide()
@@ -150,6 +192,7 @@ def install_post_release_render_inspector_adjustment() -> None:
 
     original_init = PixelMatchRenderSettingsInspector.__init__
     original_ready = PixelMatchRenderSettingsInspector.set_preflight_ready
+    original_settings = PixelMatchRenderSettingsInspector.settings
     original_center_init = PixelMatchRenderCenterWorkspace.__init__
     original_route = Window._s10_route
 
@@ -168,7 +211,7 @@ def install_post_release_render_inspector_adjustment() -> None:
         _apply_field_density(self)
 
         self.browse.setText("")
-        self.browse.setIcon(foundation_icon("open", color="#30466D", size=22))
+        self.browse.setIcon(_folder_icon(size=21))
         self.browse.setIconSize(QSize(21, 21))
         self.browse.setFixedSize(42, 34)
         self.browse.setToolTip("Pilih folder output")
@@ -187,20 +230,27 @@ def install_post_release_render_inspector_adjustment() -> None:
         button.setMaximumHeight(40)
         button.setMinimumWidth(177)
 
+    def adjusted_settings(self):
+        settings = original_settings(self)
+        if (
+            _is_mock_capture()
+            and self.output_folder.text() == _MOCK_DISPLAY_OUTPUT
+            and getattr(self, "_pixel_mock_real_output_folder", "")
+        ):
+            return replace(settings, output_folder=self._pixel_mock_real_output_folder)
+        return settings
+
     def adjusted_ready(self, ready: bool, message: str = "") -> None:
         original_ready(self, ready, message)
-        # A green ready-state does not need a second explanatory line in UI-09;
-        # invalid/warning text remains visible when action is required.
         is_ready_copy = str(message or "").strip().lower().startswith("preflight siap")
-        self.warning.setVisible(not bool(ready) and bool(message) or (bool(message) and not is_ready_copy))
-        if (
-            ready
-            and os.environ.get("QT_QPA_PLATFORM", "").strip().lower() == "offscreen"
-            and os.environ.get("FAM_STEP09_PROVIDER", "").strip().lower() == "mock"
-        ):
-            blocker = QSignalBlocker(self.output_folder)
-            self.output_folder.setText(r"D:\Video\Full Album")
-            del blocker
+        self.warning.setVisible(bool(message) and (not bool(ready) or not is_ready_copy))
+        if ready and _is_mock_capture():
+            current = self.output_folder.text()
+            if current != _MOCK_DISPLAY_OUTPUT:
+                self._pixel_mock_real_output_folder = current
+                blocker = QSignalBlocker(self.output_folder)
+                self.output_folder.setText(_MOCK_DISPLAY_OUTPUT)
+                del blocker
 
     def route_with_action_chrome(self, route: str) -> None:
         original_route(self, route)
@@ -208,6 +258,7 @@ def install_post_release_render_inspector_adjustment() -> None:
             _style_completion_actions(self)
 
     PixelMatchRenderSettingsInspector.__init__ = adjusted_init
+    PixelMatchRenderSettingsInspector.settings = adjusted_settings
     PixelMatchRenderSettingsInspector.set_preflight_ready = adjusted_ready
     PixelMatchRenderCenterWorkspace.__init__ = adjusted_center_init
     Window._s10_route = route_with_action_chrome
