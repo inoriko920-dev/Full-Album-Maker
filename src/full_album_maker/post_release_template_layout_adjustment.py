@@ -12,7 +12,9 @@ from .foundation_shell import FoundationShellWidget
 from .foundation_tokens import TOKENS
 
 _installed = False
-_TEMPLATE_CONTEXT_WIDTH = 205
+# UI-06 boundary measurement places the context/gallery divider near x=391.
+# 215 logical px moves the gallery +10 px from the previous 205 px rail.
+_TEMPLATE_CONTEXT_WIDTH = 215
 # UI-06 vertical boundary measurement at 1672x941 places the right dock start
 # near x=1296; 339 logical px reproduces that boundary in the shared splitter.
 _RIGHT_DOCK_WIDTH = 339
