@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-03-media
+      - ui/ui02-media-remediation
   workflow_dispatch:
 
 permissions:
