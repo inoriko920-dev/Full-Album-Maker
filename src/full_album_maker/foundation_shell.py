@@ -539,7 +539,14 @@ class FoundationShellWidget(QWidget):
 
     def _apply_shell_sizes(self, route: str) -> None:
         total = max(1, self.width())
-        nav = TOKENS.nav_compact_width if self._responsive_compact else TOKENS.nav_width
+        if self._responsive_compact:
+            nav = TOKENS.nav_compact_width
+        elif route == "home":
+            nav = TOKENS.home_nav_width
+        else:
+            nav = TOKENS.nav_width
+        self.navigation.setMinimumWidth(nav)
+        self.navigation.setMaximumWidth(nav)
         context = 0 if route in {"home", "render"} else TOKENS.context_width
         right = 38 if self.inspector.collapsed else (TOKENS.right_dock_compact_width if self._responsive_compact else TOKENS.right_dock_width)
         minimum_center = 360 if self._responsive_compact else 560
