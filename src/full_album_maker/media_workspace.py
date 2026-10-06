@@ -55,11 +55,18 @@ class MediaContextWidget(QWidget):
 
         for key, label, glyph in CATEGORIES:
             button = QPushButton()
-            button.setObjectName("navButton")
+            button.setObjectName("mediaContextButton")
             button.setCheckable(True)
             button.setAutoExclusive(True)
-            button.setFixedHeight(36)
-            button.setStyleSheet("text-align:left;padding-left:10px;padding-right:8px;")
+            button.setFixedHeight(35)
+            button.setStyleSheet(
+                "QPushButton#mediaContextButton{min-height:35px;max-height:35px;text-align:left;"
+                "padding:0 8px;border:none;border-left:3px solid transparent;border-radius:6px;"
+                "background:transparent;color:#10234A;}"
+                "QPushButton#mediaContextButton:hover{background:#F3F8FF;}"
+                "QPushButton#mediaContextButton:checked{background:#EAF3FF;color:#1766E8;"
+                "border-left:3px solid #1766E8;font-weight:650;}"
+            )
             button.clicked.connect(lambda _=False, k=key: self._category(k))
             self._category_buttons[key] = button
             root.addWidget(button)
@@ -80,10 +87,17 @@ class MediaContextWidget(QWidget):
 
         for name in COLLECTIONS:
             button = QPushButton()
-            button.setObjectName("navButton")
+            button.setObjectName("mediaContextButton")
             button.setCheckable(True)
-            button.setFixedHeight(35)
-            button.setStyleSheet("text-align:left;padding-left:10px;padding-right:8px;")
+            button.setFixedHeight(34)
+            button.setStyleSheet(
+                "QPushButton#mediaContextButton{min-height:34px;max-height:34px;text-align:left;"
+                "padding:0 8px;border:none;border-left:3px solid transparent;border-radius:6px;"
+                "background:transparent;color:#10234A;}"
+                "QPushButton#mediaContextButton:hover{background:#F3F8FF;}"
+                "QPushButton#mediaContextButton:checked{background:#EAF3FF;color:#1766E8;"
+                "border-left:3px solid #1766E8;font-weight:650;}"
+            )
             button.clicked.connect(lambda _=False, n=name: self._collection(n))
             self._collection_buttons[name] = button
             root.addWidget(button)
@@ -96,13 +110,13 @@ class MediaContextWidget(QWidget):
         for key, label, glyph in CATEGORIES:
             count = int(counts.get(key, 0))
             button = self._category_buttons[key]
-            button.setText(f"{glyph}   {label}        {count}")
+            button.setText(f"{glyph}  {label}    {count}")
             button.setAccessibleName(f"{label}, {count} item")
 
     def set_collection_counts(self, counts):
         for name, button in self._collection_buttons.items():
             count = int(counts.get(name, 0))
-            button.setText(f"▢   {name}        {count}")
+            button.setText(f"▢  {name}    {count}")
             button.setAccessibleName(f"{name}, {count} item")
 
     def _category(self, key):
@@ -388,21 +402,9 @@ class MediaTimelinePreviewCanvas(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.fillRect(self.rect(), QColor("#FFFFFF"))
-        toolbar_h = 30
+        toolbar_h = 0
         ruler_h = 20
         left = 74
-
-        p.fillRect(QRect(0, 0, self.width(), toolbar_h), QColor("#FFFFFF"))
-        p.setPen(QColor(TOKENS.text_primary))
-        tools = ("✂", "Split", "Potong", "Kecepatan", "Audio", "Teks", "Transisi", "Efek", "AI Tools")
-        x = 10
-        for index, label in enumerate(tools):
-            p.drawText(QRect(x, 0, 72 if index else 28, toolbar_h), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, label)
-            x += 32 if index == 0 else 76
-            if x > self.width() - 120:
-                break
-        p.setPen(QPen(QColor(TOKENS.border), 1))
-        p.drawLine(0, toolbar_h - 1, self.width(), toolbar_h - 1)
 
         track_top = toolbar_h + ruler_h
         track_h = max(25, (self.height() - track_top) // 3)
