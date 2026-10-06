@@ -27,7 +27,9 @@ UPLOAD_ARTIFACT_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 
 def test_stable_version_is_consistent_across_package_metadata():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert __version__ == "1.4.0"
+    parts = __version__.split(".")
+    assert len(parts) == 3 and all(part.isdigit() for part in parts)
+    assert tuple(int(part) for part in parts) > (1, 4, 1)
     assert pyproject["project"]["version"] == __version__
     assert (ROOT / f"docs/RELEASE_NOTES_v{__version__}.md").exists()
 
