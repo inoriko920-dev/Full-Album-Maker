@@ -98,6 +98,8 @@ def _golden_fixture_assets():
                 imported_at=float(rank.get(asset.display_name, 0)),
             )
         )
+
+    output.sort(key=lambda asset: rank.get(asset.display_name, 0), reverse=True)
     return output
 
 
