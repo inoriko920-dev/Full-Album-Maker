@@ -104,7 +104,7 @@ def main() -> int:
                 "no Gemini/Google API key",
                 "real bundled-FFmpeg A/V render",
                 "ffprobe audio+video verification",
-                "Qt v1.4 main-window construction",
+                "Qt Foundation production main-window construction",
                 "v1.4 AI context builder active",
             ],
         },
