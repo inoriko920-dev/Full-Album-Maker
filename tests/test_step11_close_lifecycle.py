@@ -70,7 +70,8 @@ def _close_matrix() -> dict:
                     window.deleteLater()
                     app.processEvents()
 
-        print("CLOSE_MATRIX_JSON=" + json.dumps(results, sort_keys=True))
+        print("CLOSE_MATRIX_JSON=" + json.dumps(results, sort_keys=True), flush=True)
+        os._exit(0)
         """
     )
     env = dict(os.environ)
