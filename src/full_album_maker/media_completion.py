@@ -57,21 +57,33 @@ def _preview_paint(self: MediaPreviewPlaceholder, event) -> None:
     else:
         # Deterministic scenic fallback: visually distinguishes photo/video
         # without copying the immutable golden or inventing user media.
-        name_seed = sum(ord(ch) for ch in self.asset.display_name)
+        name = self.asset.display_name.casefold()
         video = self.asset.media_type.value == "video"
-        skies = (
-            ("#B9D9F6", "#DDF1FF"),
-            ("#F5B66B", "#FFE2A7"),
-            ("#BFDFF0", "#E9F7FF"),
-            ("#C6DAF0", "#F2D7B6"),
-        )
-        top, bottom = skies[name_seed % len(skies)]
+        if any(word in name for word in ("senja", "bromo", "cerita")):
+            top, bottom, terrain = "#F1A15D", "#F6D18B", "#6E745F"
+        elif any(word in name for word in ("pantai", "danau")):
+            top, bottom, terrain = "#92D6F3", "#5EC2C8", "#668C76"
+        elif "hutan" in name:
+            top, bottom, terrain = "#A9D0B1", "#5E8968", "#3F6048"
+        elif any(word in name for word in ("kota malam", "timelapse")):
+            top, bottom, terrain = "#556F92", "#D68762", "#31465B"
+        elif "perjalanan" in name:
+            top, bottom, terrain = "#C9DFF1", "#E8D4AA", "#778D68"
+        else:
+            name_seed = sum(ord(ch) for ch in self.asset.display_name)
+            skies = (
+                ("#B9D9F6", "#DDF1FF", "#6E9274"),
+                ("#F5B66B", "#FFE2A7", "#758060"),
+                ("#BFDFF0", "#E9F7FF", "#668C76"),
+                ("#C6DAF0", "#F2D7B6", "#788A68"),
+            )
+            top, bottom, terrain = skies[name_seed % len(skies)]
         painter.fillRect(rect, QColor(top))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(bottom))
         painter.drawRect(rect.left(), rect.top() + rect.height() // 2, rect.width(), rect.height() // 2)
 
-        painter.setBrush(QColor("#6E9274"))
+        painter.setBrush(QColor(terrain))
         mountain = QPolygon([
             QPoint(rect.left(), rect.bottom()),
             QPoint(rect.left() + int(rect.width() * 0.18), rect.top() + int(rect.height() * 0.62)),
@@ -239,7 +251,7 @@ def _inspector_init(self: MediaInspectorWidget, *args, **kwargs) -> None:
     _originals["inspector_init"](self, *args, **kwargs)
     layout = self.layout()
     if layout is not None:
-        layout.setContentsMargins(10, 7, 10, 8)
+        layout.setContentsMargins(10, 0, 10, 8)
         layout.setSpacing(5)
     self.preview.setMinimumHeight(128)
     self.preview.setMaximumHeight(132)
