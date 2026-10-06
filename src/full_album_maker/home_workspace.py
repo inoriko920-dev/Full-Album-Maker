@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QEvent, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
@@ -158,6 +159,26 @@ class RecentThumbnail(QFrame):
         painter.setBrush(QColor(top))
         painter.drawRoundedRect(rect, 6, 6)
         painter.setClipRect(self.rect().adjusted(1, 1, -1, -1))
+
+        thumbnail = str(self.item.thumbnail_ref or "").strip()
+        source = Path(thumbnail) if thumbnail else None
+        if source is not None and source.is_file():
+            pixmap = QPixmap(str(source))
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(
+                    self.size(),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                x = max(0, (scaled.width() - self.width()) // 2)
+                y = max(0, (scaled.height() - self.height()) // 2)
+                painter.drawPixmap(0, 0, scaled, x, y, self.width(), self.height())
+                painter.setClipping(False)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.setPen(QPen(QColor(TOKENS.border), 1))
+                painter.drawRoundedRect(rect, 6, 6)
+                painter.end()
+                return
 
         painter.setBrush(QColor(bottom))
         painter.drawEllipse(int(rect.width() * 0.60), int(rect.height() * 0.12), int(rect.width() * 0.48), int(rect.height() * 0.95))
