@@ -30,7 +30,7 @@ class FoundationTokens:
     home_nav_width: int = 211
     nav_compact_width: int = 72
     context_width: int = 264
-    right_dock_width: int = 360
+    right_dock_width: int = 348
     right_dock_compact_width: int = 300
     status_height: int = 28
     timeline_collapsed_height: int = 34
