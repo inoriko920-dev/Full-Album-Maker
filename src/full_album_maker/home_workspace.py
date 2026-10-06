@@ -152,13 +152,16 @@ class RecentThumbnail(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         top, bottom = self._PALETTE[self._palette_index()]
-        rect = self.rect()
-        painter.fillRect(rect, QColor(top))
+        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
 
         painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(top))
+        painter.drawRoundedRect(rect, 6, 6)
+        painter.setClipRect(self.rect().adjusted(1, 1, -1, -1))
+
         painter.setBrush(QColor(bottom))
         painter.drawEllipse(int(rect.width() * 0.60), int(rect.height() * 0.12), int(rect.width() * 0.48), int(rect.height() * 0.95))
-        painter.setBrush(QColor("#10234A55"))
+        painter.setBrush(_alpha_color("#10234A", 72))
         painter.drawEllipse(int(rect.width() * -0.12), int(rect.height() * 0.55), int(rect.width() * 0.72), int(rect.height() * 0.72))
 
         painter.setPen(QColor("#FFFFFF"))
@@ -166,12 +169,17 @@ class RecentThumbnail(QFrame):
         font.setBold(True)
         font.setPointSize(12)
         painter.setFont(font)
-        text_rect = rect.adjusted(18, 12, -18, -14)
+        text_rect = self.rect().adjusted(18, 12, -18, -14)
         painter.drawText(
             text_rect,
             Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
             self.item.display_name,
         )
+
+        painter.setClipping(False)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(TOKENS.border), 1))
+        painter.drawRoundedRect(rect, 6, 6)
         painter.end()
 
 
@@ -193,12 +201,9 @@ class RecentProjectCard(QFrame):
         lay.setContentsMargins(9, 9, 9, 9)
         lay.setSpacing(5)
 
-        self.cover = QFrame()
+        self.cover = RecentThumbnail(item)
         self.cover.setObjectName("recentProjectCover")
         self.cover.setFixedHeight(128)
-        self.cover.setStyleSheet(
-            f"QFrame#recentProjectCover {{ background: {TOKENS.selection_soft}; border: 1px solid {TOKENS.border}; border-radius: 6px; }}"
-        )
         cover_lay = QVBoxLayout(self.cover)
         cover_lay.setContentsMargins(7, 7, 7, 7)
         cover_lay.setSpacing(0)
@@ -465,6 +470,7 @@ class HomeWorkspace(QWidget):
         quick_title = QLabel("Mulai Cepat")
         quick_title.setObjectName("sectionHeading")
         quick_title.setStyleSheet("font-size:16px;font-weight:700;")
+        quick_title.setFixedHeight(24)
         quick_section.addWidget(quick_title)
         self.quick = QFrame()
         self.quick.setObjectName("famCard")
