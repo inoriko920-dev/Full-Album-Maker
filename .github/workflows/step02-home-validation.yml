@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-02-beranda
+      - ui/ui01-beranda-remediation
     paths-ignore:
       - docs/ui-beranda/**
   workflow_dispatch:
@@ -112,7 +113,7 @@ jobs:
 
           a=geometry('home-g02-a-recovery')
           assert a['window'] == [1672, 941], a
-          assert a['nav_right'] == 171, a
+          assert a['nav_right'] == 210, a
           assert a['right_dock_width'] == 348, a
           assert a['timeline_height'] == 34, a
           assert a['status_height'] == 28, a

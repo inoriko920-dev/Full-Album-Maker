@@ -105,3 +105,38 @@ def test_replacing_selected_home_placeholder_keeps_beranda_active():
     app.processEvents()
     assert shell.workspace_stack.currentWidget() is home
     assert shell.state.workspace == "home"
+
+
+def test_home_golden_density_and_status_presentation_contract():
+    app = _app()
+    state = fixture_state()
+    home = HomeWorkspace(state=state)
+    inspector = HomeInspectorWidget(state)
+    home.resize(1068, 714)
+    inspector.resize(324, 700)
+    home.show()
+    inspector.show()
+    app.processEvents()
+
+    assert home.hero.height() == 218
+    assert home.recovery_banner.height() == 60
+    assert home.recent_host.height() == 244
+    assert home.quick.height() == 86
+    assert home.new_project_button.minimumWidth() == 214
+    assert home.open_project_button.minimumWidth() == 214
+    assert home.new_project_button.maximumWidth() == 214
+    assert home.open_project_button.maximumWidth() == 214
+    assert len(home._recent_cards) == 4
+    assert all(card.duration_badge.text() for card in home._recent_cards)
+
+    assert inspector.ffmpeg.title.text() == "FFmpeg Siap"
+    assert inspector.manual.title.text() == "Editing Manual Offline"
+    assert inspector.ai.title.text() == "AI Belum Dikonfigurasi"
+    assert inspector.ffmpeg.chip.isHidden()
+    assert inspector.manual.chip.isHidden()
+    assert inspector.ai.chip.isHidden()
+    assert inspector.status_card.objectName() == "famCard"
+    assert inspector.settings_card.objectName() == "famCard"
+
+    home.close()
+    inspector.close()

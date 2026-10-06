@@ -29,7 +29,7 @@ QFrame#workspaceHost, QFrame#inspectorDock, QFrame#timelineDock, QFrame#appStatu
     border: 1px solid {t.border};
 }}
 QFrame#globalCommandBar {{ border-left: none; border-right: none; border-top: none; }}
-QFrame#workspaceNavigation {{ border-left: none; border-top: none; border-bottom: none; }}
+QFrame#workspaceNavigation {{ border-left: none; border-top: none; border-bottom: none; background: #F8FBFF; }}
 QFrame#contextHost, QFrame#workspaceHost, QFrame#inspectorDock {{ border-top: none; border-bottom: none; }}
 QFrame#timelineDock {{ border-left: none; border-right: none; }}
 QFrame#appStatusBar {{ border-left: none; border-right: none; border-bottom: none; }}
@@ -70,7 +70,7 @@ QPushButton[kind="primary"]:hover {{ background: #0F59CE; border-color: #0F59CE;
 QPushButton[kind="primary"]:pressed {{ background: #0D4FB6; }}
 QPushButton[kind="ghost"] {{ background: transparent; border-color: transparent; }}
 QPushButton#navButton {{
-    min-height: 42px;
+    min-height: 48px;
     text-align: left;
     padding: 3px 11px;
     border: none;

@@ -25,6 +25,9 @@ class FoundationTokens:
     title_height: int = 41
     command_height: int = 55
     nav_width: int = 172
+    # The Beranda golden has no context panel and gives the labelled navigation
+    # a wider rail. Other editor workspaces retain nav_width + context_width.
+    home_nav_width: int = 211
     nav_compact_width: int = 72
     context_width: int = 264
     right_dock_width: int = 348

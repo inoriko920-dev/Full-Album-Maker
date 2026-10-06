@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from PySide6.QtCore import QObject, QRectF, Qt, Signal
+from PySide6.QtCore import QObject, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu, QPushButton,
@@ -177,7 +177,7 @@ class WorkspaceNavigation(QFrame):
         self.setMinimumWidth(TOKENS.nav_width)
         self.setMaximumWidth(TOKENS.nav_width)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(7, TOKENS.space_2, 7, TOKENS.space_2)
+        lay.setContentsMargins(7, 15, 7, TOKENS.space_2)
         lay.setSpacing(2)
         for route, label, icon_name in WORKSPACE_ORDER:
             button = WorkspaceNavButton(label)
@@ -185,6 +185,7 @@ class WorkspaceNavigation(QFrame):
             button.setCheckable(True)
             button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             button.setIcon(foundation_icon(icon_name, size=TOKENS.icon_nav))
+            button.setIconSize(QSize(TOKENS.icon_nav, TOKENS.icon_nav))
             button.setToolTip(label)
             button.setAccessibleName(label)
             button.clicked.connect(lambda _checked=False, r=route: self.route_requested.emit(r))
@@ -278,6 +279,8 @@ class InspectorDockHost(QFrame):
         lay.setSpacing(0)
         self.header = FAMDockHeader("", collapsible=True)
         self.header.title.hide()
+        self.header.setFixedHeight(16)
+        self.header.collapse_button.hide()
         self.header.collapse_button.clicked.connect(self.toggle_collapsed)
         lay.addWidget(self.header)
         self.content = TabbedEmptyHost()
@@ -301,11 +304,15 @@ class InspectorDockHost(QFrame):
         if self._collapsed:
             self.setMinimumWidth(38)
             self.setMaximumWidth(38)
+            self.header.setFixedHeight(40)
+            self.header.collapse_button.show()
             self.header.collapse_button.setIcon(foundation_icon("expand", size=TOKENS.icon_inline))
             self.header.collapse_button.setToolTip("Buka Properti / AI")
         else:
             self.setMaximumWidth(520)
             self.setMinimumWidth(self._expanded_width)
+            self.header.setFixedHeight(16)
+            self.header.collapse_button.hide()
             self.header.collapse_button.setIcon(foundation_icon("collapse", size=TOKENS.icon_inline))
             self.header.collapse_button.setToolTip("Ciutkan Properti / AI")
 
@@ -539,7 +546,14 @@ class FoundationShellWidget(QWidget):
 
     def _apply_shell_sizes(self, route: str) -> None:
         total = max(1, self.width())
-        nav = TOKENS.nav_compact_width if self._responsive_compact else TOKENS.nav_width
+        if self._responsive_compact:
+            nav = TOKENS.nav_compact_width
+        elif route == "home":
+            nav = TOKENS.home_nav_width
+        else:
+            nav = TOKENS.nav_width
+        self.navigation.setMinimumWidth(nav)
+        self.navigation.setMaximumWidth(nav)
         context = 0 if route in {"home", "render"} else TOKENS.context_width
         right = 38 if self.inspector.collapsed else (TOKENS.right_dock_compact_width if self._responsive_compact else TOKENS.right_dock_width)
         minimum_center = 360 if self._responsive_compact else 560
