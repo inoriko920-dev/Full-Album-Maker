@@ -42,7 +42,7 @@ class _StatusRow(QFrame):
     def __init__(self, title: str, parent=None) -> None:
         super().__init__(parent)
         self.base_title = title
-        self.setMinimumHeight(62)
+        self.setMinimumHeight(82)
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 4, 0, 4)
         row.setSpacing(TOKENS.space_2)
@@ -121,8 +121,8 @@ class HomeInspectorWidget(QWidget):
         super().__init__(parent)
         self._updating = False
         root = QVBoxLayout(self)
-        root.setContentsMargins(TOKENS.space_3, TOKENS.space_3, TOKENS.space_3, TOKENS.space_3)
-        root.setSpacing(TOKENS.space_3)
+        root.setContentsMargins(TOKENS.space_3, 22, TOKENS.space_3, TOKENS.space_3)
+        root.setSpacing(22)
 
         self.status_card = QFrame()
         self.status_card.setObjectName("famCard")
