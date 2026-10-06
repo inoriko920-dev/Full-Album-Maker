@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QStackedWidget,
     QVBoxLayout, QWidget,
@@ -23,6 +23,7 @@ class FAMButton(QPushButton):
         set_dynamic_property(self, "kind", kind)
         if icon_name:
             self.setIcon(foundation_icon(icon_name, size=TOKENS.icon_inline))
+            self.setIconSize(QSize(TOKENS.icon_inline, TOKENS.icon_inline))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
 
