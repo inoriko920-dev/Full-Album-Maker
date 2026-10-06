@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from PySide6.QtCore import QObject, QRectF, Qt, Signal
+from PySide6.QtCore import QObject, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu, QPushButton,
@@ -185,6 +185,7 @@ class WorkspaceNavigation(QFrame):
             button.setCheckable(True)
             button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             button.setIcon(foundation_icon(icon_name, size=TOKENS.icon_nav))
+            button.setIconSize(QSize(TOKENS.icon_nav, TOKENS.icon_nav))
             button.setToolTip(label)
             button.setAccessibleName(label)
             button.clicked.connect(lambda _checked=False, r=route: self.route_requested.emit(r))
