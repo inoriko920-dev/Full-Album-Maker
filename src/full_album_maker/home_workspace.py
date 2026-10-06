@@ -404,7 +404,6 @@ class HomeWorkspace(QWidget):
         root = self._root_layout
         root.setContentsMargins(10, TOKENS.space_5, 14, TOKENS.space_3)
         root.setSpacing(TOKENS.space_3)
-        root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.hero = QFrame()
         self.hero.setObjectName("homeHero")
