@@ -886,7 +886,7 @@ class MainWindow(QMainWindow):
     def load_project_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Buka Proyek", "", "Full Album Project (*.json)")
         if not path:
-            return
+            return False
         previous_project = self.project
         previous_controller = self.controller
         previous_agent = self.agent
@@ -905,6 +905,7 @@ class MainWindow(QMainWindow):
             self.agent = None
             self.invalidate_timeline()
             self.refresh()
+            return str(Path(path).resolve())
         except Exception as exc:
             self.project = previous_project
             self.controller = previous_controller
@@ -918,6 +919,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
             self._error(f"Gagal membuka proyek: {exc}")
+            return False
 
     def open_keys(self):
         KeyDialog(self.pool, self).exec()
