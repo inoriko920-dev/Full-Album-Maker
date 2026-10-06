@@ -59,18 +59,19 @@ def _patched_refresh(self, *args, **kwargs):
 
 
 def _patched_save_project_file(self) -> bool:
-    default = str(
-        getattr(self, "_current_project_path", "")
-        or (output_dir() / "Full_Album_Project.json")
-    )
-    path, _ = QFileDialog.getSaveFileName(
-        self,
-        "Simpan Proyek",
-        default,
-        "Full Album Project (*.json)",
-    )
-    if not path:
-        return False
+    current = str(getattr(self, "_current_project_path", "") or "")
+    if current:
+        path = current
+    else:
+        default = str(output_dir() / "Full_Album_Project.json")
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Simpan Proyek",
+            default,
+            "Full Album Project (*.json)",
+        )
+        if not path:
+            return False
 
     try:
         saved = save_project(path, self.project)
