@@ -454,3 +454,34 @@ class MediaTimelinePreviewCanvas(QWidget):
             if x >= self.width() - 20:
                 break
 
+
+
+def _duration(value):
+    if value is None:
+        return "—"
+    total = max(0, int(round(value)))
+    minutes, seconds = divmod(total, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+
+
+def _size(value):
+    if value is None:
+        return "—"
+    amount = float(max(0, value))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if amount < 1024 or unit == "TB":
+            return f"{amount:.0f} {unit}" if unit == "B" else f"{amount:.1f} {unit}"
+        amount /= 1024
+    return "—"
+
+
+def _meta_text(asset):
+    metadata = asset.metadata
+    if asset.status == MediaStatus.MISSING:
+        return f"{asset.media_type.value.title()} • Tidak ditemukan"
+    if asset.media_type == MediaType.AUDIO:
+        return f"♫ Audio   {_size(metadata.size_bytes)}"
+    if asset.media_type == MediaType.PHOTO:
+        return f"▧ Foto   {_size(metadata.size_bytes)}"
+    return f"▣ Video   {_size(metadata.size_bytes)}"
