@@ -111,8 +111,14 @@ app.processEvents()
 
 def test_final_media_fixture_order_matches_canonical_visual_rhythm():
     from full_album_maker.media_capture_final import _golden_fixture_assets
+    from full_album_maker.media_library_model import MediaLibraryIndex, MediaQuery
 
-    names = [asset.display_name for asset in _golden_fixture_assets()]
+    # The helper preserves source storage order. The Media workspace applies the
+    # default "Terbaru" projection using the deterministic imported_at fixture.
+    names = [
+        asset.display_name
+        for asset in MediaLibraryIndex(_golden_fixture_assets()).project(MediaQuery())
+    ]
     assert names[:15] == [
         "Senja di Kota Ini.mp3",
         "Jalan Pulang.mp3",
