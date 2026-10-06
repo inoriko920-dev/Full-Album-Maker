@@ -285,7 +285,7 @@ def _shell_sizes(self, route: str) -> None:
     self.context.setMaximumWidth(context)
     if not self.inspector.collapsed:
         self.inspector.setMinimumWidth(right)
-        self.inspector.setMaximumWidth(right)
+        self.inspector.setMaximumWidth(520)
     self.horizontal_splitter.setSizes([nav, context, center, right])
 
     timeline_height = TOKENS.timeline_collapsed_height if self.timeline.collapsed else self.timeline.preferred_height
