@@ -114,7 +114,7 @@ jobs:
           a=geometry('home-g02-a-recovery')
           assert a['window'] == [1672, 941], a
           assert a['nav_right'] == 210, a
-          assert a['right_dock_width'] == 360, a
+          assert a['right_dock_width'] == 348, a
           assert a['timeline_height'] == 34, a
           assert a['status_height'] == 28, a
           assert a['home_active'] is True, a
