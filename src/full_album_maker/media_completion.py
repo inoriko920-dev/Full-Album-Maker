@@ -177,9 +177,9 @@ def _workspace_refresh(self: MediaWorkspace) -> None:
     for card in self._cards:
         asset = card.asset
         grid_mode = self.query.view_mode.value == "grid"
-        card.setFixedHeight(158 if grid_mode else 108)
+        card.setFixedHeight(166 if grid_mode else 108)
         if hasattr(card, "preview_host"):
-            card.preview_host.setFixedHeight(100 if grid_mode else 52)
+            card.preview_host.setFixedHeight(108 if grid_mode else 52)
         preview = card.findChild(MediaPreviewPlaceholder)
         if preview is not None:
             preview.setMinimumHeight(44 if not grid_mode else 84)
