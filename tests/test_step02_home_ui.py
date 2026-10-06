@@ -122,8 +122,10 @@ def test_home_golden_density_and_status_presentation_contract():
     assert home.recovery_banner.height() == 60
     assert home.recent_host.height() == 244
     assert home.quick.height() == 86
-    assert home.new_project_button.minimumWidth() == 210
-    assert home.open_project_button.minimumWidth() == 210
+    assert home.new_project_button.minimumWidth() == 214
+    assert home.open_project_button.minimumWidth() == 214
+    assert home.new_project_button.minimumHeight() == 52
+    assert home.open_project_button.minimumHeight() == 52
     assert len(home._recent_cards) == 4
     assert all(card.duration_badge.text() for card in home._recent_cards)
 
