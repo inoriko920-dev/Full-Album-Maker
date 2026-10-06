@@ -146,9 +146,10 @@ class RecentProjectCard(QFrame):
         lay.setSpacing(5)
 
         self.cover = QFrame()
+        self.cover.setObjectName("recentProjectCover")
         self.cover.setFixedHeight(128)
         self.cover.setStyleSheet(
-            f"background: {TOKENS.selection_soft}; border: 1px solid {TOKENS.border}; border-radius: 6px;"
+            f"QFrame#recentProjectCover {{ background: {TOKENS.selection_soft}; border: 1px solid {TOKENS.border}; border-radius: 6px; }}"
         )
         cover_lay = QVBoxLayout(self.cover)
         cover_lay.setContentsMargins(7, 7, 7, 7)
@@ -347,7 +348,7 @@ class HomeWorkspace(QWidget):
         copy.addStretch(1)
         self.hero_title = QLabel("Mulai Full Album")
         self.hero_title.setObjectName("workspaceHeading")
-        self.hero_title.setStyleSheet("font-size: 30px;")
+        self.hero_title.setStyleSheet("font-size: 32px;")
         copy.addWidget(self.hero_title)
         self.hero_subtitle = QLabel(
             "Buat video album musik dengan mudah dan profesional\n"
@@ -361,9 +362,9 @@ class HomeWorkspace(QWidget):
         buttons.setContentsMargins(0, 12, 0, 0)
         buttons.setSpacing(TOKENS.space_4)
         self.new_project_button = FAMButton("Proyek Baru", icon_name="new", kind="primary")
-        self.new_project_button.setMinimumSize(210, 50)
+        self.new_project_button.setFixedSize(214, 52)
         self.open_project_button = FAMButton("Buka Proyek", icon_name="open")
-        self.open_project_button.setMinimumSize(210, 50)
+        self.open_project_button.setFixedSize(214, 52)
         buttons.addWidget(self.new_project_button)
         buttons.addWidget(self.open_project_button)
         buttons.addStretch(1)
@@ -477,8 +478,8 @@ class HomeWorkspace(QWidget):
             self.quick.setFixedHeight(60)
             self.hero_illustration.setMinimumWidth(240)
             self.hero_illustration.setMaximumWidth(330)
-            self.new_project_button.setMinimumSize(150, 36)
-            self.open_project_button.setMinimumSize(150, 36)
+            self.new_project_button.setFixedSize(150, 36)
+            self.open_project_button.setFixedSize(150, 36)
         else:
             self._root_layout.setContentsMargins(TOKENS.space_4, TOKENS.space_5, TOKENS.space_4, TOKENS.space_3)
             self._root_layout.setSpacing(TOKENS.space_3)
@@ -489,8 +490,8 @@ class HomeWorkspace(QWidget):
             self.quick.setFixedHeight(86)
             self.hero_illustration.setMinimumWidth(455)
             self.hero_illustration.setMaximumWidth(520)
-            self.new_project_button.setMinimumSize(210, 50)
-            self.open_project_button.setMinimumSize(210, 50)
+            self.new_project_button.setFixedSize(214, 52)
+            self.open_project_button.setFixedSize(214, 52)
         self._apply_recent_density(compact)
         for card in self._quick_cards:
             card.set_compact(compact)
