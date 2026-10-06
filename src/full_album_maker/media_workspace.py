@@ -169,7 +169,7 @@ class MediaCard(QFrame):
         root.setSpacing(3)
 
         self.preview_host = QFrame()
-        self.preview_host.setFixedHeight(52 if list_mode else 100)
+        self.preview_host.setFixedHeight(52 if list_mode else 108)
         preview_grid = QGridLayout(self.preview_host)
         preview_grid.setContentsMargins(0, 0, 0, 0)
         preview_grid.setSpacing(0)
@@ -219,7 +219,7 @@ class MediaCard(QFrame):
         root.addWidget(self.meta)
 
         self.setMinimumWidth(145)
-        self.setFixedHeight(108 if list_mode else 158)
+        self.setFixedHeight(108 if list_mode else 166)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -404,7 +404,7 @@ class MediaTimelinePreviewCanvas(QWidget):
         p.fillRect(self.rect(), QColor("#FFFFFF"))
         toolbar_h = 0
         ruler_h = 20
-        left = 74
+        left = 145
 
         track_top = toolbar_h + ruler_h
         track_h = max(25, (self.height() - track_top) // 3)
@@ -436,8 +436,8 @@ class MediaTimelinePreviewCanvas(QWidget):
         p.end()
 
     def _clips(self, p, clips, y, h, total, fill, border, *, waveform=False, start_fraction=0.0):
-        x = 74 + int((self.width() - 80) * start_fraction)
-        usable = max(1, self.width() - 80)
+        x = 145 + int((self.width() - 151) * start_fraction)
+        usable = max(1, self.width() - 151)
         for name, duration in clips:
             width = min(max(52, int(usable * duration / total)), max(52, self.width() - x - 4))
             rect = QRect(x, y, width, h)
