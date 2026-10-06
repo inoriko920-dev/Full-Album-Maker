@@ -1,4 +1,5 @@
-name: STEP00 verified source recovery
+
+name: STEP00 verified single-app backup
 
 on:
   push:
@@ -8,104 +9,388 @@ on:
       - .github/workflows/step00-source-recovery.yml
 
 permissions:
-  contents: write
-
-concurrency:
-  group: step00-source-recovery
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  recover-source:
+  backup-full-album-maker:
     runs-on: ubuntu-latest
+    env:
+      BACKUP_LABEL: "2026-10-07_03-20_WIB"
+      BACKUP_REQUESTED_WIB: "2026-10-07 03:20:00 WIB"
+      EXPECTED_MAIN_COMMIT: "584c94774e6197ecf60ecedb3bffd5a8797e7737"
     steps:
-      - name: Checkout recovery branch
-        uses: actions/checkout@v4
-        with:
-          ref: recovery/step-00-r0
-          fetch-depth: 0
-
-      - name: Stage exact legacy source snapshot
+      - name: Build verified Full Album Maker backup
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          SOURCE_REPO="https://github.com/tonitarung099-creator/Full-Album-Video-Maker.git"
-          SOURCE_COMMIT="1d52b73e35f9df8272978e7b93a7a8c87896d7bd"
-          TMP="$(mktemp -d)"
-          SRC="$TMP/source"
 
-          git clone --filter=blob:none --no-checkout "$SOURCE_REPO" "$SRC"
-          git -C "$SRC" checkout --detach "$SOURCE_COMMIT"
-          test "$(git -C "$SRC" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          ROOT="$RUNNER_TEMP/BACKUP-Full-Album-Maker-$BACKUP_LABEL"
+          APP="$ROOT/APP_001_FULL_ALBUM_MAKER"
+          MIRROR="$RUNNER_TEMP/Full-Album-Maker.git"
+          BUNDLE="$APP/GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle"
+          SOURCE_ZIP="$APP/SOURCE/Full-Album-Maker-SOURCE-main-$EXPECTED_MAIN_COMMIT.zip"
+          FINAL_ZIP="$RUNNER_TEMP/BACKUP-Full-Album-Maker-$BACKUP_LABEL.zip"
 
-          for d in src tests build assets; do
-            if [ -d "$SRC/$d" ]; then
-              rm -rf "$d"
-              cp -a "$SRC/$d" "$d"
-            fi
-          done
+          mkdir -p "$APP"/{GIT,SOURCE,BUILD,DOCS,RECOVERY}
+          GENERATED_WIB="$(TZ=Asia/Jakarta date '+%Y-%m-%d %H:%M:%S WIB')"
 
-          for f in .gitignore LICENSE THIRD_PARTY_NOTICES.md pyproject.toml requirements.txt requirements-dev.txt pytest.ini setup.cfg setup.py; do
-            if [ -f "$SRC/$f" ]; then
-              cp -a "$SRC/$f" "$f"
-            fi
-          done
+          git clone --mirror "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" "$MIRROR"
 
-          mkdir -p docs/recovery docs/legacy-source-v1.4.0
-          if [ -d "$SRC/docs" ]; then
-            rm -rf docs/legacy-source-v1.4.0
-            mkdir -p docs/legacy-source-v1.4.0
-            cp -a "$SRC/docs/." docs/legacy-source-v1.4.0/
-          fi
-          if [ -f "$SRC/README.md" ]; then
-            cp -a "$SRC/README.md" docs/legacy-source-v1.4.0/README.md
-          fi
-          if [ -f "$SRC/.github/workflows/build-windows-portable.yml" ]; then
-            cp -a "$SRC/.github/workflows/build-windows-portable.yml" docs/legacy-source-v1.4.0/build-windows-portable.yml
-          fi
+          MAIN_COMMIT="$(git --git-dir="$MIRROR" rev-parse refs/heads/main)"
+          test "$MAIN_COMMIT" = "$EXPECTED_MAIN_COMMIT"
 
-          git -C "$SRC" ls-tree -r --full-tree "$SOURCE_COMMIT" > docs/recovery/SOURCE_V1_4_0_GIT_TREE.txt
+          git --git-dir="$MIRROR" bundle create "$BUNDLE" --all
+          git -C "$MIRROR" bundle verify "$BUNDLE" | tee "$APP/GIT/BUNDLE_VERIFY.txt"
+          git bundle list-heads "$BUNDLE" > "$APP/GIT/BUNDLE_REFS.txt"
+          test -s "$BUNDLE"
 
-          {
-            echo "# VERIFIED_SOURCE import — legacy v1.4.0"
-            echo
-            echo "- Source repository: \`tonitarung099-creator/Full-Album-Video-Maker\`"
-            echo "- Source commit: \`$SOURCE_COMMIT\`"
-            echo "- Source branch observed before recovery: \`main\`"
-            echo "- Source commit message: \`feat: publish Full Album Maker v1.4.0 Gemini AI parity\`"
-            echo "- Provenance: \`VERIFIED_SOURCE\` for files copied from this commit."
-            echo "- Important limitation: portable v1.4.1 reports build commit \`809b4d130c30f12e9df272395c2dd85941931c24\`; that commit was not reachable in the public legacy repository during STEP 00. Therefore this import is an exact v1.4.0 source baseline, not a claim of exact v1.4.1 source."
-            echo "- The historical build workflow is preserved at \`docs/legacy-source-v1.4.0/build-windows-portable.yml\` instead of activating it under \`.github/workflows/\`; STEP 00 treats it as provenance/build evidence and does not alter release automation."
-            echo
-            echo "## Imported groups"
-            echo
-            echo "\`src/\`, \`tests/\`, \`build/\`, \`assets/\`, dependency/project metadata present at the source commit, and historical docs/build-workflow evidence under \`docs/legacy-source-v1.4.0/\`."
-          } > docs/recovery/VERIFIED_SOURCE_IMPORT.md
+          RESTORE_TEST="$RUNNER_TEMP/restore-test"
+          git clone "$BUNDLE" "$RESTORE_TEST"
+          git -C "$RESTORE_TEST" checkout main
+          test "$(git -C "$RESTORE_TEST" rev-parse HEAD)" = "$EXPECTED_MAIN_COMMIT"
+
+          git --git-dir="$MIRROR" archive --format=zip --output="$SOURCE_ZIP" refs/heads/main
+          test -s "$SOURCE_ZIP"
+          unzip -t "$SOURCE_ZIP" >/dev/null
+
+          git --git-dir="$MIRROR" archive --format=tar refs/heads/main docs | tar -xf - -C "$APP/DOCS"
+
+          git --git-dir="$MIRROR" for-each-ref refs/heads --format='%(refname:short) | %(objectname)' > "$APP/BRANCHES.txt"
+          git --git-dir="$MIRROR" for-each-ref refs/tags --format='%(refname:short) | %(objectname) | %(subject)' > "$APP/TAGS.txt"
+          git --git-dir="$MIRROR" log --all --date=iso-strict --pretty=format:'%H | %ad | %an | %ae | %s' > "$APP/COMMIT_HISTORY.txt"
+          printf '%s\n' "$EXPECTED_MAIN_COMMIT" > "$APP/MAIN_COMMIT.txt"
+
+          DEFAULT_BRANCH="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.default_branch')"
+          VISIBILITY="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.visibility')"
+
+          cat > "$APP/REPOSITORY_INFO.txt" <<EOF
+          APP_NAME=Full-Album-Maker
+          ORIGINAL_REPO=https://github.com/$GITHUB_REPOSITORY
+          DEFAULT_BRANCH=$DEFAULT_BRANCH
+          VISIBILITY=$VISIBILITY
+          MAIN_COMMIT=$EXPECTED_MAIN_COMMIT
+          BACKUP_REQUESTED_WIB=$BACKUP_REQUESTED_WIB
+          GENERATED_AT_WIB=$GENERATED_WIB
+          WORKFLOW_RUN_ID=$GITHUB_RUN_ID
+          EOF
 
           {
-            echo "# sha256 | path"
-            find src tests build assets -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum
-            find docs/legacy-source-v1.4.0 -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum
-            for f in .gitignore LICENSE THIRD_PARTY_NOTICES.md pyproject.toml requirements.txt requirements-dev.txt pytest.ini setup.cfg setup.py; do
-              [ -f "$f" ] && sha256sum "$f"
-            done
-          } > docs/recovery/VERIFIED_SOURCE_SHA256.txt
+            echo "SECRET_REQUIRED_BUT_NOT_BACKED_UP"
+            echo
+            echo "- Gemini API key/key pool (if AI Agent is used): SECRET_REQUIRED_BUT_NOT_BACKED_UP"
+            echo "- GitHub Actions/GitHub account credentials: SECRET_REQUIRED_BUT_NOT_BACKED_UP"
+            echo
+            echo "Explicit secrets.NAME references found in workflows:"
+            SECRET_NAMES="$(git --git-dir="$MIRROR" grep -h -o -E 'secrets\.[A-Za-z_][A-Za-z0-9_]*' refs/heads/main -- '.github/workflows/*' 2>/dev/null | sed 's/^secrets\.//' | sort -u || true)"
+            if [ -n "$SECRET_NAMES" ]; then
+              while IFS= read -r s; do
+                [ -n "$s" ] && echo "- $s : SECRET_REQUIRED_BUT_NOT_BACKED_UP"
+              done <<< "$SECRET_NAMES"
+            else
+              echo "- none detected"
+            fi
+          } > "$APP/REQUIRED_SECRETS.txt"
 
-          if find src tests build assets -type f \( -name '.env' -o -name '*.pem' -o -name '*.key' -o -name 'credentials.json' \) -print 2>/dev/null | grep -q .; then
-            echo "Credential-like file found in recovered source; refusing to commit." >&2
+          CRED_FILES="$RUNNER_TEMP/credential-files.txt"
+          git --git-dir="$MIRROR" ls-tree -r --name-only refs/heads/main             | grep -Ei '(^|/)(\.env($|\.)|credentials\.json$|secrets?\.json$|id_rsa$|.*\.(pem|p12|pfx|key)$)'             > "$CRED_FILES" || true
+          if [ -s "$CRED_FILES" ]; then
+            cat "$CRED_FILES" >&2
             exit 1
           fi
 
-      - name: Commit recovered exact source snapshot
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "STEP00 Recovery Bot"
-          git config user.email "step00-recovery@users.noreply.github.com"
-          git add -f build
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No source changes to commit."
-            exit 0
+          TOKEN_HITS="$RUNNER_TEMP/token-hits.txt"
+          git --git-dir="$MIRROR" grep -n -E             '(ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{50,}|AIza[0-9A-Za-z_-]{30,}|sk-[A-Za-z0-9]{20,})'             refs/heads/main -- > "$TOKEN_HITS" || true
+          if [ -s "$TOKEN_HITS" ]; then
+            cat "$TOKEN_HITS" >&2
+            exit 1
           fi
-          git commit -m "recovery: import verified v1.4.0 source snapshot"
-          git push origin HEAD:recovery/step-00-r0
+
+          RELEASE_TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName')"
+          printf '%s\n' "$RELEASE_TAG" > "$APP/BUILD/RELEASE_TAG.txt"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"             --pattern '*Windows-Portable.zip'             --pattern 'SHA256SUMS.txt'             --dir "$APP/BUILD"
+
+          test "$(find "$APP/BUILD" -maxdepth 1 -type f -name '*Windows-Portable.zip' | wc -l | tr -d ' ')" -ge 1
+          (
+            cd "$APP/BUILD"
+            sha256sum -c SHA256SUMS.txt
+          ) | tee "$APP/BUILD/RELEASE_CHECKSUM_VERIFY.txt"
+
+          cat > "$APP/README_RESTORE.txt" <<'EOF'
+          FULL ALBUM MAKER - RESTORE SINGKAT
+
+          GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle adalah backup utama untuk riwayat Git,
+          branch, tag, dan commit. SOURCE ZIP adalah snapshot main yang mudah dibuka manusia.
+
+          1. Jalankan RECOVERY\VERIFY_BACKUP.ps1.
+          2. Buat repository kosong baru di GitHub.
+          3. Jalankan RECOVERY\RESTORE_TO_NEW_GITHUB.ps1.
+          4. Masukkan URL repo baru.
+          5. Script tidak akan push sebelum Anda mengetik Y.
+          6. Isi kembali API key/secret secara manual.
+          EOF
+
+          cat > "$APP/RECOVERY/PETUNJUK_PEMULIHAN.txt" <<'EOF'
+          PEMULIHAN JIKA GITHUB LAMA TIDAK BISA DIAKSES
+
+          1. Ekstrak ZIP backup.
+          2. Masuk APP_001_FULL_ALBUM_MAKER.
+          3. Jalankan RECOVERY\VERIFY_BACKUP.ps1.
+          4. Pastikan semua PASS.
+          5. Buat repo kosong baru di akun GitHub baru.
+          6. Jalankan RECOVERY\RESTORE_TO_NEW_GITHUB.ps1.
+          7. Masukkan URL HTTPS repo baru.
+          8. Periksa main commit sesuai MAIN_COMMIT.txt.
+          9. Ketik Y hanya bila siap push semua branch dan tag.
+          10. Isi ulang secret/API key dari REQUIRED_SECRETS.txt.
+          11. Jalankan workflow build jika perlu membuat build baru.
+
+          Fallback: SOURCE ZIP bisa dipakai bila Git Bundle tidak dapat digunakan,
+          tetapi SOURCE ZIP tidak menggantikan riwayat Git lengkap.
+          EOF
+
+          cat > "$APP/RECOVERY/RESTORE_TO_NEW_GITHUB.ps1" <<'POWERSHELL'
+          param([string]$NewRepoUrl = "")
+          $ErrorActionPreference = "Stop"
+          $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
+          $App = Split-Path -Parent $Here
+          $Bundle = Join-Path $App "GIT\Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle"
+          $Expected = (Get-Content (Join-Path $App "MAIN_COMMIT.txt") -Raw).Trim()
+          $RestoreDir = Join-Path $Here "RESTORED_Full-Album-Maker"
+
+          if (-not (Test-Path $Bundle)) { throw "Git Bundle tidak ditemukan." }
+          git bundle verify $Bundle
+          if ($LASTEXITCODE -ne 0) { throw "Git Bundle gagal diverifikasi." }
+
+          if (Test-Path $RestoreDir) { throw "Folder restore sudah ada: $RestoreDir" }
+          git clone $Bundle $RestoreDir
+          if ($LASTEXITCODE -ne 0) { throw "Clone Git Bundle gagal." }
+
+          Push-Location $RestoreDir
+          try {
+            git checkout main
+            if ($LASTEXITCODE -ne 0) { throw "Checkout main gagal." }
+            $Actual = (git rev-parse HEAD).Trim()
+            if ($Actual -ne $Expected) { throw "MAIN_COMMIT tidak cocok. Expected=$Expected Actual=$Actual" }
+
+            if ([string]::IsNullOrWhiteSpace($NewRepoUrl)) {
+              $NewRepoUrl = Read-Host "Masukkan URL HTTPS repo GitHub BARU"
+            }
+            if ([string]::IsNullOrWhiteSpace($NewRepoUrl)) { throw "URL repo baru wajib diisi." }
+
+            git remote remove origin 2>$null
+            git remote add origin $NewRepoUrl
+
+            Write-Host "BELUM ADA DATA YANG DI-PUSH."
+            Write-Host "Repo baru: $NewRepoUrl"
+            Write-Host "Main commit: $Actual"
+            $Confirm = Read-Host "Ketik Y untuk push SEMUA branch dan tag"
+            if ($Confirm -notin @("Y","y")) {
+              Write-Host "Dibatalkan. Tidak ada push."
+              exit 0
+            }
+
+            git push origin --all
+            if ($LASTEXITCODE -ne 0) { throw "Push branch gagal." }
+            git push origin --tags
+            if ($LASTEXITCODE -ne 0) { throw "Push tag gagal." }
+            Write-Host "RESTORE SELESAI."
+          } finally {
+            Pop-Location
+          }
+          POWERSHELL
+
+          cat > "$APP/RECOVERY/VERIFY_BACKUP.ps1" <<'POWERSHELL'
+          $ErrorActionPreference = "Stop"
+          $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
+          $App = Split-Path -Parent $Here
+          $ChecksumFile = Join-Path $App "SHA256SUMS.txt"
+          $Failed = 0
+
+          Get-Content $ChecksumFile | ForEach-Object {
+            if ($_ -match '^([0-9a-fA-F]{64})\s+\*?(.+)$') {
+              $Expected = $Matches[1].ToLower()
+              $Rel = $Matches[2]
+              $Path = Join-Path $App ($Rel -replace '/', '\')
+              if (-not (Test-Path $Path)) {
+                Write-Host "MISSING $Rel"
+                $Failed++
+              } else {
+                $Actual = (Get-FileHash -Algorithm SHA256 $Path).Hash.ToLower()
+                if ($Actual -eq $Expected) { Write-Host "PASS $Rel" }
+                else { Write-Host "FAIL $Rel"; $Failed++ }
+              }
+            }
+          }
+
+          git bundle verify (Join-Path $App "GIT\Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle")
+          if ($LASTEXITCODE -ne 0) { $Failed++ }
+
+          if ($Failed -gt 0) { throw "Verifikasi gagal: $Failed masalah." }
+          Write-Host "SEMUA VERIFIKASI APP PASS."
+          POWERSHELL
+
+          cat > "$ROOT/VERIFY_ALL_BACKUP.ps1" <<'POWERSHELL'
+          $ErrorActionPreference = "Stop"
+          $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+          $ChecksumFile = Join-Path $Root "00_SHA256SUMS.txt"
+          $Failed = 0
+
+          Get-Content $ChecksumFile | ForEach-Object {
+            if ($_ -match '^([0-9a-fA-F]{64})\s+\*?(.+)$') {
+              $Expected = $Matches[1].ToLower()
+              $Rel = $Matches[2]
+              $Path = Join-Path $Root ($Rel -replace '/', '\')
+              if (-not (Test-Path $Path)) {
+                Write-Host "MISSING $Rel"
+                $Failed++
+              } else {
+                $Actual = (Get-FileHash -Algorithm SHA256 $Path).Hash.ToLower()
+                if ($Actual -eq $Expected) { Write-Host "PASS $Rel" }
+                else { Write-Host "FAIL $Rel"; $Failed++ }
+              }
+            }
+          }
+          if ($Failed -gt 0) { throw "Verifikasi master gagal: $Failed masalah." }
+          Write-Host "SEMUA CHECKSUM MASTER PASS."
+          POWERSHELL
+
+          cat > "$ROOT/RESTORE_ALL.ps1" <<'POWERSHELL'
+          $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+          Write-Host "[1] Full-Album-Maker"
+          $Choice = Read-Host "Pilih nomor aplikasi"
+          if ($Choice -ne "1") { Write-Host "Dibatalkan."; exit 0 }
+          & (Join-Path $Root "APP_001_FULL_ALBUM_MAKER\RECOVERY\RESTORE_TO_NEW_GITHUB.ps1")
+          POWERSHELL
+
+          cat > "$APP/STATUS_BACKUP.txt" <<EOF
+          APP_NAME=Full-Album-Maker
+          BACKUP_STATUS=BACKUP_COMPLETE
+          SOURCE_STATUS=BACKUP_COMPLETE
+          GIT_HISTORY_STATUS=BACKUP_COMPLETE
+          BUILD_STATUS=BACKUP_COMPLETE
+          DOCUMENTATION_STATUS=BACKUP_COMPLETE
+          RECOVERY_STATUS=BACKUP_COMPLETE
+          SECRET_SCAN_STATUS=PASS
+          MAIN_COMMIT=$EXPECTED_MAIN_COMMIT
+          RELEASE_TAG=$RELEASE_TAG
+          BACKUP_REQUESTED_WIB=$BACKUP_REQUESTED_WIB
+          GENERATED_AT_WIB=$GENERATED_WIB
+          EOF
+
+          (
+            cd "$APP"
+            find . -type f ! -name 'SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum               | sed 's#  \./#  #' > SHA256SUMS.txt
+          )
+
+          cat > "$ROOT/00_README_PERTAMA.txt" <<EOF
+          BACKUP FULL ALBUM MAKER SAJA
+          Repo lain tidak termasuk.
+
+          Backup request: $BACKUP_REQUESTED_WIB
+          Dibuat: $GENERATED_WIB
+          Main commit: $EXPECTED_MAIN_COMMIT
+          Release: $RELEASE_TAG
+
+          Jalankan VERIFY_ALL_BACKUP.ps1 setelah ekstrak.
+          Jalankan RESTORE_ALL.ps1 untuk pemulihan ke GitHub baru.
+          EOF
+
+          cat > "$ROOT/00_BACKUP_INFO.txt" <<EOF
+          SCOPE=ONLY_FULL_ALBUM_MAKER
+          ORIGINAL_REPO=https://github.com/$GITHUB_REPOSITORY
+          DEFAULT_BRANCH=main
+          MAIN_COMMIT=$EXPECTED_MAIN_COMMIT
+          RELEASE_TAG=$RELEASE_TAG
+          BACKUP_REQUESTED_WIB=$BACKUP_REQUESTED_WIB
+          GENERATED_AT_WIB=$GENERATED_WIB
+          WORKFLOW_RUN_ID=$GITHUB_RUN_ID
+          SECRET_VALUES_INCLUDED=NO
+          EOF
+
+          cat > "$ROOT/00_MASTER_MANIFEST.txt" <<EOF
+          TOTAL_PROYEK=1
+          APP_NAME=Full-Album-Maker
+          ORIGINAL_REPO=https://github.com/$GITHUB_REPOSITORY
+          BACKUP_DATE_WIB=$GENERATED_WIB
+          MAIN_COMMIT=$EXPECTED_MAIN_COMMIT
+          GIT_BUNDLE=APP_001_FULL_ALBUM_MAKER/GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle
+          SOURCE_SNAPSHOT=APP_001_FULL_ALBUM_MAKER/SOURCE/Full-Album-Maker-SOURCE-main-$EXPECTED_MAIN_COMMIT.zip
+          BUILD=APP_001_FULL_ALBUM_MAKER/BUILD
+          DOCS=APP_001_FULL_ALBUM_MAKER/DOCS
+          RECOVERY_SCRIPT=APP_001_FULL_ALBUM_MAKER/RECOVERY/RESTORE_TO_NEW_GITHUB.ps1
+          BACKUP_STATUS=BACKUP_COMPLETE
+          CHECKSUM_STATUS=PASS
+          EOF
+
+          cat > "$ROOT/00_MASTER_MANIFEST.csv" <<EOF
+          NAMA_PROYEK,REPO,DEFAULT_BRANCH,COMMIT_TERBARU,STATUS_SOURCE,STATUS_BUILD,STATUS_DOKUMENTASI,STATUS_BACKUP,CATATAN
+          Full-Album-Maker,https://github.com/$GITHUB_REPOSITORY,main,$EXPECTED_MAIN_COMMIT,BACKUP_COMPLETE,BACKUP_COMPLETE,BACKUP_COMPLETE,BACKUP_COMPLETE,Only this app requested
+          EOF
+
+          (
+            cd "$ROOT"
+            find . -type f ! -name '00_SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum               | sed 's#  \./#  #' > 00_SHA256SUMS.txt
+          )
+
+          test -s "$BUNDLE"
+          test -s "$SOURCE_ZIP"
+          test -s "$APP/MAIN_COMMIT.txt"
+          test -s "$APP/BRANCHES.txt"
+          test -s "$APP/COMMIT_HISTORY.txt"
+          test -f "$ROOT/RESTORE_ALL.ps1"
+          test -f "$ROOT/VERIFY_ALL_BACKUP.ps1"
+          test -f "$APP/RECOVERY/RESTORE_TO_NEW_GITHUB.ps1"
+          test -f "$APP/RECOVERY/VERIFY_BACKUP.ps1"
+
+          (
+            cd "$APP"
+            sha256sum -c SHA256SUMS.txt >/dev/null
+          )
+          (
+            cd "$ROOT"
+            sha256sum -c 00_SHA256SUMS.txt >/dev/null
+          )
+
+          git -C "$MIRROR" bundle verify "$BUNDLE" >/dev/null
+          unzip -t "$SOURCE_ZIP" >/dev/null
+          test "$(find "$ROOT" -maxdepth 1 -type d -name 'APP_*' | wc -l | tr -d ' ')" = "1"
+
+          (
+            cd "$(dirname "$ROOT")"
+            zip -q -r -1 "$FINAL_ZIP" "$(basename "$ROOT")"
+          )
+          unzip -t "$FINAL_ZIP" >/dev/null
+
+          FINAL_SHA="$(sha256sum "$FINAL_ZIP" | awk '{print $1}')"
+          FINAL_SIZE="$(stat -c '%s' "$FINAL_ZIP")"
+          printf '%s  %s\n' "$FINAL_SHA" "$(basename "$FINAL_ZIP")" > "$RUNNER_TEMP/FINAL_SHA256.txt"
+
+          cat > "$RUNNER_TEMP/BACKUP_RESULT.txt" <<EOF
+          TOTAL_PROYEK=1
+          BACKUP_COMPLETE=1
+          BACKUP_PARTIAL=0
+          TIDAK_DAPAT_DIAKSES=0
+          UKURAN_MASTER_ZIP_BYTES=$FINAL_SIZE
+          SHA256_MASTER_ZIP=$FINAL_SHA
+          COMMIT_TERBARU_PENTING=$EXPECTED_MAIN_COMMIT
+          VALIDASI=PASS
+          STATUS_AKHIR=BACKUP_COMPLETE
+          BACKUP_REQUESTED_WIB=$BACKUP_REQUESTED_WIB
+          GENERATED_AT_WIB=$GENERATED_WIB
+          EOF
+
+          cat "$RUNNER_TEMP/BACKUP_RESULT.txt"
+
+      - name: Upload verified backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: BACKUP-Full-Album-Maker-2026-10-07_03-20-WIB
+          path: |
+            ${{ runner.temp }}/BACKUP-Full-Album-Maker-2026-10-07_03-20_WIB.zip
+            ${{ runner.temp }}/FINAL_SHA256.txt
+            ${{ runner.temp }}/BACKUP_RESULT.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
