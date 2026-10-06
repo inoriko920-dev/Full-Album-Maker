@@ -4,8 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from PySide6.QtCore import QRect, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QMenu, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
@@ -313,14 +313,14 @@ class MediaInspectorPreview(QLabel):
             p.fillRect(r, sky)
             p.setBrush(QColor("#7A956F"))
             p.drawPolygon(
-                [
+                QPolygon([
                     r.bottomLeft(),
                     r.topLeft() + QPoint(0, int(r.height() * 0.70)),
                     QPoint(int(r.width() * 0.30), int(r.height() * 0.46)),
                     QPoint(int(r.width() * 0.52), int(r.height() * 0.68)),
                     QPoint(int(r.width() * 0.75), int(r.height() * 0.38)),
                     r.bottomRight(),
-                ]
+                ])
             )
             if self._asset.media_type == MediaType.VIDEO:
                 p.setBrush(QColor(16, 35, 74, 180))
@@ -350,7 +350,7 @@ class MediaInspectorWidget(QWidget):
         if not self._selected: self.preview.set_asset(None); self.preview.setText('Belum ada pilihan'); self.title.setText('Belum ada pilihan'); self.details.clear(); self.tags.clear(); self.description.clear(); self._enable(False); return
         if len(self._selected)>1:
             counts={k:sum(a.media_type==k for a in self._selected) for k in MediaType}; self.preview.set_asset(None); self.preview.setText(f'{len(self._selected)} item dipilih'); self.title.setText('Pilihan Banyak'); self.details.setText(f"Video: {counts[MediaType.VIDEO]}\nFoto: {counts[MediaType.PHOTO]}\nAudio: {counts[MediaType.AUDIO]}"); self.tags.clear(); self.description.clear(); self._enable(False); self.add_album.setEnabled(True); return
-        a=self._asset; m=a.metadata; self.preview.setText({'audio':'♫ AUDIO','photo':'▧ FOTO','video':'▶ VIDEO'}[a.media_type.value]); self.title.setText(a.display_name); res=f'{m.width} × {m.height}' if m.width and m.height else '—'; fps=f'{m.fps:g} FPS' if m.fps else '—'; created=datetime.fromtimestamp(m.created_at).strftime('%d %b %Y  %H:%M') if m.created_at else '—'; self.details.setText(f'Jenis        {a.media_type.value.title()}\nResolusi     {res}\nDurasi       {_duration(m.duration)}\nFrame Rate   {fps}\nUkuran       {_size(m.size_bytes)}\nWaktu FS     {created}\nLokasi       {a.path}\nFormat       {m.container or Path(a.path).suffix.lstrip(".").upper() or "—"}'); self.tags.setText(', '.join(a.tags)); self.description.setPlainText(a.description); self._enable(True); self.favorite.setText('★ Hapus dari Favorit' if a.favorite else '☆ Tambahkan ke Favorit'); self.relink.setEnabled(a.status==MediaStatus.MISSING); self.reveal.setEnabled(a.status!=MediaStatus.MISSING)
+        a=self._asset; m=a.metadata; self.preview.set_asset(a); self.title.setText(a.display_name); res=f'{m.width} × {m.height}' if m.width and m.height else '—'; fps=f'{m.fps:g} FPS' if m.fps else '—'; created=datetime.fromtimestamp(m.created_at).strftime('%d %b %Y  %H:%M') if m.created_at else '—'; self.details.setText(f'Jenis        {a.media_type.value.title()}\nResolusi     {res}\nDurasi       {_duration(m.duration)}\nFrame Rate   {fps}\nUkuran       {_size(m.size_bytes)}\nWaktu FS     {created}\nLokasi       {a.path}\nFormat       {m.container or Path(a.path).suffix.lstrip(".").upper() or "—"}'); self.tags.setText(', '.join(a.tags)); self.description.setPlainText(a.description); self._enable(True); self.favorite.setText('★ Hapus dari Favorit' if a.favorite else '☆ Tambahkan ke Favorit'); self.relink.setEnabled(a.status==MediaStatus.MISSING); self.reveal.setEnabled(a.status!=MediaStatus.MISSING)
     def _enable(self,value):
         for w in (self.tags,self.description,self.save_meta,self.favorite,self.relink,self.reveal): w.setEnabled(value)
         self.add_album.setEnabled(bool(self._selected))
