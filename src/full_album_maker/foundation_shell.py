@@ -177,7 +177,7 @@ class WorkspaceNavigation(QFrame):
         self.setMinimumWidth(TOKENS.nav_width)
         self.setMaximumWidth(TOKENS.nav_width)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(7, TOKENS.space_2, 7, TOKENS.space_2)
+        lay.setContentsMargins(7, 15, 7, TOKENS.space_2)
         lay.setSpacing(2)
         for route, label, icon_name in WORKSPACE_ORDER:
             button = WorkspaceNavButton(label)
