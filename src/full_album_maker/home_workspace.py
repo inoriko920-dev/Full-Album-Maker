@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from PySide6.QtCore import QEvent, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
@@ -127,6 +127,54 @@ class RecoveryBanner(QFrame):
         self.text.setText(f"Ditemukan data autosave dari sesi sebelumnya ({stamp}).")
 
 
+class RecentThumbnail(QFrame):
+    """Lightweight deterministic artwork fallback; real thumbnail_ref wins when available."""
+
+    _PALETTE = (
+        ("#755C61", "#B8755B"),
+        ("#5E829E", "#314E68"),
+        ("#617460", "#314B3A"),
+        ("#C5A786", "#E0C6A7"),
+    )
+
+    def __init__(self, item: RecentProject, parent=None) -> None:
+        super().__init__(parent)
+        self.item = item
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+
+    def _palette_index(self) -> int:
+        tail = self.item.project_id.rsplit("-", 1)[-1]
+        if tail.isdigit():
+            return (int(tail) - 1) % len(self._PALETTE)
+        return sum(ord(ch) for ch in self.item.display_name) % len(self._PALETTE)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        top, bottom = self._PALETTE[self._palette_index()]
+        rect = self.rect()
+        painter.fillRect(rect, QColor(top))
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(bottom))
+        painter.drawEllipse(int(rect.width() * 0.60), int(rect.height() * 0.12), int(rect.width() * 0.48), int(rect.height() * 0.95))
+        painter.setBrush(QColor("#10234A55"))
+        painter.drawEllipse(int(rect.width() * -0.12), int(rect.height() * 0.55), int(rect.width() * 0.72), int(rect.height() * 0.72))
+
+        painter.setPen(QColor("#FFFFFF"))
+        font = QFont(painter.font())
+        font.setBold(True)
+        font.setPointSize(12)
+        painter.setFont(font)
+        text_rect = rect.adjusted(18, 12, -18, -14)
+        painter.drawText(
+            text_rect,
+            Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+            self.item.display_name,
+        )
+        painter.end()
+
+
 class RecentProjectCard(QFrame):
     open_requested = Signal(str)
     remove_requested = Signal(str)
@@ -168,10 +216,7 @@ class RecentProjectCard(QFrame):
         top.addWidget(menu_btn)
         cover_lay.addLayout(top)
 
-        glyph = QLabel("♪")
-        glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        glyph.setStyleSheet(f"font-size: 32px; color: {TOKENS.primary_600};")
-        cover_lay.addWidget(glyph, 1)
+        cover_lay.addStretch(1)
 
         duration = "—" if item.duration_seconds is None else self._format_duration(item.duration_seconds)
         bottom = QHBoxLayout()
@@ -327,6 +372,7 @@ class HomeWorkspace(QWidget):
         self._activate_after_stack_insert = True
         self._vertical_compact = False
         self.setObjectName("workspaceHost")
+        self.setStyleSheet("QWidget#workspaceHost { background: #FFFFFF; }")
         self.state = state or HomeViewState()
         self._root_layout = QVBoxLayout(self)
         root = self._root_layout
