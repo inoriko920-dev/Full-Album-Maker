@@ -41,8 +41,8 @@ def run_portable_smoke() -> int:
     """Exercise the extracted frozen app without relying on global Python/FFmpeg/API.
 
     This intentionally renders a tiny real A/V output through the same S11/S12
-    compiler used by the editor, probes both streams, then constructs the actual
-    v1.4 Qt main window. It is a release gate, not a substitute for the full suite.
+    compiler used by the editor, probes both streams, then constructs the exact
+    Foundation production window. It is a release gate, not a substitute for the full suite.
     """
 
     root = app_root().resolve()
@@ -145,14 +145,38 @@ def run_portable_smoke() -> int:
             raise RuntimeError(f"Durasi output smoke tidak wajar: {duration}")
 
         from PySide6.QtWidgets import QApplication
-        from .v14_window import V14EditorMainWindow
+        from .foundation_window import FoundationMainWindow
+        from .v14_window import configure_application, create_main_window
 
         app = QApplication.instance() or QApplication([])
-        window = V14EditorMainWindow()
+        configure_application(app)
+        window = create_main_window()
+        if not isinstance(window, FoundationMainWindow):
+            raise RuntimeError(
+                f"Smoke portable membuat window yang salah: {type(window).__name__}"
+            )
+        if not hasattr(window, "foundation_shell"):
+            raise RuntimeError("Foundation shell produksi tidak tersedia pada portable smoke.")
+
         window.show()
         app.processEvents()
         gui_title = window.windowTitle()
         ai_parity = type(window._ai_context_builder).__name__ == "V14EditorAIContextBuilder"
+        routes = (
+            "home",
+            "media",
+            "album",
+            "timeline",
+            "visual",
+            "template",
+            "spectrum",
+            "ai_agent",
+            "render",
+        )
+        for route in routes:
+            window.foundation_shell.set_workspace(route)
+            app.processEvents()
+
         window.hide()
         window.deleteLater()
         app.processEvents()
@@ -169,6 +193,8 @@ def run_portable_smoke() -> int:
                 "output_duration_seconds": duration,
                 "output_streams": stream_types,
                 "gui_title": gui_title,
+                "window_class": "FoundationMainWindow",
+                "production_routes": list(routes),
                 "ai_parity": ai_parity,
             }
         )
