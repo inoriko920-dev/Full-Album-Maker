@@ -4,7 +4,9 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
+import tempfile
 from typing import Callable
 
 from .atomic_io import atomic_write_text
@@ -247,3 +249,43 @@ def extract_project_document_from_saved_json(path: str | Path) -> ProjectDocumen
 def verify_persisted_document(path: str | Path, expected: ProjectDocument) -> bool:
     restored = extract_project_document_from_saved_json(path)
     return normalized_project_hash(restored) == normalized_project_hash(expected)
+
+
+def save_verified_legacy_project(
+    path: str | Path,
+    project,
+    expected: ProjectDocument,
+    *,
+    verifier: Callable[[str | Path, ProjectDocument], bool] = verify_persisted_document,
+) -> str:
+    """Stage, semantically verify, then atomically publish a legacy project envelope.
+
+    The canonical target is never touched until the staged JSON has been parsed
+    back into the authoritative ProjectDocument and its normalized hash matches
+    the expected document. Stage and target live in the same directory so
+    os.replace is an atomic same-filesystem publish.
+    """
+
+    target = Path(path)
+    if target.suffix.lower() != ".json":
+        target = target.with_suffix(".json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, stage_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".stage.json",
+        dir=str(target.parent),
+    )
+    os.close(fd)
+    stage = Path(stage_name)
+    try:
+        payload = json.dumps(project.to_dict(), ensure_ascii=False, indent=2)
+        atomic_write_text(stage, payload, encoding="utf-8")
+        if not verifier(stage, expected):
+            raise ValueError(
+                "Project staged tidak sama dengan ProjectDocument authoritative."
+            )
+        os.replace(stage, target)
+        return str(target)
+    finally:
+        stage.unlink(missing_ok=True)
