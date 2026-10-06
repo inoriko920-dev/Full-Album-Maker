@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget,
+    QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget,
 )
 
 from .foundation_components import FAMButton, FAMStatusChip
@@ -37,30 +37,79 @@ def _capability_style(state: CapabilityState) -> tuple[str, str]:
 
 
 class _StatusRow(QFrame):
+    """Compact status row matching the Beranda reference while keeping the old chip API."""
+
     def __init__(self, title: str, parent=None) -> None:
         super().__init__(parent)
+        self.base_title = title
+        self.setMinimumHeight(62)
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 4, 0, 4)
         row.setSpacing(TOKENS.space_2)
+
+        self.indicator = QLabel("•")
+        self.indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.indicator.setFixedSize(26, 26)
+        row.addWidget(self.indicator, 0, Qt.AlignmentFlag.AlignTop)
+
         copy = QVBoxLayout()
         copy.setContentsMargins(0, 0, 0, 0)
-        copy.setSpacing(1)
+        copy.setSpacing(2)
         self.title = QLabel(title)
         self.title.setObjectName("sectionHeading")
-        self.title.setStyleSheet("font-size: 13px;")
+        self.title.setStyleSheet("font-size: 13px;font-weight:700;")
         self.detail = QLabel("")
         self.detail.setObjectName("metadata")
         self.detail.setWordWrap(True)
         copy.addWidget(self.title)
         copy.addWidget(self.detail)
         row.addLayout(copy, 1)
+
+        # Preserve this attribute for compatibility with older tests/integration,
+        # but the golden Beranda uses a circular state indicator instead of a pill.
         self.chip = FAMStatusChip("", "neutral")
-        row.addWidget(self.chip)
+        self.chip.hide()
+
+    def _display_title(self, state: CapabilityState) -> str:
+        if self.base_title == "FFmpeg":
+            if state == CapabilityState.READY:
+                return "FFmpeg Siap"
+            if state == CapabilityState.CHECKING:
+                return "FFmpeg Memeriksa…"
+            return "FFmpeg Perlu Perhatian"
+        if self.base_title == "Editing Manual Offline":
+            return "Editing Manual Offline"
+        if self.base_title == "AI":
+            if state == CapabilityState.READY:
+                return "AI Siap"
+            if state == CapabilityState.OPTIONAL:
+                return "AI Belum Dikonfigurasi"
+            if state == CapabilityState.CHECKING:
+                return "AI Memeriksa…"
+            return "AI Perlu Perhatian"
+        return self.base_title
+
+    def _indicator_style(self, state: CapabilityState) -> tuple[str, str]:
+        if state == CapabilityState.READY:
+            return "✓", "background:#1FAF5A;color:white;"
+        if state == CapabilityState.WARNING:
+            return "!", "background:#FFF2CC;color:#A56D00;"
+        if state == CapabilityState.UNAVAILABLE:
+            return "×", "background:#FFF0F0;color:#B73A3A;"
+        if state == CapabilityState.CHECKING:
+            return "•", "background:#EAF3FF;color:#1766E8;"
+        return "•", "background:#DCE5F1;color:#62728A;"
 
     def set_value(self, state: CapabilityState, detail: str) -> None:
         text, style = _capability_style(state)
         self.chip.setText(text)
         self.chip.set_status(style)
+        self.title.setText(self._display_title(state))
+        glyph, colors = self._indicator_style(state)
+        self.indicator.setText(glyph)
+        self.indicator.setStyleSheet(
+            colors + "border-radius:13px;font-size:15px;font-weight:800;"
+        )
         self.detail.setText(detail)
 
 
@@ -75,38 +124,55 @@ class HomeInspectorWidget(QWidget):
         root.setContentsMargins(TOKENS.space_3, TOKENS.space_3, TOKENS.space_3, TOKENS.space_3)
         root.setSpacing(TOKENS.space_3)
 
+        self.status_card = QFrame()
+        self.status_card.setObjectName("famCard")
+        status_layout = QVBoxLayout(self.status_card)
+        status_layout.setContentsMargins(TOKENS.space_3, TOKENS.space_3, TOKENS.space_3, TOKENS.space_3)
+        status_layout.setSpacing(TOKENS.space_1)
+
         title = QLabel("Status Portable")
         title.setObjectName("sectionHeading")
-        root.addWidget(title)
+        title.setStyleSheet("font-size:16px;font-weight:700;")
+        status_layout.addWidget(title)
 
         self.ffmpeg = _StatusRow("FFmpeg")
         self.manual = _StatusRow("Editing Manual Offline")
         self.ai = _StatusRow("AI")
-        root.addWidget(self.ffmpeg)
-        root.addWidget(self.manual)
-        root.addWidget(self.ai)
+        status_layout.addWidget(self.ffmpeg)
+        status_layout.addWidget(self.manual)
+        status_layout.addWidget(self.ai)
+        root.addWidget(self.status_card)
 
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        root.addWidget(divider)
+        self.settings_card = QFrame()
+        self.settings_card.setObjectName("famCard")
+        settings = QVBoxLayout(self.settings_card)
+        settings.setContentsMargins(TOKENS.space_3, TOKENS.space_3, TOKENS.space_3, TOKENS.space_3)
+        settings.setSpacing(7)
 
         quick = QLabel("Pengaturan Cepat")
         quick.setObjectName("sectionHeading")
-        root.addWidget(quick)
+        quick.setStyleSheet("font-size:16px;font-weight:700;")
+        settings.addWidget(quick)
 
-        root.addWidget(QLabel("Rasio Video"))
+        ratio_label = QLabel("Rasio Video")
+        ratio_label.setObjectName("metadata")
+        settings.addWidget(ratio_label)
         self.ratio = QComboBox()
         for value, label in _RATIO_OPTIONS:
             self.ratio.addItem(label, value)
-        root.addWidget(self.ratio)
+        settings.addWidget(self.ratio)
 
-        root.addWidget(QLabel("Resolusi Default"))
+        resolution_label = QLabel("Resolusi Default")
+        resolution_label.setObjectName("metadata")
+        settings.addWidget(resolution_label)
         self.resolution = QComboBox()
         for value, label, width, height in _RESOLUTION_OPTIONS:
             self.resolution.addItem(label, (value, width, height))
-        root.addWidget(self.resolution)
+        settings.addWidget(self.resolution)
 
-        root.addWidget(QLabel("Folder Output"))
+        output_label = QLabel("Folder Output")
+        output_label.setObjectName("metadata")
+        settings.addWidget(output_label)
         output_row = QHBoxLayout()
         output_row.setContentsMargins(0, 0, 0, 0)
         output_row.setSpacing(TOKENS.space_1)
@@ -118,12 +184,13 @@ class HomeInspectorWidget(QWidget):
         self.browse.setToolTip("Pilih folder output")
         output_row.addWidget(self.output, 1)
         output_row.addWidget(self.browse)
-        root.addLayout(output_row)
+        settings.addLayout(output_row)
 
         self.output_warning = QLabel("")
         self.output_warning.setObjectName("metadata")
         self.output_warning.setWordWrap(True)
-        root.addWidget(self.output_warning)
+        settings.addWidget(self.output_warning)
+        root.addWidget(self.settings_card)
         root.addStretch(1)
 
         self.ratio.currentIndexChanged.connect(self._emit_defaults)
