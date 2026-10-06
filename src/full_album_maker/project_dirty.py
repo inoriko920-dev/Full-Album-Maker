@@ -118,11 +118,13 @@ def _patched_load_project_file(self) -> bool:
         return False
 
     previous_project = self.project
-    _originals["load_project_file"](self)
-    if self.project is previous_project:
+    previous_path = str(getattr(self, "_current_project_path", "") or "")
+    opened_path = _originals["load_project_file"](self)
+    if self.project is previous_project or not opened_path:
+        self._current_project_path = previous_path
         return False
 
-    self._current_project_path = ""
+    self._current_project_path = str(Path(opened_path).resolve())
     self._saved_project_state = _project_state(self.project)
     self.refresh()
     return True
