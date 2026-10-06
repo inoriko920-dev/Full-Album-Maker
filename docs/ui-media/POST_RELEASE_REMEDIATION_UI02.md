@@ -21,11 +21,11 @@ Fresh baseline pada branch sebelum remediation:
 
 ## Hasil remediation
 
-Final screenshot candidate dari GitHub Actions run **37425223849**:
-- mean absolute RGB difference: **30.09**
-- normalized mean absolute difference: **0.1180**
-- pixel dengan delta salah satu channel > 25: **33.04%**
-- perbaikan mean absolute RGB terhadap baseline: sekitar **22.4%**
+Final screenshot candidate dari GitHub Actions run **37425681364**:
+- mean absolute RGB difference: **28.70**
+- normalized mean absolute difference: **0.1126**
+- pixel dengan delta salah satu channel > 25: **32.66%**
+- perbaikan mean absolute RGB terhadap baseline: sekitar **26.0%**
 
 Residual terbesar terutama berasal dari fixture yang memakai artwork deterministik, sedangkan golden memakai media foto/video contoh yang spesifik, serta perbedaan native rasterization/icon. Runtime tetap memprioritaskan preview media nyata dari cache/source dan tidak menggunakan crop/screenshot golden sebagai konten aplikasi.
 
@@ -54,8 +54,8 @@ Residual terbesar terutama berasal dari fixture yang memakai artwork determinist
 ## Verification
 
 Evidence production UI:
-- Actions run: **37425223849**
-- production UI head: `82e523c69a0a023250296af5a6e0109d232bfeee`
+- Actions run: **37425681364**
+- validated branch head: `8cd481d07f77b56330b610c0824c4d9073e33e0c`
 - STEP03 completion: **PASS**
 - full recovered regression: **PASS**
 - FFmpeg preview smoke: **PASS**
