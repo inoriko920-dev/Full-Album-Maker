@@ -126,6 +126,7 @@ def test_keyboard_navigation_and_render_shortcut_are_non_destructive(qapp):
 
 @pytest.mark.usefixtures("qapp")
 def test_production_foundation_window_starts_route_switches_and_compacts(qapp, tmp_path, monkeypatch):
+    from full_album_maker import __version__
     from full_album_maker.foundation_preferences import FoundationPreferenceStore
     from full_album_maker.foundation_tokens import TOKENS
     from full_album_maker.foundation_window import FoundationMainWindow
@@ -137,7 +138,7 @@ def test_production_foundation_window_starts_route_switches_and_compacts(qapp, t
     window = FoundationMainWindow()
     window.show()
     qapp.processEvents()
-    assert window.windowTitle() == "Full Album Maker"
+    assert window.windowTitle() == f"Full Album Maker v{__version__}"
     assert window.centralWidget() is window.foundation_shell
     before = id(window.project)
     window.foundation_shell.set_workspace("album")

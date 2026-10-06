@@ -272,3 +272,71 @@ def test_open_is_blocked_while_render_is_active(monkeypatch):
 
     window.render_busy = False
     window.close()
+
+def test_open_project_retains_current_project_path(tmp_path, monkeypatch):
+    app = _app()
+    source = tmp_path / "opened-project.json"
+    save_project(str(source), Project())
+
+    window = MainWindow()
+    monkeypatch.setattr(
+        "full_album_maker.ui.QFileDialog.getOpenFileName",
+        lambda *args, **kwargs: (str(source), "Full Album Project (*.json)"),
+    )
+
+    assert window.load_project_file() is True
+    app.processEvents()
+
+    assert Path(window._current_project_path) == source.resolve()
+    window.close()
+
+
+def test_open_then_save_uses_same_target_without_save_as_dialog(tmp_path, monkeypatch):
+    app = _app()
+    source = tmp_path / "opened-project.json"
+    save_project(str(source), Project())
+
+    window = MainWindow()
+    monkeypatch.setattr(
+        "full_album_maker.ui.QFileDialog.getOpenFileName",
+        lambda *args, **kwargs: (str(source), "Full Album Project (*.json)"),
+    )
+    assert window.load_project_file() is True
+
+    save_as_calls = []
+    monkeypatch.setattr(
+        "full_album_maker.project_dirty.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: save_as_calls.append(True) or ("", ""),
+    )
+    window.project.settings.fps = 60
+    window.refresh()
+
+    assert window.save_project_file() is True
+    app.processEvents()
+
+    assert save_as_calls == []
+    assert Path(window._current_project_path) == source.resolve()
+    assert window.is_project_dirty() is False
+    window.close()
+
+
+def test_open_failure_preserves_previous_current_path(tmp_path, monkeypatch):
+    app = _app()
+    previous = tmp_path / "previous-project.json"
+    previous.write_text("{}", encoding="utf-8")
+    corrupt = tmp_path / "corrupt.json"
+    corrupt.write_text("{broken", encoding="utf-8")
+
+    window = MainWindow()
+    window._current_project_path = str(previous)
+    monkeypatch.setattr(window, "_error", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "full_album_maker.ui.QFileDialog.getOpenFileName",
+        lambda *args, **kwargs: (str(corrupt), "Full Album Project (*.json)"),
+    )
+
+    assert window.load_project_file() is False
+    app.processEvents()
+
+    assert Path(window._current_project_path) == previous
+    window.close()

@@ -23,6 +23,7 @@ def test_step11_production_shell_uses_one_state_and_canonical_save(tmp_path) -> 
         import full_album_maker.main  # installs all production layers through STEP11
         from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
         from full_album_maker.foundation_window import FoundationMainWindow
+        from full_album_maker.v14_window import create_main_window
         from full_album_maker.integration_core_step11 import DomainEventType, normalized_project_hash
         from full_album_maker.integration_lifecycle_step11 import verify_persisted_document
         from full_album_maker.project import MediaItem
@@ -53,7 +54,8 @@ def test_step11_production_shell_uses_one_state_and_canonical_save(tmp_path) -> 
             doc.playlist.entries.append(song)
             doc.validate()
 
-            window = FoundationMainWindow()
+            window = create_main_window()
+            assert isinstance(window, FoundationMainWindow)
             window._foundation_project_open = True
             window.project.audios = [MediaItem(path=str(audio_path), duration=20.0)]
             window.editor_workspace.set_document(doc)

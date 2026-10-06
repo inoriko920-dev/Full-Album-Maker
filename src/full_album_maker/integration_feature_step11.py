@@ -21,10 +21,9 @@ from .integration_lifecycle_step11 import (
     DebouncedAutosaveCoordinator,
     IntegrationRecoveryStore,
     AutosaveRequest,
-    verify_persisted_document,
+    save_verified_legacy_project,
 )
 from .paths import data_dir
-from .project_io import save_project
 
 
 _installed = False
@@ -257,15 +256,26 @@ def _clear_recovery(self) -> None:
     self._s11_autosave_timer.stop()
 
 
-def _verify_and_mark_saved(self, path: str, expected) -> bool:
+def _mark_compatibility_persisted(self, path: str = "") -> None:
+    """Synchronize legacy compatibility state without making it a second UX owner."""
+
     try:
-        if not verify_persisted_document(path, expected):
-            raise ValueError("Project yang dibaca ulang tidak sama dengan ProjectDocument authoritative.")
-    except Exception as exc:
-        self.foundation_state.set_status(save=("Save verification gagal", "error"))
-        QMessageBox.critical(self, "Simpan Proyek", f"File ditulis tetapi verifikasi state gagal:\n{exc}")
-        return False
+        from .project_dirty import _project_state, _update_window_title
+
+        if hasattr(self, "_saved_project_state"):
+            self._saved_project_state = _project_state(self.project)
+        if path and hasattr(self, "_current_project_path"):
+            self._current_project_path = str(path)
+        _update_window_title(self)
+    except Exception:
+        # Foundation STEP11 remains authoritative even if a legacy presentation
+        # helper is unavailable during a reduced/headless test.
+        pass
+
+
+def _mark_saved_after_publish(self, path: str) -> bool:
     self.editor_workspace.session.mark_saved()
+    self._s11_mark_compatibility_persisted(path)
     self._s11_clear_recovery()
     self._s11_previous_document = self.editor_workspace.document()
     self._s11_last_seen_revision = self._s11_previous_document.revision
@@ -291,7 +301,7 @@ def _foundation_save_project(self) -> bool:
             return False
     self.foundation_state.set_status(save=("Menyimpan…", "warning"))
     try:
-        saved = save_project(path, self.project)
+        saved = save_verified_legacy_project(path, self.project, expected)
         self._foundation_project_path = str(saved)
         try:
             self._home_recent_service.touch(str(saved), self.project)
@@ -301,9 +311,13 @@ def _foundation_save_project(self) -> bool:
             pass
     except Exception as exc:
         self.foundation_state.set_status(save=("Gagal menyimpan", "error"))
-        QMessageBox.critical(self, "Simpan Proyek", f"Gagal menyimpan proyek:\n{exc}")
+        QMessageBox.critical(
+            self,
+            "Simpan Proyek",
+            f"Gagal menyimpan/verifikasi proyek; file lama dipertahankan:\n{exc}",
+        )
         return False
-    return self._s11_verify_and_mark_saved(str(saved), expected)
+    return self._s11_mark_saved_after_publish(str(saved))
 
 
 def _foundation_open_project(self) -> None:
@@ -361,6 +375,7 @@ def _close_event(self, event) -> None:
         QMessageBox.information(self, "Render masih berjalan", "Selesaikan/batalkan render sebelum menutup aplikasi.")
         event.ignore()
         return
+
     session = self.editor_workspace.session
     if session.is_dirty:
         answer = QMessageBox.question(
@@ -378,10 +393,19 @@ def _close_event(self, event) -> None:
                 event.ignore()
                 return
         else:
-            # Prevent the inherited Editor V2 close handler from showing a second
-            # save dialog. This only resets the transient dirty baseline while the
-            # application is already closing; no canonical file is written.
+            # STEP11 owns dirty/close UX. Discard resets the authoritative session
+            # and clears recovery so the same explicitly discarded edit is not
+            # offered again on the next launch.
             session.mark_saved()
+            self._s11_mark_compatibility_persisted(self._s11_project_path())
+            self._s11_clear_recovery()
+            self._s11_sync_foundation_status()
+    else:
+        # Keep the inherited compatibility close chain silent. It may still carry
+        # a stale legacy envelope dirty marker, but it is not an independent UX
+        # owner once Foundation/ProjectDocument STEP11 is active.
+        self._s11_mark_compatibility_persisted(self._s11_project_path())
+
     return _originals["close_event"](self, event)
 
 
@@ -470,7 +494,8 @@ def install_step11_integration() -> None:
         "_s11_schedule_autosave_flush": _schedule_autosave_flush,
         "_s11_autosave_done": _autosave_done,
         "_s11_clear_recovery": _clear_recovery,
-        "_s11_verify_and_mark_saved": _verify_and_mark_saved,
+        "_s11_mark_compatibility_persisted": _mark_compatibility_persisted,
+        "_s11_mark_saved_after_publish": _mark_saved_after_publish,
         "_s11_maybe_offer_recovery": _maybe_offer_recovery,
     }
     for name, value in methods.items():
