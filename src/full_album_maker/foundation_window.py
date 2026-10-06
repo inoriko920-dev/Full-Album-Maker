@@ -23,6 +23,7 @@ from .home_state import (
     CapabilityState, HomeViewState, PortableStatus, RecoveryValidation,
 )
 from .home_workspace import HomeWorkspace
+from . import __version__
 from .paths import ffmpeg_path, output_dir
 from .project import Project
 from .project_io import save_project
@@ -52,7 +53,7 @@ class FoundationMainWindow(V14EditorMainWindow):
         self.foundation_shell = FoundationShellWidget(state=self.foundation_state, adapter=self._foundation_adapter())
         self.setCentralWidget(self.foundation_shell)
         self.setStyleSheet(FOUNDATION_STYLE)
-        self.setWindowTitle("Full Album Maker")
+        self.setWindowTitle(f"Full Album Maker v{__version__}")
         self.setMinimumSize(1180, 720)
         self._install_home_project_hub()
         self._foundation_ready = True
