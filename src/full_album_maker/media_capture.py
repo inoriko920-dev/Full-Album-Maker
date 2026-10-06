@@ -63,8 +63,8 @@ def _fake_project():
     class Item:
         def __init__(self, path, duration): self.path, self.duration = path, duration
     class Project:
-        videos = [Item('Senja di Kota Ini.mp4', 42), Item('Jalan Pulang.mp4', 75), Item('Perjalanan Kita.mp4', 156), Item('Cerita Baru.mp4', 58)]
-        audios = [Item('Senja di Kota Ini.mp3', 204), Item('Jalan Pulang.mp3', 252)]
+        videos = [Item('Senja di Kota Ini.mp4', 20), Item('Jalan Pulang.mp4', 18), Item('Perjalanan Kita.mp4', 35), Item('Cerita Baru.mp4', 19)]
+        audios = [Item('Senja di Kota Ini.mp3', 34), Item('Jalan Pulang.mp3', 58)]
     return Project()
 
 
@@ -98,7 +98,13 @@ def capture(output: Path, width: int = 1672, height: int = 941, scale: float = 1
     shell.inspector.content.set_properties_widget(inspector)
     timeline_old = shell.timeline.canvas; timeline_old.hide(); timeline = MediaTimelinePreviewCanvas(); timeline.set_project(_fake_project()); timeline_old.parentWidget().layout().addWidget(timeline, 1)
     shell.set_workspace('media')
-    ui_state.set_status(save=('Tersimpan','success'), ffmpeg=('FFmpeg Siap','success'), ai=('AI Opsional','neutral'), jobs=('Jobs: 0','neutral'), project_context='Full Album Maker  v1.0.0 Portable  |  Media')
+    ui_state.set_status(
+        save=('Tersimpan','success'),
+        ffmpeg=('FFmpeg Siap','success'),
+        ai=('AI Opsional','neutral'),
+        jobs=('Jobs: 0','neutral'),
+        project_context='Full Album Maker  v1.0.0 Portable  |  Media: 4 dipilih (2 video, 1 foto, 1 audio)  |  Durasi Proyek: 01:32  |  24 item',
+    )
     shell.timeline.set_project_context('Media: 24 item')
     if state == 'list': workspace.set_view_mode(workspace.query.view_mode.__class__.LIST)
     selected = [a.asset_id for a in index.all() if a.display_name in {'Senja di Kota Ini.mp4','Pantai Bali.jpg','Senja di Kota Ini.mp3','Cerita Baru.mp4'}]

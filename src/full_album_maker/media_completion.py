@@ -6,8 +6,9 @@ from typing import Any, Callable
 
 from PySide6.QtCore import QPoint, QRect, Qt, QTimer
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygon
-from PySide6.QtWidgets import QMenu, QSizePolicy
+from PySide6.QtWidgets import QMenu, QPushButton, QSizePolicy
 
+from .foundation_components import FAMButton
 from .foundation_tokens import TOKENS
 from .media_library_services import MediaSidecarStore
 from .media_preview_cache import MediaPreviewCache, PreviewResult, invalidate_source, preview_cache_path
@@ -30,6 +31,7 @@ def _preview_paint(self: MediaPreviewPlaceholder, event) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     rect = self.rect().adjusted(0, 0, -1, -1)
     painter.setClipRect(rect)
+
     pixmap = getattr(self, "_step03_preview_pixmap", None)
     if pixmap is not None:
         scaled = pixmap.scaled(
@@ -46,50 +48,127 @@ def _preview_paint(self: MediaPreviewPlaceholder, event) -> None:
         painter.fillRect(rect, QColor("#F4F8FF"))
         painter.setPen(QPen(QColor("#6FA7FF"), 2))
         middle = rect.center().y()
-        usable = max(1, rect.width() - 20)
-        bars = max(24, min(52, usable // 7))
+        usable = max(1, rect.width() - 26)
+        bars = max(28, min(48, usable // 6))
         for index in range(bars):
-            x = rect.left() + 10 + int(index * usable / bars)
-            height = 7 + ((index * 17 + 11) % max(12, rect.height() - 18))
+            x = rect.left() + 13 + int(index * usable / bars)
+            height = 9 + ((index * 17 + 11) % max(14, rect.height() - 30))
             painter.drawLine(x, middle - height // 2, x, middle + height // 2)
     else:
-        gradient = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-        if self.asset.media_type.value == "video":
-            gradient.setColorAt(0.0, QColor("#BFD8FF"))
-            gradient.setColorAt(1.0, QColor("#FFE1B5"))
+        # Deterministic scenic fallback: visually distinguishes photo/video
+        # without copying the immutable golden or inventing user media.
+        name = self.asset.display_name.casefold()
+        video = self.asset.media_type.value == "video"
+        if any(word in name for word in ("senja", "bromo", "cerita")):
+            top, bottom, terrain = "#F1A15D", "#F6D18B", "#6E745F"
+        elif any(word in name for word in ("pantai", "danau")):
+            top, bottom, terrain = "#92D6F3", "#5EC2C8", "#668C76"
+        elif "hutan" in name:
+            top, bottom, terrain = "#A9D0B1", "#5E8968", "#3F6048"
+        elif any(word in name for word in ("kota malam", "timelapse")):
+            top, bottom, terrain = "#556F92", "#D68762", "#31465B"
+        elif "perjalanan" in name:
+            top, bottom, terrain = "#C9DFF1", "#E8D4AA", "#778D68"
         else:
-            gradient.setColorAt(0.0, QColor("#C6E7FF"))
-            gradient.setColorAt(1.0, QColor("#CDE8C8"))
-        painter.fillRect(rect, gradient)
+            name_seed = sum(ord(ch) for ch in self.asset.display_name)
+            skies = (
+                ("#B9D9F6", "#DDF1FF", "#6E9274"),
+                ("#F5B66B", "#FFE2A7", "#758060"),
+                ("#BFDFF0", "#E9F7FF", "#668C76"),
+                ("#C6DAF0", "#F2D7B6", "#788A68"),
+            )
+            top, bottom, terrain = skies[name_seed % len(skies)]
+        painter.fillRect(rect, QColor(top))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#6F9A78"))
-        points = QPolygon([
+        painter.setBrush(QColor(bottom))
+        painter.drawRect(rect.left(), rect.top() + rect.height() // 2, rect.width(), rect.height() // 2)
+
+        painter.setBrush(QColor(terrain))
+        mountain = QPolygon([
             QPoint(rect.left(), rect.bottom()),
-            QPoint(rect.left() + rect.width() // 3, rect.top() + rect.height() // 2),
-            QPoint(rect.left() + rect.width() // 2, rect.top() + int(rect.height() * 0.68)),
-            QPoint(rect.left() + int(rect.width() * 0.72), rect.top() + int(rect.height() * 0.43)),
+            QPoint(rect.left() + int(rect.width() * 0.18), rect.top() + int(rect.height() * 0.62)),
+            QPoint(rect.left() + int(rect.width() * 0.36), rect.top() + int(rect.height() * 0.43)),
+            QPoint(rect.left() + int(rect.width() * 0.54), rect.top() + int(rect.height() * 0.64)),
+            QPoint(rect.left() + int(rect.width() * 0.76), rect.top() + int(rect.height() * 0.36)),
             QPoint(rect.right(), rect.bottom()),
         ])
-        painter.drawPolygon(points)
-        if self.asset.media_type.value == "video":
-            painter.setBrush(QColor(15, 35, 70, 170))
-            center = rect.center()
-            painter.drawEllipse(center, 16, 16)
-            painter.setPen(QColor("#FFFFFF"))
-            font = painter.font()
-            font.setPointSize(14)
-            font.setBold(True)
-            painter.setFont(font)
-            painter.drawText(QRect(center.x() - 13, center.y() - 14, 30, 30), Qt.AlignmentFlag.AlignCenter, "▶")
+        painter.drawPolygon(mountain)
+        if video:
+            painter.setBrush(QColor(255, 200, 85, 210))
+            painter.drawEllipse(
+                rect.left() + int(rect.width() * 0.72),
+                rect.top() + int(rect.height() * 0.18),
+                18,
+                18,
+            )
+
+    metadata = self.asset.metadata
+
+    def badge(text: str, x: int, y: int, *, align_right: bool = False) -> int:
+        if not text:
+            return 0
+        metrics = painter.fontMetrics()
+        width = metrics.horizontalAdvance(text) + 10
+        if align_right:
+            x -= width
+        box = QRect(x, y, width, 20)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(16, 35, 74, 205))
+        painter.drawRoundedRect(box, 4, 4)
+        painter.setPen(QColor("#FFFFFF"))
+        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+        return width
+
+    duration = ""
+    if metadata.duration is not None:
+        seconds = max(0, int(round(metadata.duration)))
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        duration = f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+
+    bottom_y = rect.bottom() - 24
+    if self.asset.media_type.value == "audio":
+        badge(duration, rect.right() - 6, bottom_y, align_right=True)
+    elif self.asset.media_type.value == "photo":
+        painter.setPen(QColor("#FFFFFF"))
+        painter.setBrush(QColor(16, 35, 74, 180))
+        painter.drawRoundedRect(QRect(rect.left() + 6, bottom_y, 22, 20), 4, 4)
+        painter.drawText(QRect(rect.left() + 6, bottom_y, 22, 20), Qt.AlignmentFlag.AlignCenter, "▧")
+        resolution = f"{metadata.width} × {metadata.height}" if metadata.width and metadata.height else ""
+        badge(resolution, rect.right() - 6, bottom_y, align_right=True)
+    else:
+        badge(duration, rect.left() + 6, bottom_y)
+        parts = []
+        if metadata.width and metadata.height:
+            if metadata.width >= 3000:
+                parts.append("4K")
+            elif metadata.height >= 1000:
+                parts.append("1080p")
+            elif metadata.height >= 700:
+                parts.append("720p")
+            else:
+                parts.append(f"{metadata.width}×{metadata.height}")
+        if metadata.fps:
+            parts.append(f"{metadata.fps:g} FPS")
+        right = rect.right() - 6
+        for text in reversed(parts):
+            width = badge(text, right, bottom_y, align_right=True)
+            right -= width + 4
+
+    painter.setClipping(False)
     painter.setPen(QPen(QColor(TOKENS.border), 1))
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.drawRoundedRect(rect, 7, 7)
-    if self.asset.status.value == "missing":
-        painter.fillRect(rect, QColor(255, 245, 220, 205))
-        painter.setPen(QColor("#A56D00"))
-        painter.drawText(rect.adjusted(6, 6, -6, -6), Qt.AlignmentFlag.AlignCenter, "SOURCE MISSING")
-    painter.end()
 
+    if self.asset.status.value == "missing":
+        painter.fillRect(rect, QColor(255, 245, 220, 210))
+        painter.setPen(QColor("#A56D00"))
+        painter.drawText(
+            rect.adjusted(8, 8, -8, -8),
+            Qt.AlignmentFlag.AlignCenter,
+            "SOURCE MISSING",
+        )
+    painter.end()
 
 def _workspace_init(self: MediaWorkspace, *args, **kwargs) -> None:
     _originals["workspace_init"](self, *args, **kwargs)
@@ -109,10 +188,13 @@ def _workspace_refresh(self: MediaWorkspace) -> None:
     _originals["workspace_refresh"](self)
     for card in self._cards:
         asset = card.asset
-        card.setMaximumHeight(168 if self.query.view_mode.value == "grid" else 126)
+        grid_mode = self.query.view_mode.value == "grid"
+        card.setFixedHeight(166 if grid_mode else 108)
+        if hasattr(card, "preview_host"):
+            card.preview_host.setFixedHeight(108 if grid_mode else 52)
         preview = card.findChild(MediaPreviewPlaceholder)
         if preview is not None:
-            preview.setFixedHeight(78 if self.query.view_mode.value == "grid" else 44)
+            preview.setMinimumHeight(44 if not grid_mode else 84)
             cached = self._step03_preview_paths.get(asset.asset_id, "")
             if cached:
                 preview.set_preview_path(cached)
@@ -169,11 +251,11 @@ def _inspector_init(self: MediaInspectorWidget, *args, **kwargs) -> None:
     _originals["inspector_init"](self, *args, **kwargs)
     layout = self.layout()
     if layout is not None:
-        layout.setContentsMargins(10, 7, 10, 8)
+        layout.setContentsMargins(10, 0, 10, 8)
         layout.setSpacing(5)
-    self.preview.setMinimumHeight(96)
-    self.preview.setMaximumHeight(112)
-    self.description.setMaximumHeight(60)
+    self.preview.setMinimumHeight(128)
+    self.preview.setMaximumHeight(132)
+    self.description.setMaximumHeight(66)
     self.save_meta.hide()
     self.favorite.hide()
     self.setMinimumHeight(0)
@@ -203,22 +285,55 @@ def _inspector_preview(self: MediaInspectorWidget, asset_id: str, path: str) -> 
     )
 
 
+def _shell_workspace(self, route: str) -> None:
+    _originals["shell_workspace"](self, route)
+    media_active = route == "media"
+    timeline = self.timeline
+
+    if not hasattr(timeline, "_media_header_tools"):
+        head = timeline.layout().itemAt(0).layout()
+        timeline._media_header_tools = []
+        labels = ("Split", "Potong", "Kecepatan", "Audio", "Teks", "Transisi", "Efek", "AI Tools")
+        insert_at = 3
+        for label in labels:
+            button = FAMButton(label, kind="ghost")
+            button.setEnabled(False)
+            button.setToolTip(f"{label} — aktif ketika clip timeline yang kompatibel dipilih")
+            button.setMinimumWidth(0)
+            head.insertWidget(insert_at, button)
+            insert_at += 1
+            timeline._media_header_tools.append(button)
+
+    timeline.message.setVisible(not media_active)
+    for button in timeline._media_header_tools:
+        button.setVisible(media_active)
+
+    timeline.mode.setVisible(not media_active)
+    for button in timeline.body.findChildren(QPushButton):
+        if button.text() in {"Split", "Ripple", "Snap", "Marker"}:
+            button.setVisible(not media_active)
+
+
 def _shell_sizes(self, route: str) -> None:
     if route != "media":
         _originals["shell_sizes"](self, route)
         return
     total = max(1, self.width())
     compact = bool(getattr(self, "_responsive_compact", False))
-    nav = TOKENS.nav_compact_width if compact else TOKENS.nav_width
+    nav = TOKENS.nav_compact_width if compact else 158
     context = 196 if compact else 205
     right = 38 if self.inspector.collapsed else (274 if compact else 286)
     center = max(430 if compact else 640, total - nav - context - right - TOKENS.splitter_handle * 3)
+
+    self.navigation.setMinimumWidth(nav)
+    self.navigation.setMaximumWidth(nav)
     self.context.setMinimumWidth(context)
     self.context.setMaximumWidth(context)
     if not self.inspector.collapsed:
         self.inspector.setMinimumWidth(right)
         self.inspector.setMaximumWidth(520)
     self.horizontal_splitter.setSizes([nav, context, center, right])
+
     timeline_height = TOKENS.timeline_collapsed_height if self.timeline.collapsed else self.timeline.preferred_height
     top_height = max(300, self.height() - timeline_height - TOKENS.status_height - TOKENS.command_height)
     self.vertical_splitter.setSizes([top_height, timeline_height])
@@ -233,13 +348,29 @@ def _window_init(self, *args, **kwargs) -> None:
     self._s03_preview_cache.jobs_changed.connect(self._s03_completion_preview_jobs)
     self.media_workspace._step03_preview_requester = self._s03_preview_cache.request
     self.media_workspace._step03_collection_handler = self._s03_completion_collection
+
+    timeline = self.foundation_shell.timeline
+    controls = [timeline.mode]
+    for button in timeline.body.findChildren(QPushButton):
+        if button.text() in {"Split", "Ripple", "Snap", "Marker"}:
+            controls.append(button)
+    self._s03_generic_timeline_controls = controls
+    self.foundation_state.workspace_changed.connect(self._s03_completion_timeline_controls)
+
     self.foundation_shell.horizontal_splitter.setMinimumHeight(0)
     self.foundation_shell.inspector.setMinimumHeight(0)
     self.foundation_shell.inspector.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Ignored)
     self._inspector_router.setMinimumHeight(0)
     self._inspector_router.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Ignored)
+    self._s03_completion_timeline_controls(self.foundation_state.workspace)
     QTimer.singleShot(0, lambda: self.foundation_shell._apply_shell_sizes(self.foundation_state.workspace))
     QTimer.singleShot(0, self.media_workspace._step03_request_nearby)
+
+
+def _timeline_controls(self, route: str) -> None:
+    media_active = route == "media"
+    for widget in getattr(self, "_s03_generic_timeline_controls", ()):
+        widget.setVisible(not media_active)
 
 
 def _collection(self, asset_id: str, collection: str, enabled: bool) -> None:
@@ -391,6 +522,7 @@ def install_step03_media_completion() -> None:
         workspace_init=MediaWorkspace.__init__,
         workspace_refresh=MediaWorkspace.refresh_view,
         inspector_init=MediaInspectorWidget.__init__,
+        shell_workspace=FoundationShellWidget._apply_workspace,
         shell_sizes=FoundationShellWidget._apply_shell_sizes,
         window_init=FoundationMainWindow.__init__,
         sync=FoundationMainWindow._sync_foundation_state,
@@ -409,8 +541,10 @@ def install_step03_media_completion() -> None:
     MediaWorkspace._step03_preview_result = _workspace_preview_result
     MediaInspectorWidget.__init__ = _inspector_init
     MediaInspectorWidget.set_preview_path = _inspector_preview
+    FoundationShellWidget._apply_workspace = _shell_workspace
     FoundationShellWidget._apply_shell_sizes = _shell_sizes
     FoundationMainWindow.__init__ = _window_init
+    FoundationMainWindow._s03_completion_timeline_controls = _timeline_controls
     FoundationMainWindow._s03_completion_collection = _collection
     FoundationMainWindow._s03_completion_preview_ready = _preview_ready
     FoundationMainWindow._s03_completion_preview_jobs = _preview_jobs

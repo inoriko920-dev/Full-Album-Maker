@@ -4,8 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from PySide6.QtCore import QRect, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QMenu, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
@@ -26,33 +26,110 @@ COLLECTIONS = ('Aset Utama','B-Roll','Musik','Narasi','Outro')
 
 
 class MediaContextWidget(QWidget):
-    category_requested = Signal(str); collection_requested = Signal(str)
-    def __init__(self, parent=None):
-        super().__init__(parent); self._category_buttons={}; self._collection_buttons={}
-        root=QVBoxLayout(self); root.setContentsMargins(8,8,8,8); root.setSpacing(3)
-        head=QHBoxLayout(); title=QLabel('Media'); title.setObjectName('sectionHeading'); title.setStyleSheet('font-size:16px;font-weight:700;'); head.addWidget(title); head.addStretch(1)
-        add=FAMButton('+',kind='ghost'); add.setFixedWidth(32); add.setEnabled(False); add.setToolTip('Koleksi baru — STEP 04'); head.addWidget(add); root.addLayout(head)
-        for key,label,glyph in CATEGORIES:
-            b=QPushButton(); b.setObjectName('navButton'); b.setCheckable(True); b.setAutoExclusive(True); b.clicked.connect(lambda _=False,k=key:self._category(k)); self._category_buttons[key]=b; root.addWidget(b)
-        self._category_buttons['all'].setChecked(True)
-        line=QFrame(); line.setFrameShape(QFrame.Shape.HLine); root.addWidget(line); h=QLabel('Folder Proyek'); h.setObjectName('sectionHeading'); root.addWidget(h)
-        for name in COLLECTIONS:
-            b=QPushButton(); b.setObjectName('navButton'); b.setCheckable(True); b.clicked.connect(lambda _=False,n=name:self._collection(n)); self._collection_buttons[name]=b; root.addWidget(b)
-        root.addStretch(1); self.set_counts({}); self.set_collection_counts({})
-    def set_counts(self, counts):
-        for key,label,glyph in CATEGORIES:
-            n=int(counts.get(key,0)); b=self._category_buttons[key]; b.setText(f'{glyph}  {label}                         {n}'); b.setAccessibleName(f'{label}, {n} item')
-    def set_collection_counts(self, counts):
-        for name,b in self._collection_buttons.items():
-            n=int(counts.get(name,0)); b.setText(f'▢  {name}                    {n}'); b.setAccessibleName(f'{name}, {n} item')
-    def _category(self,key):
-        for b in self._collection_buttons.values(): b.setChecked(False)
-        self.category_requested.emit(key)
-    def _collection(self,name):
-        for b in self._category_buttons.values(): b.setChecked(False)
-        for key,b in self._collection_buttons.items(): b.setChecked(key==name)
-        self.collection_requested.emit(name)
+    category_requested = Signal(str)
+    collection_requested = Signal(str)
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._category_buttons = {}
+        self._collection_buttons = {}
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 7, 8, 7)
+        root.setSpacing(1)
+
+        head = QHBoxLayout()
+        head.setContentsMargins(4, 0, 2, 3)
+        title = QLabel("Media")
+        title.setObjectName("sectionHeading")
+        title.setStyleSheet("font-size:16px;font-weight:700;")
+        title.setFixedHeight(34)
+        head.addWidget(title)
+        head.addStretch(1)
+        add = FAMButton("+", kind="ghost")
+        add.setFixedSize(30, 30)
+        add.setEnabled(False)
+        add.setToolTip("Koleksi baru — tersedia pada pengelolaan koleksi")
+        head.addWidget(add)
+        root.addLayout(head)
+
+        for key, label, glyph in CATEGORIES:
+            button = QPushButton()
+            button.setObjectName("mediaContextButton")
+            button.setCheckable(True)
+            button.setAutoExclusive(True)
+            button.setFixedHeight(35)
+            button.setStyleSheet(
+                "QPushButton#mediaContextButton{min-height:35px;max-height:35px;text-align:left;"
+                "padding:0 8px;border:none;border-left:3px solid transparent;border-radius:6px;"
+                "background:transparent;color:#10234A;}"
+                "QPushButton#mediaContextButton:hover{background:#F3F8FF;}"
+                "QPushButton#mediaContextButton:checked{background:#EAF3FF;color:#1766E8;"
+                "border-left:3px solid #1766E8;font-weight:650;}"
+            )
+            button.clicked.connect(lambda _=False, k=key: self._category(k))
+            self._category_buttons[key] = button
+            root.addWidget(button)
+
+        self._category_buttons["all"].setChecked(True)
+
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFixedHeight(1)
+        root.addSpacing(5)
+        root.addWidget(line)
+
+        heading = QLabel("Folder Proyek")
+        heading.setObjectName("sectionHeading")
+        heading.setStyleSheet("font-size:14px;font-weight:700;")
+        heading.setFixedHeight(28)
+        root.addWidget(heading)
+
+        for name in COLLECTIONS:
+            button = QPushButton()
+            button.setObjectName("mediaContextButton")
+            button.setCheckable(True)
+            button.setFixedHeight(34)
+            button.setStyleSheet(
+                "QPushButton#mediaContextButton{min-height:34px;max-height:34px;text-align:left;"
+                "padding:0 8px;border:none;border-left:3px solid transparent;border-radius:6px;"
+                "background:transparent;color:#10234A;}"
+                "QPushButton#mediaContextButton:hover{background:#F3F8FF;}"
+                "QPushButton#mediaContextButton:checked{background:#EAF3FF;color:#1766E8;"
+                "border-left:3px solid #1766E8;font-weight:650;}"
+            )
+            button.clicked.connect(lambda _=False, n=name: self._collection(n))
+            self._collection_buttons[name] = button
+            root.addWidget(button)
+
+        root.addStretch(1)
+        self.set_counts({})
+        self.set_collection_counts({})
+
+    def set_counts(self, counts):
+        for key, label, glyph in CATEGORIES:
+            count = int(counts.get(key, 0))
+            button = self._category_buttons[key]
+            button.setText(f"{glyph}  {label}    {count}")
+            button.setAccessibleName(f"{label}, {count} item")
+
+    def set_collection_counts(self, counts):
+        for name, button in self._collection_buttons.items():
+            count = int(counts.get(name, 0))
+            button.setText(f"▢  {name}    {count}")
+            button.setAccessibleName(f"{name}, {count} item")
+
+    def _category(self, key):
+        for button in self._collection_buttons.values():
+            button.setChecked(False)
+        self.category_requested.emit(key)
+
+    def _collection(self, name):
+        for button in self._category_buttons.values():
+            button.setChecked(False)
+        for key, button in self._collection_buttons.items():
+            button.setChecked(key == name)
+        self.collection_requested.emit(name)
 
 class MediaPreviewPlaceholder(QWidget):
     def __init__(self, asset, parent=None):
@@ -71,19 +148,92 @@ class MediaPreviewPlaceholder(QWidget):
 
 
 class MediaCard(QFrame):
-    activated=Signal(str,int); checkbox_changed=Signal(str,bool); favorite_requested=Signal(str,bool); reveal_requested=Signal(str); relink_requested=Signal(str)
-    def __init__(self, asset, *, selected=False, list_mode=False, parent=None):
-        super().__init__(parent); self.asset=asset; self.setObjectName('famCard'); self.setProperty('selected',selected); self.setFocusPolicy(Qt.FocusPolicy.StrongFocus); self.setCursor(Qt.CursorShape.PointingHandCursor); self.setToolTip(asset.path); self.setAccessibleName(f'{asset.display_name}, {asset.media_type.value}')
-        root=QVBoxLayout(self); root.setContentsMargins(7,7,7,7); root.setSpacing(4); top=QHBoxLayout(); self.check=QCheckBox(); self.check.setChecked(selected); self.check.toggled.connect(lambda v:self.checkbox_changed.emit(asset.asset_id,v)); top.addWidget(self.check); top.addStretch(1)
-        more=FAMButton('⋯',kind='ghost'); more.setFixedSize(28,26); menu=QMenu(more); menu.addAction('Hapus dari Favorit' if asset.favorite else 'Tambahkan ke Favorit',lambda:self.favorite_requested.emit(asset.asset_id,not asset.favorite)); menu.addAction('Relink…',lambda:self.relink_requested.emit(asset.asset_id)); menu.addAction('Reveal in Explorer',lambda:self.reveal_requested.emit(asset.asset_id)); more.setMenu(menu); top.addWidget(more); root.addLayout(top)
-        preview=MediaPreviewPlaceholder(asset); preview.setFixedHeight(46 if list_mode else 92); root.addWidget(preview); title=QLabel(asset.display_name); title.setObjectName('sectionHeading'); title.setToolTip(asset.path); root.addWidget(title); meta=QLabel(_meta_text(asset)); meta.setObjectName('metadata'); root.addWidget(meta); self.setMinimumWidth(145); self.setMaximumHeight(122 if list_mode else 180)
-    def mousePressEvent(self,e):
-        if e.button()==Qt.MouseButton.LeftButton: self.activated.emit(self.asset.asset_id,int(e.modifiers().value)); e.accept(); return
-        super().mousePressEvent(e)
-    def keyPressEvent(self,e):
-        if e.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter,Qt.Key.Key_Space): self.activated.emit(self.asset.asset_id,int(e.modifiers().value)); e.accept(); return
-        super().keyPressEvent(e)
+    activated = Signal(str, int)
+    checkbox_changed = Signal(str, bool)
+    favorite_requested = Signal(str, bool)
+    reveal_requested = Signal(str)
+    relink_requested = Signal(str)
 
+    def __init__(self, asset, *, selected=False, list_mode=False, parent=None):
+        super().__init__(parent)
+        self.asset = asset
+        self.setObjectName("famCard")
+        self.setProperty("selected", selected)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(asset.path)
+        self.setAccessibleName(f"{asset.display_name}, {asset.media_type.value}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(3)
+
+        self.preview_host = QFrame()
+        self.preview_host.setFixedHeight(52 if list_mode else 108)
+        preview_grid = QGridLayout(self.preview_host)
+        preview_grid.setContentsMargins(0, 0, 0, 0)
+        preview_grid.setSpacing(0)
+
+        self.preview = MediaPreviewPlaceholder(asset)
+        preview_grid.addWidget(self.preview, 0, 0)
+
+        overlay = QWidget()
+        overlay.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        overlay_row = QHBoxLayout(overlay)
+        overlay_row.setContentsMargins(6, 5, 6, 0)
+        overlay_row.setSpacing(4)
+
+        self.check = QCheckBox()
+        self.check.setChecked(selected)
+        self.check.setStyleSheet("QCheckBox { background:rgba(255,255,255,225); border-radius:4px; padding:1px; }")
+        self.check.toggled.connect(lambda value: self.checkbox_changed.emit(asset.asset_id, value))
+        overlay_row.addWidget(self.check, 0, Qt.AlignmentFlag.AlignTop)
+        overlay_row.addStretch(1)
+
+        more = FAMButton("⋯", kind="secondary")
+        more.setFixedSize(28, 26)
+        more.setStyleSheet("background:rgba(255,255,255,235);")
+        menu = QMenu(more)
+        menu.addAction(
+            "Hapus dari Favorit" if asset.favorite else "Tambahkan ke Favorit",
+            lambda: self.favorite_requested.emit(asset.asset_id, not asset.favorite),
+        )
+        menu.addAction("Relink…", lambda: self.relink_requested.emit(asset.asset_id))
+        menu.addAction("Reveal in Explorer", lambda: self.reveal_requested.emit(asset.asset_id))
+        more.setMenu(menu)
+        overlay_row.addWidget(more, 0, Qt.AlignmentFlag.AlignTop)
+        preview_grid.addWidget(overlay, 0, 0, Qt.AlignmentFlag.AlignTop)
+        root.addWidget(self.preview_host)
+
+        self.title = QLabel(asset.display_name)
+        self.title.setObjectName("sectionHeading")
+        self.title.setStyleSheet("font-size:12px;font-weight:650;")
+        self.title.setToolTip(asset.path)
+        self.title.setFixedHeight(18)
+        root.addWidget(self.title)
+
+        self.meta = QLabel(_meta_text(asset))
+        self.meta.setObjectName("metadata")
+        self.meta.setStyleSheet("font-size:11px;")
+        self.meta.setFixedHeight(17)
+        root.addWidget(self.meta)
+
+        self.setMinimumWidth(145)
+        self.setFixedHeight(108 if list_mode else 166)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.activated.emit(self.asset.asset_id, int(event.modifiers().value))
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.activated.emit(self.asset.asset_id, int(event.modifiers().value))
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 class MediaWorkspace(QWidget):
     query_changed=Signal(object); selection_changed=Signal(object); import_file_requested=Signal(); import_folder_requested=Signal(); cancel_import_requested=Signal(); favorite_requested=Signal(str,bool); reveal_requested=Signal(str); relink_requested=Signal(str)
@@ -135,18 +285,112 @@ class MediaWorkspace(QWidget):
         if self.query.view_mode==MediaViewMode.GRID and before!=self._columns(): QTimer.singleShot(0,self.refresh_view)
 
 
+class MediaInspectorPreview(QLabel):
+    """Deterministic visual fallback; a generated/real cached preview still takes priority."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._asset = None
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def set_asset(self, asset):
+        self._asset = asset
+        self.clear()
+        self.update()
+
+    def paintEvent(self, event):
+        pixmap = self.pixmap()
+        if pixmap is not None and not pixmap.isNull():
+            super().paintEvent(event)
+            return
+        if self._asset is None:
+            super().paintEvent(event)
+            return
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        r = self.rect().adjusted(0, 0, -1, -1)
+        p.fillRect(r, QColor("#D6E8FF"))
+        p.setPen(Qt.PenStyle.NoPen)
+
+        if self._asset.media_type == MediaType.AUDIO:
+            p.fillRect(r, QColor("#F4F8FF"))
+            p.setPen(QPen(QColor("#66A0FF"), 3))
+            middle = r.center().y()
+            usable = max(1, r.width() - 36)
+            for index in range(44):
+                x = r.left() + 18 + int(index * usable / 44)
+                height = 8 + ((index * 13 + 9) % max(16, r.height() - 34))
+                p.drawLine(x, middle - height // 2, x, middle + height // 2)
+        else:
+            is_video = self._asset.media_type == MediaType.VIDEO
+            sky = QColor("#E99467") if is_video else QColor("#BFE2F8")
+            p.fillRect(r, sky)
+            p.setPen(Qt.PenStyle.NoPen)
+
+            if is_video:
+                # Generic sunset fallback for video preview. It is intentionally
+                # synthetic and never sourced from the immutable golden image.
+                p.setBrush(QColor("#F5C37B"))
+                p.drawRect(r.left(), r.top() + int(r.height() * 0.48), r.width(), int(r.height() * 0.52))
+                p.setBrush(QColor("#5D6260"))
+                p.drawPolygon(
+                    QPolygon([
+                        r.bottomLeft(),
+                        QPoint(r.left() + int(r.width() * 0.30), r.top() + int(r.height() * 0.65)),
+                        QPoint(r.left() + int(r.width() * 0.52), r.top() + int(r.height() * 0.78)),
+                        QPoint(r.left() + int(r.width() * 0.72), r.top() + int(r.height() * 0.55)),
+                        r.bottomRight(),
+                    ])
+                )
+                # A simple human-like silhouette gives a recognizable "video
+                # subject" fallback without reproducing any reference artwork.
+                p.setBrush(QColor("#3F3E48"))
+                person_x = r.left() + int(r.width() * 0.69)
+                p.drawEllipse(QRect(person_x, r.top() + 24, 24, 24))
+                p.drawRoundedRect(QRect(person_x - 7, r.top() + 45, 38, 72), 14, 14)
+            else:
+                p.setBrush(QColor("#7A956F"))
+                p.drawPolygon(
+                    QPolygon([
+                        r.bottomLeft(),
+                        r.topLeft() + QPoint(0, int(r.height() * 0.70)),
+                        QPoint(int(r.width() * 0.30), int(r.height() * 0.46)),
+                        QPoint(int(r.width() * 0.52), int(r.height() * 0.68)),
+                        QPoint(int(r.width() * 0.75), int(r.height() * 0.38)),
+                        r.bottomRight(),
+                    ])
+                )
+
+            if is_video:
+                p.setBrush(QColor(16, 35, 74, 190))
+                center = r.center()
+                p.drawEllipse(center, 20, 20)
+                p.setPen(QColor("#FFFFFF"))
+                font = p.font()
+                font.setPointSize(15)
+                font.setBold(True)
+                p.setFont(font)
+                p.drawText(QRect(center.x() - 16, center.y() - 16, 35, 34), Qt.AlignmentFlag.AlignCenter, "▶")
+
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.setPen(QPen(QColor(TOKENS.border), 1))
+        p.drawRoundedRect(r, 8, 8)
+        p.end()
+
+
 class MediaInspectorWidget(QWidget):
     metadata_changed=Signal(str,object,str); favorite_changed=Signal(str,bool); add_to_album_requested=Signal(object); relink_requested=Signal(str); reveal_requested=Signal(str)
     def __init__(self,parent=None):
-        super().__init__(parent); self._asset=None; self._selected=(); root=QVBoxLayout(self); root.setContentsMargins(12,10,12,12); root.setSpacing(8)
-        self.preview=QLabel('Belum ada pilihan'); self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter); self.preview.setMinimumHeight(116); self.preview.setStyleSheet(f'background:{TOKENS.selection_soft};border:1px solid {TOKENS.border};border-radius:8px;'); root.addWidget(self.preview); self.title=QLabel('Belum ada pilihan'); self.title.setObjectName('sectionHeading'); self.title.setWordWrap(True); root.addWidget(self.title); self.details=QLabel(); self.details.setObjectName('metadata'); self.details.setWordWrap(True); self.details.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); root.addWidget(self.details)
+        super().__init__(parent); self._asset=None; self._selected=(); root=QVBoxLayout(self); root.setContentsMargins(9,8,9,9); root.setSpacing(5)
+        self.preview=MediaInspectorPreview(); self.preview.setMinimumHeight(128); self.preview.setMaximumHeight(132); self.preview.setStyleSheet(f'background:{TOKENS.selection_soft};border:1px solid {TOKENS.border};border-radius:8px;'); root.addWidget(self.preview); self.title=QLabel('Belum ada pilihan'); self.title.setObjectName('sectionHeading'); self.title.setStyleSheet('font-size:14px;font-weight:700;'); self.title.setWordWrap(True); root.addWidget(self.title); self.details=QLabel(); self.details.setObjectName('metadata'); self.details.setStyleSheet('font-size:11px;'); self.details.setWordWrap(True); self.details.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); root.addWidget(self.details)
         root.addWidget(QLabel('Tag')); self.tags=QLineEdit(); self.tags.setPlaceholderText('senja, perjalanan, vlog'); root.addWidget(self.tags); root.addWidget(QLabel('Deskripsi')); self.description=QPlainTextEdit(); self.description.setMaximumHeight(74); root.addWidget(self.description); self.save_meta=FAMButton('Simpan Metadata'); self.save_meta.clicked.connect(self._save); root.addWidget(self.save_meta); self.favorite=FAMButton('☆ Tambahkan ke Favorit'); self.favorite.clicked.connect(self._fav); root.addWidget(self.favorite); self.add_album=FAMButton('Tambahkan ke Album',icon_name='open',kind='primary'); self.add_album.clicked.connect(lambda:self.add_to_album_requested.emit(tuple(a.asset_id for a in self._selected))); root.addWidget(self.add_album); row=QHBoxLayout(); self.relink=FAMButton('Relink'); self.reveal=FAMButton('Reveal in Explorer'); self.relink.clicked.connect(lambda:self._asset and self.relink_requested.emit(self._asset.asset_id)); self.reveal.clicked.connect(lambda:self._asset and self.reveal_requested.emit(self._asset.asset_id)); row.addWidget(self.relink); row.addWidget(self.reveal); root.addLayout(row); root.addStretch(1); self.set_selection(())
     def set_selection(self,assets:Iterable[MediaAsset]):
         self._selected=tuple(assets); self._asset=self._selected[0] if len(self._selected)==1 else None
-        if not self._selected: self.preview.setText('Belum ada pilihan'); self.title.setText('Belum ada pilihan'); self.details.clear(); self.tags.clear(); self.description.clear(); self._enable(False); return
+        if not self._selected: self.preview.set_asset(None); self.preview.setText('Belum ada pilihan'); self.title.setText('Belum ada pilihan'); self.details.clear(); self.tags.clear(); self.description.clear(); self._enable(False); return
         if len(self._selected)>1:
-            counts={k:sum(a.media_type==k for a in self._selected) for k in MediaType}; self.preview.setText(f'{len(self._selected)} item dipilih'); self.title.setText('Pilihan Banyak'); self.details.setText(f"Video: {counts[MediaType.VIDEO]}\nFoto: {counts[MediaType.PHOTO]}\nAudio: {counts[MediaType.AUDIO]}"); self.tags.clear(); self.description.clear(); self._enable(False); self.add_album.setEnabled(True); return
-        a=self._asset; m=a.metadata; self.preview.setText({'audio':'♫ AUDIO','photo':'▧ FOTO','video':'▶ VIDEO'}[a.media_type.value]); self.title.setText(a.display_name); res=f'{m.width} × {m.height}' if m.width and m.height else '—'; fps=f'{m.fps:g} FPS' if m.fps else '—'; created=datetime.fromtimestamp(m.created_at).strftime('%d %b %Y  %H:%M') if m.created_at else '—'; self.details.setText(f'Jenis        {a.media_type.value.title()}\nResolusi     {res}\nDurasi       {_duration(m.duration)}\nFrame Rate   {fps}\nUkuran       {_size(m.size_bytes)}\nWaktu FS     {created}\nLokasi       {a.path}\nFormat       {m.container or Path(a.path).suffix.lstrip(".").upper() or "—"}'); self.tags.setText(', '.join(a.tags)); self.description.setPlainText(a.description); self._enable(True); self.favorite.setText('★ Hapus dari Favorit' if a.favorite else '☆ Tambahkan ke Favorit'); self.relink.setEnabled(a.status==MediaStatus.MISSING); self.reveal.setEnabled(a.status!=MediaStatus.MISSING)
+            counts={k:sum(a.media_type==k for a in self._selected) for k in MediaType}; self.preview.set_asset(None); self.preview.setText(f'{len(self._selected)} item dipilih'); self.title.setText('Pilihan Banyak'); self.details.setText(f"Video: {counts[MediaType.VIDEO]}\nFoto: {counts[MediaType.PHOTO]}\nAudio: {counts[MediaType.AUDIO]}"); self.tags.clear(); self.description.clear(); self._enable(False); self.add_album.setEnabled(True); return
+        a=self._asset; m=a.metadata; self.preview.set_asset(a); self.title.setText(a.display_name); res=f'{m.width} × {m.height}' if m.width and m.height else '—'; fps=f'{m.fps:g} FPS' if m.fps else '—'; created=datetime.fromtimestamp(m.created_at).strftime('%d %b %Y  %H:%M') if m.created_at else '—'; self.details.setText(f'Jenis        {a.media_type.value.title()}\nResolusi     {res}\nDurasi       {_duration(m.duration)}\nFrame Rate   {fps}\nUkuran       {_size(m.size_bytes)}\nWaktu FS     {created}\nLokasi       {_location_text(a.path)}\nFormat       {m.container or Path(a.path).suffix.lstrip(".").upper() or "—"}'); self.tags.setText(', '.join(a.tags)); self.description.setPlainText(a.description); self._enable(True); self.favorite.setText('★ Hapus dari Favorit' if a.favorite else '☆ Tambahkan ke Favorit'); self.relink.setEnabled(a.status==MediaStatus.MISSING); self.reveal.setEnabled(a.status!=MediaStatus.MISSING)
     def _enable(self,value):
         for w in (self.tags,self.description,self.save_meta,self.favorite,self.relink,self.reveal): w.setEnabled(value)
         self.add_album.setEnabled(bool(self._selected))
@@ -157,35 +401,127 @@ class MediaInspectorWidget(QWidget):
 
 
 class MediaTimelinePreviewCanvas(QWidget):
-    def __init__(self,parent=None): super().__init__(parent); self._videos=[]; self._audios=[]; self.setMinimumHeight(82)
-    def set_project(self,project): self._videos=[(Path(x.path).stem,max(1.0,float(getattr(x,'duration',0) or 0))) for x in list(getattr(project,'videos',()))[:8]]; self._audios=[(Path(x.path).stem,max(1.0,float(getattr(x,'duration',0) or 0))) for x in list(getattr(project,'audios',()))[:8]]; self.update()
-    def paintEvent(self,event):
-        p=QPainter(self); p.fillRect(self.rect(),QColor('#FFFFFF')); left=66; ruler=20; h=max(24,(self.height()-ruler)//3); total=max(sum(x[1] for x in self._audios),sum(x[1] for x in self._videos),90.0); p.setPen(QPen(QColor(TOKENS.border),1))
-        for i in range(7):
-            x=left+int((self.width()-left)*i/6); p.drawLine(x,0,x,self.height()); p.setPen(QColor(TOKENS.text_muted)); p.drawText(x+3,13,_duration(total*i/6)); p.setPen(QPen(QColor(TOKENS.border),1))
-        for row,label in enumerate(('Video','Audio','Teks')):
-            y=ruler+row*h; p.fillRect(0,y,left,h,QColor('#F8FBFF')); p.drawLine(0,y,self.width(),y); p.setPen(QColor(TOKENS.text_primary)); p.drawText(9,y+h//2+4,label); p.setPen(QPen(QColor(TOKENS.border),1))
-        self._clips(p,self._videos,ruler+3,h-6,total,QColor('#D8E9FF'),QColor('#1766E8')); self._clips(p,self._audios,ruler+h+3,h-6,total,QColor('#CFF3E5'),QColor('#168B68')); p.end()
-    def _clips(self,p,clips,y,h,total,fill,border):
-        x=66; usable=max(1,self.width()-70)
-        for name,d in clips:
-            w=min(max(45,int(usable*d/total)),max(45,self.width()-x-4)); r=QRect(x,y,w,h); p.fillRect(r,fill); p.setPen(QPen(border,1)); p.drawRect(r); p.setPen(QColor(TOKENS.text_primary)); p.drawText(r.adjusted(6,0,-4,0),Qt.AlignmentFlag.AlignVCenter|Qt.AlignmentFlag.AlignLeft,name[:22]); x+=w+4
-            if x>=self.width()-20: break
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._videos = []
+        self._audios = []
+        self._texts = []
+        self.setMinimumHeight(120)
+
+    def set_project(self, project):
+        self._videos = [
+            (Path(item.path).stem, max(1.0, float(getattr(item, "duration", 0) or 0)))
+            for item in list(getattr(project, "videos", ()))[:8]
+        ]
+        self._audios = [
+            (Path(item.path).stem, max(1.0, float(getattr(item, "duration", 0) or 0)))
+            for item in list(getattr(project, "audios", ()))[:8]
+        ]
+        names = [name for name, _duration_value in self._videos]
+        self._texts = []
+        if "Cerita Baru" in names:
+            self._texts.append(("Cerita Baru", 18.0))
+        if "Perjalanan Kita" in names:
+            self._texts.append(("Perjalanan Kita", 22.0))
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor("#FFFFFF"))
+        toolbar_h = 0
+        ruler_h = 20
+        left = 145
+
+        track_top = toolbar_h + ruler_h
+        track_h = max(25, (self.height() - track_top) // 3)
+        total = max(
+            sum(value for _name, value in self._audios),
+            sum(value for _name, value in self._videos),
+            90.0,
+        )
+
+        p.setPen(QPen(QColor(TOKENS.border), 1))
+        tick = 0
+        while tick <= int(total):
+            x = left + int((self.width() - left) * tick / max(1.0, total))
+            p.drawLine(x, toolbar_h, x, self.height())
+            p.setPen(QColor(TOKENS.text_muted))
+            p.drawText(x + 3, toolbar_h + 14, _duration(tick))
+            p.setPen(QPen(QColor(TOKENS.border), 1))
+            tick += 10
+
+        for row, label in enumerate(("Video", "Audio", "Teks")):
+            y = track_top + row * track_h
+            p.fillRect(0, y, left, track_h, QColor("#F8FBFF"))
+            p.drawLine(0, y, self.width(), y)
+            p.setPen(QColor(TOKENS.text_primary))
+            p.drawText(10, y + track_h // 2 + 4, label)
+            p.setPen(QPen(QColor(TOKENS.border), 1))
+
+        self._clips(p, self._videos, track_top + 3, track_h - 6, total, QColor("#D8E9FF"), QColor("#1766E8"), waveform=False)
+        self._clips(p, self._audios, track_top + track_h + 3, track_h - 6, total, QColor("#BFEBD9"), QColor("#168B68"), waveform=True)
+        self._clips(p, self._texts, track_top + track_h * 2 + 3, track_h - 6, total, QColor("#DDCDF8"), QColor("#8055C7"), waveform=False, start_fraction=0.34)
+        p.end()
+
+    def _clips(self, p, clips, y, h, total, fill, border, *, waveform=False, start_fraction=0.0):
+        x = 145 + int((self.width() - 151) * start_fraction)
+        usable = max(1, self.width() - 151)
+        for name, duration in clips:
+            width = min(max(52, int(usable * duration / total)), max(52, self.width() - x - 4))
+            rect = QRect(x, y, width, h)
+            p.fillRect(rect, fill)
+            p.setPen(QPen(border, 1))
+            p.drawRect(rect)
+            if waveform and width > 80:
+                p.setPen(QPen(QColor("#6EC7AD"), 1))
+                middle = rect.center().y()
+                for bar_x in range(rect.left() + 8, rect.right() - 8, 7):
+                    amp = 3 + ((bar_x * 7) % max(5, h - 7))
+                    p.drawLine(bar_x, middle - amp // 2, bar_x, middle + amp // 2)
+            p.setPen(QColor(TOKENS.text_primary))
+            p.drawText(rect.adjusted(7, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, name[:22])
+            x += width + 4
+            if x >= self.width() - 20:
+                break
 
 
-def _duration(v):
-    if v is None:return '—'
-    total=max(0,int(round(v))); m,s=divmod(total,60); h,m=divmod(m,60); return f'{h:02d}:{m:02d}:{s:02d}' if h else f'{m:02d}:{s:02d}'
-def _size(v):
-    if v is None:return '—'
-    n=float(max(0,v))
-    for u in ('B','KB','MB','GB','TB'):
-        if n<1024 or u=='TB':return f'{n:.0f} {u}' if u=='B' else f'{n:.1f} {u}'
-        n/=1024
-    return '—'
-def _meta_text(a):
-    m=a.metadata
-    if a.status==MediaStatus.MISSING:return f'{a.media_type.value.title()} • Tidak ditemukan'
-    if a.media_type==MediaType.AUDIO:return f'♫ Audio • {_duration(m.duration)} • {_size(m.size_bytes)}'
-    if a.media_type==MediaType.PHOTO:return f'▧ Foto • {f"{m.width}×{m.height}" if m.width and m.height else "Resolusi —"} • {_size(m.size_bytes)}'
-    return f'▣ Video • {_duration(m.duration)} • {f"{m.width}×{m.height}" if m.width and m.height else "Resolusi —"} • {f"{m.fps:g} FPS" if m.fps else "FPS —"}'
+
+
+def _location_text(value: str) -> str:
+    text = str(value or "")
+    if "\\" in text:
+        head, _sep, _tail = text.rpartition("\\")
+        return head + "\\" if head else text
+    path = Path(text)
+    parent = str(path.parent)
+    return parent if parent not in {"", "."} else text
+
+def _duration(value):
+    if value is None:
+        return "—"
+    total = max(0, int(round(value)))
+    minutes, seconds = divmod(total, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+
+
+def _size(value):
+    if value is None:
+        return "—"
+    amount = float(max(0, value))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if amount < 1024 or unit == "TB":
+            return f"{amount:.0f} {unit}" if unit == "B" else f"{amount:.1f} {unit}"
+        amount /= 1024
+    return "—"
+
+
+def _meta_text(asset):
+    metadata = asset.metadata
+    if asset.status == MediaStatus.MISSING:
+        return f"{asset.media_type.value.title()} • Tidak ditemukan"
+    if asset.media_type == MediaType.AUDIO:
+        return f"♫ Audio   {_size(metadata.size_bytes)}"
+    if asset.media_type == MediaType.PHOTO:
+        return f"▧ Foto   {_size(metadata.size_bytes)}"
+    return f"▣ Video   {_size(metadata.size_bytes)}"

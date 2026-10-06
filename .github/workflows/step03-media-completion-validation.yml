@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-03-media
+      - ui/ui02-media-remediation
   workflow_dispatch:
 
 permissions:
@@ -116,6 +117,7 @@ jobs:
           assert report['window'] == [1672, 941], report
           assert report['media_active'] is True, report
           assert report['visible_cards'] == 24 and report['selected_count'] == 4, report
+          assert report['nav_right'] in range(154, 162), report
           assert report['context_width'] in range(196, 216), report
           assert report['right_dock_width'] in range(274, 301), report
           assert report['timeline_height'] in range(180, 205), report
