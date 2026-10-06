@@ -278,6 +278,8 @@ class InspectorDockHost(QFrame):
         lay.setSpacing(0)
         self.header = FAMDockHeader("", collapsible=True)
         self.header.title.hide()
+        self.header.setFixedHeight(16)
+        self.header.collapse_button.hide()
         self.header.collapse_button.clicked.connect(self.toggle_collapsed)
         lay.addWidget(self.header)
         self.content = TabbedEmptyHost()
@@ -301,11 +303,15 @@ class InspectorDockHost(QFrame):
         if self._collapsed:
             self.setMinimumWidth(38)
             self.setMaximumWidth(38)
+            self.header.setFixedHeight(40)
+            self.header.collapse_button.show()
             self.header.collapse_button.setIcon(foundation_icon("expand", size=TOKENS.icon_inline))
             self.header.collapse_button.setToolTip("Buka Properti / AI")
         else:
             self.setMaximumWidth(520)
             self.setMinimumWidth(self._expanded_width)
+            self.header.setFixedHeight(16)
+            self.header.collapse_button.hide()
             self.header.collapse_button.setIcon(foundation_icon("collapse", size=TOKENS.icon_inline))
             self.header.collapse_button.setToolTip("Ciutkan Properti / AI")
 
