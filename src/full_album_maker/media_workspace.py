@@ -364,7 +364,7 @@ class MediaInspectorWidget(QWidget):
         if not self._selected: self.preview.set_asset(None); self.preview.setText('Belum ada pilihan'); self.title.setText('Belum ada pilihan'); self.details.clear(); self.tags.clear(); self.description.clear(); self._enable(False); return
         if len(self._selected)>1:
             counts={k:sum(a.media_type==k for a in self._selected) for k in MediaType}; self.preview.set_asset(None); self.preview.setText(f'{len(self._selected)} item dipilih'); self.title.setText('Pilihan Banyak'); self.details.setText(f"Video: {counts[MediaType.VIDEO]}\nFoto: {counts[MediaType.PHOTO]}\nAudio: {counts[MediaType.AUDIO]}"); self.tags.clear(); self.description.clear(); self._enable(False); self.add_album.setEnabled(True); return
-        a=self._asset; m=a.metadata; self.preview.set_asset(a); self.title.setText(a.display_name); res=f'{m.width} × {m.height}' if m.width and m.height else '—'; fps=f'{m.fps:g} FPS' if m.fps else '—'; created=datetime.fromtimestamp(m.created_at).strftime('%d %b %Y  %H:%M') if m.created_at else '—'; self.details.setText(f'Jenis        {a.media_type.value.title()}\nResolusi     {res}\nDurasi       {_duration(m.duration)}\nFrame Rate   {fps}\nUkuran       {_size(m.size_bytes)}\nWaktu FS     {created}\nLokasi       {a.path}\nFormat       {m.container or Path(a.path).suffix.lstrip(".").upper() or "—"}'); self.tags.setText(', '.join(a.tags)); self.description.setPlainText(a.description); self._enable(True); self.favorite.setText('★ Hapus dari Favorit' if a.favorite else '☆ Tambahkan ke Favorit'); self.relink.setEnabled(a.status==MediaStatus.MISSING); self.reveal.setEnabled(a.status!=MediaStatus.MISSING)
+        a=self._asset; m=a.metadata; self.preview.set_asset(a); self.title.setText(a.display_name); res=f'{m.width} × {m.height}' if m.width and m.height else '—'; fps=f'{m.fps:g} FPS' if m.fps else '—'; created=datetime.fromtimestamp(m.created_at).strftime('%d %b %Y  %H:%M') if m.created_at else '—'; self.details.setText(f'Jenis        {a.media_type.value.title()}\nResolusi     {res}\nDurasi       {_duration(m.duration)}\nFrame Rate   {fps}\nUkuran       {_size(m.size_bytes)}\nWaktu FS     {created}\nLokasi       {_location_text(a.path)}\nFormat       {m.container or Path(a.path).suffix.lstrip(".").upper() or "—"}'); self.tags.setText(', '.join(a.tags)); self.description.setPlainText(a.description); self._enable(True); self.favorite.setText('★ Hapus dari Favorit' if a.favorite else '☆ Tambahkan ke Favorit'); self.relink.setEnabled(a.status==MediaStatus.MISSING); self.reveal.setEnabled(a.status!=MediaStatus.MISSING)
     def _enable(self,value):
         for w in (self.tags,self.description,self.save_meta,self.favorite,self.relink,self.reveal): w.setEnabled(value)
         self.add_album.setEnabled(bool(self._selected))
@@ -415,12 +415,14 @@ class MediaTimelinePreviewCanvas(QWidget):
         )
 
         p.setPen(QPen(QColor(TOKENS.border), 1))
-        for i in range(10):
-            x = left + int((self.width() - left) * i / 9)
+        tick = 0
+        while tick <= int(total):
+            x = left + int((self.width() - left) * tick / max(1.0, total))
             p.drawLine(x, toolbar_h, x, self.height())
             p.setPen(QColor(TOKENS.text_muted))
-            p.drawText(x + 3, toolbar_h + 14, _duration(total * i / 9))
+            p.drawText(x + 3, toolbar_h + 14, _duration(tick))
             p.setPen(QPen(QColor(TOKENS.border), 1))
+            tick += 10
 
         for row, label in enumerate(("Video", "Audio", "Teks")):
             y = track_top + row * track_h
@@ -457,6 +459,16 @@ class MediaTimelinePreviewCanvas(QWidget):
                 break
 
 
+
+
+def _location_text(value: str) -> str:
+    text = str(value or "")
+    if "\\" in text:
+        head, _sep, _tail = text.rpartition("\\")
+        return head + "\\" if head else text
+    path = Path(text)
+    parent = str(path.parent)
+    return parent if parent not in {"", "."} else text
 
 def _duration(value):
     if value is None:
