@@ -402,8 +402,9 @@ class HomeWorkspace(QWidget):
         self.state = state or HomeViewState()
         self._root_layout = QVBoxLayout(self)
         root = self._root_layout
-        root.setContentsMargins(TOKENS.space_4, TOKENS.space_5, TOKENS.space_4, TOKENS.space_3)
+        root.setContentsMargins(10, TOKENS.space_5, 14, TOKENS.space_3)
         root.setSpacing(TOKENS.space_3)
+        root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.hero = QFrame()
         self.hero.setObjectName("homeHero")
@@ -561,7 +562,7 @@ class HomeWorkspace(QWidget):
             self.new_project_button.setFixedSize(150, 36)
             self.open_project_button.setFixedSize(150, 36)
         else:
-            self._root_layout.setContentsMargins(TOKENS.space_4, TOKENS.space_5, TOKENS.space_4, TOKENS.space_3)
+            self._root_layout.setContentsMargins(10, TOKENS.space_5, 14, TOKENS.space_3)
             self._root_layout.setSpacing(TOKENS.space_3)
             self.hero.setFixedHeight(218)
             self.error_banner.setFixedHeight(60)
