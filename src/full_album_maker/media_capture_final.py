@@ -44,25 +44,25 @@ def _golden_fixture_assets():
     rank = {name: len(golden_order) - index for index, name in enumerate(golden_order)}
 
     metadata_overrides = {
-        "Senja di Kota Ini.mp3": dict(duration=204.0, size_bytes=3_400_000),
-        "Jalan Pulang.mp3": dict(duration=252.0, size_bytes=4_100_000),
-        "Pantai Bali.jpg": dict(size_bytes=2_800_000),
-        "Gunung Bromo.jpg": dict(size_bytes=3_100_000),
-        "Perjalanan.jpg": dict(size_bytes=2_400_000),
+        "Senja di Kota Ini.mp3": dict(duration=204.0, size_bytes=3_565_158),
+        "Jalan Pulang.mp3": dict(duration=252.0, size_bytes=4_299_161),
+        "Pantai Bali.jpg": dict(size_bytes=2_936_012),
+        "Gunung Bromo.jpg": dict(size_bytes=3_250_585),
+        "Perjalanan.jpg": dict(size_bytes=2_516_582),
         "Senja di Kota Ini.mp4": dict(
             duration=42.0, width=3840, height=2160, fps=24.0,
-            size_bytes=1_200_000_000, created_at=1736519520.0,
+            size_bytes=1_288_490_188, created_at=1736519520.0,
             container="MP4 (H.264, AAC)",
         ),
-        "Jalan Pulang.mp4": dict(duration=75.0, width=1920, height=1080, fps=30.0, size_bytes=512_000_000),
-        "Perjalanan Kita.mp4": dict(duration=156.0, width=3840, height=2160, fps=30.0, size_bytes=1_400_000_000),
-        "Cerita Baru.mp4": dict(duration=58.0, width=1920, height=1080, fps=30.0, size_bytes=420_000_000),
-        "Danau.jpg": dict(size_bytes=2_900_000),
-        "Inspirasi.mp3": dict(duration=138.0, size_bytes=2_100_000),
-        "Hutan.jpg": dict(size_bytes=3_500_000),
-        "Pelangi.mp3": dict(duration=190.0, size_bytes=3_000_000),
-        "Timelapse.mp4": dict(duration=20.0, width=3840, height=2160, fps=60.0, size_bytes=720_000_000),
-        "Kota Malam.jpg": dict(size_bytes=2_600_000),
+        "Jalan Pulang.mp4": dict(duration=75.0, width=1920, height=1080, fps=30.0, size_bytes=536_870_912),
+        "Perjalanan Kita.mp4": dict(duration=156.0, width=3840, height=2160, fps=30.0, size_bytes=1_503_238_553),
+        "Cerita Baru.mp4": dict(duration=58.0, width=1920, height=1080, fps=30.0, size_bytes=440_401_920),
+        "Danau.jpg": dict(size_bytes=3_040_870),
+        "Inspirasi.mp3": dict(duration=138.0, size_bytes=2_202_009),
+        "Hutan.jpg": dict(size_bytes=3_670_016),
+        "Pelangi.mp3": dict(duration=190.0, size_bytes=3_145_728),
+        "Timelapse.mp4": dict(duration=20.0, width=3840, height=2160, fps=60.0, size_bytes=754_974_720),
+        "Kota Malam.jpg": dict(size_bytes=2_726_297),
     }
 
     output = []
