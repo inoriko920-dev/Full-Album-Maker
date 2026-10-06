@@ -130,6 +130,10 @@ def _preview_paint(self: MediaPreviewPlaceholder, event) -> None:
         if metadata.width and metadata.height:
             if metadata.width >= 3000:
                 parts.append("4K")
+            elif metadata.height >= 1000:
+                parts.append("1080p")
+            elif metadata.height >= 700:
+                parts.append("720p")
             else:
                 parts.append(f"{metadata.width}×{metadata.height}")
         if metadata.fps:
