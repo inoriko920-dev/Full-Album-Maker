@@ -70,7 +70,7 @@ QPushButton[kind="primary"]:hover {{ background: #0F59CE; border-color: #0F59CE;
 QPushButton[kind="primary"]:pressed {{ background: #0D4FB6; }}
 QPushButton[kind="ghost"] {{ background: transparent; border-color: transparent; }}
 QPushButton#navButton {{
-    min-height: 42px;
+    min-height: 48px;
     text-align: left;
     padding: 3px 11px;
     border: none;
