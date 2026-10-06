@@ -1,0 +1,55 @@
+name: Full Album Maker Backup Bundle
+
+on:
+  push:
+    branches:
+      - backup/full-album-maker-2026-10-06-14-36-WIB
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Fetch every branch and tag
+        run: |
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*' --prune
+          mkdir -p backup
+
+      - name: Record repository metadata
+        run: |
+          git branch -a -vv > backup/BRANCHES.txt
+          git tag -n > backup/TAGS.txt
+          git show-ref > backup/REFS.txt
+          git log --all --date=iso-strict --pretty=format:'%H|%ad|%an|%s' > backup/COMMIT_HISTORY.txt
+          printf '%s\n' '405f4ed84549ffb80ac4b9bae6238015de8c21f2' > backup/MAIN_COMMIT.txt
+
+      - name: Create source snapshot
+        run: |
+          git archive --format=zip --output=backup/Full-Album-Maker-SOURCE-MAIN-405f4ed8.zip 405f4ed84549ffb80ac4b9bae6238015de8c21f2
+          test -s backup/Full-Album-Maker-SOURCE-MAIN-405f4ed8.zip
+
+      - name: Create and verify complete Git bundle
+        run: |
+          git bundle create backup/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle --all
+          test -s backup/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle
+          git bundle verify backup/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle 2>&1 | tee backup/GIT_BUNDLE_VERIFY.txt
+          git bundle list-heads backup/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle > backup/GIT_BUNDLE_HEADS.txt
+
+      - name: Checksum backup inputs
+        run: |
+          cd backup
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Upload backup inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: Full-Album-Maker-Backup-Inputs-2026-10-06-14-36-WIB
+          path: backup
+          if-no-files-found: error
