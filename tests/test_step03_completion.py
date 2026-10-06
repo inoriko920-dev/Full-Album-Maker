@@ -81,9 +81,12 @@ app.processEvents()
 shell = window.foundation_shell
 assert shell.state.workspace == "media"
 assert shell.workspace_stack.currentWidget() is window.media_workspace
+assert shell.navigation.width() in range(154, 162)
 assert shell.context.width() in range(196, 216)
 assert shell.inspector.width() in range(274, 301)
 assert shell.timeline.height() in range(180, 205)
+assert max(button.height() for button in window.media_context._category_buttons.values()) <= 36
+assert max(button.height() for button in window.media_context._collection_buttons.values()) <= 35
 assert window.media_workspace._columns() == 5, (
     window.media_workspace.width(),
     window.media_workspace.scroll.viewport().width(),
@@ -104,3 +107,26 @@ app.processEvents()
         check=False,
     )
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+
+
+def test_final_media_fixture_order_matches_canonical_visual_rhythm():
+    from full_album_maker.media_capture_final import _golden_fixture_assets
+
+    names = [asset.display_name for asset in _golden_fixture_assets()]
+    assert names[:15] == [
+        "Senja di Kota Ini.mp3",
+        "Jalan Pulang.mp3",
+        "Pantai Bali.jpg",
+        "Gunung Bromo.jpg",
+        "Perjalanan.jpg",
+        "Senja di Kota Ini.mp4",
+        "Jalan Pulang.mp4",
+        "Perjalanan Kita.mp4",
+        "Cerita Baru.mp4",
+        "Danau.jpg",
+        "Inspirasi.mp3",
+        "Hutan.jpg",
+        "Pelangi.mp3",
+        "Timelapse.mp4",
+        "Kota Malam.jpg",
+    ]
