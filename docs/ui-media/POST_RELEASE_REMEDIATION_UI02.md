@@ -37,8 +37,8 @@ Residual terbesar terutama berasal dari fixture yang memakai artwork determinist
 - Card dibuat lebih padat dengan selection overlay, overflow menu, thumbnail/waveform, duration/resolution/FPS badge, nama dan metadata.
 - Urutan fixture visual dibuat deterministic agar mixed Audio/Foto/Video menyerupai ritme golden tanpa mengubah sorting runtime.
 - Video badge dipadatkan menjadi 4K/1080p/720p agar tidak overlap pada card.
-- Inspector Media diperbesar dan memakai fallback preview yang jelas membedakan audio/foto/video; cached real preview tetap menang.
-- Timeline Media mempertahankan tiga track Video/Audio/Teks dan toolbar Media dipindah ke header route-specific agar tidak ada toolbar ganda.
+- Inspector Media diperbesar, lokasi ditampilkan sebagai folder, metadata fixture diselaraskan, dan fallback preview video dibuat lebih representatif; cached real preview tetap menang.
+- Timeline Media mempertahankan tiga track Video/Audio/Teks, ruler 10-detik, durasi fixture 01:32, dan toolbar Media dipindah ke header route-specific agar tidak ada toolbar ganda.
 - Geometry Media route tetap scoped: perubahan tidak menggeser shell Beranda atau workspace berikutnya.
 
 ## Functional safety
