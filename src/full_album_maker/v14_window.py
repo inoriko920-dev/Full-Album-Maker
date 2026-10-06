@@ -95,10 +95,16 @@ class V14EditorMainWindow(EditorMainWindow):
         threading.Thread(target=work, daemon=True).start()
 
 
-def run() -> int:
-    app = QApplication.instance() or QApplication([])
+def configure_application(app: QApplication) -> None:
+    """Apply the same production Qt configuration for normal run and smoke."""
+
     install_foundation_font(app)
     app.setStyleSheet(FOUNDATION_STYLE)
+
+
+def create_main_window():
+    """Construct the exact Foundation window used by the production entrypoint."""
+
     # Deferred import avoids a class-definition cycle. The foundation window is
     # a compatibility wrapper around V14EditorMainWindow, not a second app layer.
     from .foundation_window import FoundationMainWindow
@@ -110,5 +116,12 @@ def run() -> int:
     app_name = window.foundation_shell.command_bar.findChild(QLabel, "appName")
     if app_name is not None:
         app_name.setText("")
+    return window
+
+
+def run() -> int:
+    app = QApplication.instance() or QApplication([])
+    configure_application(app)
+    window = create_main_window()
     window.show()
     return app.exec()
