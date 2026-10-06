@@ -21,11 +21,11 @@ Fresh baseline pada branch sebelum remediation:
 
 ## Hasil remediation
 
-Final screenshot candidate dari GitHub Actions run **37425681364**:
-- mean absolute RGB difference: **28.70**
-- normalized mean absolute difference: **0.1126**
-- pixel dengan delta salah satu channel > 25: **32.66%**
-- perbaikan mean absolute RGB terhadap baseline: sekitar **26.0%**
+Final screenshot candidate dari GitHub Actions run **37426127822**:
+- mean absolute RGB difference: **26.95**
+- normalized mean absolute difference: **0.1057**
+- pixel dengan delta salah satu channel > 25: **32.27%**
+- perbaikan mean absolute RGB terhadap baseline: sekitar **30.5%**
 
 Residual terbesar terutama berasal dari fixture yang memakai artwork deterministik, sedangkan golden memakai media foto/video contoh yang spesifik, serta perbedaan native rasterization/icon. Runtime tetap memprioritaskan preview media nyata dari cache/source dan tidak menggunakan crop/screenshot golden sebagai konten aplikasi.
 
@@ -54,11 +54,14 @@ Residual terbesar terutama berasal dari fixture yang memakai artwork determinist
 ## Verification
 
 Evidence production UI:
-- Actions run: **37425681364**
-- validated branch head: `8cd481d07f77b56330b610c0824c4d9073e33e0c`
+- STEP03 completion/evidence run: **37426127822**
+- STEP03 validation run: **37426127869**
+- Windows portable build run: **37426134877**
+- production UI head: `946b909db38066b4e00b867d26a5d34d88b1988e`
 - STEP03 completion: **PASS**
-- full recovered regression: **PASS**
+- STEP03 focused + full recovered regression: **PASS**
 - FFmpeg preview smoke: **PASS**
+- Windows portable build/smoke: **PASS**
 - final screenshot/evidence: **PASS**
 
 Branch juga menambahkan regression lock untuk:
