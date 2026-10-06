@@ -46,7 +46,7 @@ class HomeHeroIllustration(QWidget):
 
         tile_w = min(188.0, w * 0.43)
         tile_h = min(142.0, h * 0.72)
-        tile_x = w * 0.43
+        tile_x = w * 0.28
         tile_y = max(8.0, (h - tile_h) * 0.42)
         painter.setPen(QPen(_alpha_color(TOKENS.primary_600, 92), 2))
         painter.setBrush(_alpha_color(TOKENS.selection_soft, 236))
@@ -64,7 +64,7 @@ class HomeHeroIllustration(QWidget):
         sx = min(w - small_w - 8, tile_x + tile_w * 0.76)
         sy = min(h - small_h - 8, tile_y + tile_h * 0.55)
         painter.setPen(QPen(QColor(TOKENS.border), 1))
-        painter.setBrush(QColor("#FFFFFFCC"))
+        painter.setBrush(_alpha_color("#FFFFFF", 220))
         painter.drawRoundedRect(QRectF(sx, sy, small_w, small_h), 11, 11)
         painter.setBrush(_alpha_color(TOKENS.accent_500, 58))
         painter.setPen(Qt.PenStyle.NoPen)
@@ -94,7 +94,7 @@ class RecoveryBanner(QFrame):
         )
         row = QHBoxLayout(self)
         row.setContentsMargins(TOKENS.space_3, 6, TOKENS.space_2, 6)
-        row.setSpacing(TOKENS.space_2)
+        row.setSpacing(TOKENS.space_4)
         icon = QLabel("!")
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon.setFixedSize(34, 34)
@@ -398,7 +398,10 @@ class HomeWorkspace(QWidget):
         recent_header.addWidget(title)
         recent_header.addStretch(1)
         self.see_all = FAMButton("Lihat Semua  →", kind="ghost")
-        self.see_all.setFixedHeight(26)
+        self.see_all.setFixedHeight(20)
+        self.see_all.setStyleSheet(
+            "min-height:20px;max-height:20px;padding:0 2px;border:none;background:transparent;"
+        )
         self.see_all.clicked.connect(self.show_all_recent_requested.emit)
         recent_header.addWidget(self.see_all)
         root.addLayout(recent_header)
@@ -410,10 +413,13 @@ class HomeWorkspace(QWidget):
         self.recent_row.setSpacing(TOKENS.space_2)
         root.addWidget(self.recent_host)
 
+        quick_section = QVBoxLayout()
+        quick_section.setContentsMargins(0, 0, 0, 0)
+        quick_section.setSpacing(TOKENS.space_1)
         quick_title = QLabel("Mulai Cepat")
         quick_title.setObjectName("sectionHeading")
         quick_title.setStyleSheet("font-size:16px;font-weight:700;")
-        root.addWidget(quick_title)
+        quick_section.addWidget(quick_title)
         self.quick = QFrame()
         self.quick.setObjectName("famCard")
         self.quick.setFixedHeight(86)
@@ -431,7 +437,8 @@ class HomeWorkspace(QWidget):
             card.clicked.connect(lambda r=route: self.quick_route_requested.emit(r))
             quick_row.addWidget(card, 1)
             self._quick_cards.append(card)
-        root.addWidget(self.quick)
+        quick_section.addWidget(self.quick)
+        root.addLayout(quick_section)
 
         self.new_project_button.clicked.connect(self.create_project_requested.emit)
         self.open_project_button.clicked.connect(self.open_project_requested.emit)
