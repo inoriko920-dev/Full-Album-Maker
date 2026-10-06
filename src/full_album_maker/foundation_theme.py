@@ -29,7 +29,7 @@ QFrame#workspaceHost, QFrame#inspectorDock, QFrame#timelineDock, QFrame#appStatu
     border: 1px solid {t.border};
 }}
 QFrame#globalCommandBar {{ border-left: none; border-right: none; border-top: none; }}
-QFrame#workspaceNavigation {{ border-left: none; border-top: none; border-bottom: none; }}
+QFrame#workspaceNavigation {{ border-left: none; border-top: none; border-bottom: none; background: #F8FBFF; }}
 QFrame#contextHost, QFrame#workspaceHost, QFrame#inspectorDock {{ border-top: none; border-bottom: none; }}
 QFrame#timelineDock {{ border-left: none; border-right: none; }}
 QFrame#appStatusBar {{ border-left: none; border-right: none; border-bottom: none; }}
