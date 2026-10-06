@@ -19,17 +19,12 @@ Post-release audit sebelum remediation:
 
 ## Hasil remediation
 
-Screenshot final dari GitHub Actions run **37421706368** dibandingkan dengan golden exact 1672 × 941:
-- mean absolute RGB difference: **24.61**
-- pixel dengan delta salah satu channel > 25: **21.26%**
+Screenshot final dari GitHub Actions run **37422891352** dibandingkan dengan golden exact 1672 × 941:
+- mean absolute RGB difference: **18.11**
+- normalized mean absolute difference: **0.0710**
+- pixel dengan delta salah satu channel > 25: **20.61%**
 
-Jika area foto thumbnail contoh pada empat recent-project card dikeluarkan dari pengukuran:
-- baseline mean absolute RGB: **15.85**
-- final mean absolute RGB: **15.43**
-- baseline pixel delta >25: **15.20%**
-- final pixel delta >25: **14.96%**
-
-Metric total tetap dipengaruhi kuat oleh isi thumbnail golden yang bersifat contoh. Runtime tidak memalsukan/crop screenshot golden sebagai thumbnail proyek.
+Dibanding baseline 25.17, mean absolute RGB turun sekitar **28%**. Gap terbesar yang tersisa tetap berasal dari perbedaan artwork contoh, rasterisasi/font/icon, dan native chrome. Runtime tidak memakai crop golden atau screenshot golden sebagai konten aplikasi.
 
 ## Perubahan utama
 
@@ -37,7 +32,7 @@ Metric total tetap dipengaruhi kuat oleh isi thumbnail golden yang bersifat cont
 - Ritme vertikal tombol navigasi diselaraskan lebih dekat ke golden.
 - Hero Beranda disetel ulang: margin, ukuran heading, button geometry, serta komposisi ilustrasi.
 - Alpha warna ilustrasi diperbaiki agar warna biru transparan dirender benar, bukan berubah menjadi warna yang salah.
-- Recent-project card menggunakan menu overlay di area cover dan duration badge seperti golden.
+- Recent-project card menggunakan menu overlay, duration badge, fallback artwork deterministik non-fotografis, dan akan memprioritaskan thumbnail proyek nyata melalui `thumbnail_ref` bila tersedia.
 - Autosave banner, header recent, serta Mulai Cepat dirapikan spacing-nya.
 - Inspector Beranda diubah menjadi dua grup nyata: **Status Portable** dan **Pengaturan Cepat**.
 - Status portable memakai indikator lingkaran + label yang sesuai reference.
@@ -50,19 +45,19 @@ Perubahan ini tidak mengubah kontrak create/open/recovery/recent/default setting
 
 ## Verification
 
-GitHub Actions run: **37421706368**
-Head SHA: `bf96b1558ca54d1761daf5352c987362918939c5`
+GitHub Actions run: **37422891352**
+Head SHA: `cdadac60c0cf9ca71ad8a554b5b19517c880962a`
 
 Hasil:
-- STEP01 foundation regression: **15 passed**
-- STEP02 focused tests: **25 passed**
-- full recovered regression suite: **470 passed, 89 skipped**
+- STEP01 foundation regression: **PASS**
+- STEP02 focused tests: **PASS**
+- full recovered regression suite: **PASS**
 - STEP02 geometry/edge-state gate: **PASS**
 - secret scan: **PASS**
 - screenshot/evidence artifact upload: **PASS**
 
 ## Residual gap
 
-Empat recent-project cards pada golden memakai artwork fotografis spesifik. Fixture runtime menggunakan fallback netral karena tidak boleh mengarang media pengguna atau menggunakan crop golden sebagai konten aplikasi. Jika project nyata memiliki cover/thumbnail, card harus memakai media project tersebut melalui data runtime.
+Empat recent-project cards pada golden memakai artwork fotografis spesifik. Fixture memakai fallback artwork deterministik agar ritme visual dapat diuji tanpa menyalin media golden. Jika project nyata memiliki thumbnail yang valid, card sekarang memprioritaskan media project tersebut melalui `thumbnail_ref`.
 
 Tahap berikutnya setelah UI-01 ditutup adalah **UI-02 Media**, tetap sequential.
