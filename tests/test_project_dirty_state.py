@@ -329,6 +329,7 @@ def test_open_failure_preserves_previous_current_path(tmp_path, monkeypatch):
 
     window = MainWindow()
     window._current_project_path = str(previous)
+    monkeypatch.setattr(window, "_error", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         "full_album_maker.ui.QFileDialog.getOpenFileName",
         lambda *args, **kwargs: (str(corrupt), "Full Album Project (*.json)"),
