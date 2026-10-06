@@ -286,11 +286,12 @@ def _patched_reset_agent_chat(self) -> None:
         )
 
 
-def _patched_load_project_file(self) -> None:
+def _patched_load_project_file(self):
     previous_project = self.project
-    _originals["load_project_file"](self)
+    opened_path = _originals["load_project_file"](self)
     if self.project is not previous_project:
         self._invalidate_agent_context()
+    return opened_path
 
 
 def install_ui_hardening() -> None:
