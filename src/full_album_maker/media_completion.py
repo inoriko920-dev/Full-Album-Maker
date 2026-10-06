@@ -8,6 +8,7 @@ from PySide6.QtCore import QPoint, QRect, Qt, QTimer
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import QMenu, QPushButton, QSizePolicy
 
+from .foundation_components import FAMButton
 from .foundation_tokens import TOKENS
 from .media_library_services import MediaSidecarStore
 from .media_preview_cache import MediaPreviewCache, PreviewResult, invalidate_source, preview_cache_path
@@ -268,6 +269,35 @@ def _inspector_preview(self: MediaInspectorWidget, asset_id: str, path: str) -> 
     )
 
 
+def _shell_workspace(self, route: str) -> None:
+    _originals["shell_workspace"](self, route)
+    media_active = route == "media"
+    timeline = self.timeline
+
+    if not hasattr(timeline, "_media_header_tools"):
+        head = timeline.layout().itemAt(0).layout()
+        timeline._media_header_tools = []
+        labels = ("Split", "Potong", "Kecepatan", "Audio", "Teks", "Transisi", "Efek", "AI Tools")
+        insert_at = 3
+        for label in labels:
+            button = FAMButton(label, kind="ghost")
+            button.setEnabled(False)
+            button.setToolTip(f"{label} — aktif ketika clip timeline yang kompatibel dipilih")
+            button.setMinimumWidth(0)
+            head.insertWidget(insert_at, button)
+            insert_at += 1
+            timeline._media_header_tools.append(button)
+
+    timeline.message.setVisible(not media_active)
+    for button in timeline._media_header_tools:
+        button.setVisible(media_active)
+
+    timeline.mode.setVisible(not media_active)
+    for button in timeline.body.findChildren(QPushButton):
+        if button.text() in {"Split", "Ripple", "Snap", "Marker"}:
+            button.setVisible(not media_active)
+
+
 def _shell_sizes(self, route: str) -> None:
     if route != "media":
         _originals["shell_sizes"](self, route)
@@ -476,6 +506,7 @@ def install_step03_media_completion() -> None:
         workspace_init=MediaWorkspace.__init__,
         workspace_refresh=MediaWorkspace.refresh_view,
         inspector_init=MediaInspectorWidget.__init__,
+        shell_workspace=FoundationShellWidget._apply_workspace,
         shell_sizes=FoundationShellWidget._apply_shell_sizes,
         window_init=FoundationMainWindow.__init__,
         sync=FoundationMainWindow._sync_foundation_state,
@@ -494,6 +525,7 @@ def install_step03_media_completion() -> None:
     MediaWorkspace._step03_preview_result = _workspace_preview_result
     MediaInspectorWidget.__init__ = _inspector_init
     MediaInspectorWidget.set_preview_path = _inspector_preview
+    FoundationShellWidget._apply_workspace = _shell_workspace
     FoundationShellWidget._apply_shell_sizes = _shell_sizes
     FoundationMainWindow.__init__ = _window_init
     FoundationMainWindow._s03_completion_timeline_controls = _timeline_controls
