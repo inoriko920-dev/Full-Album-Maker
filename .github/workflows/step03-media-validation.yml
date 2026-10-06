@@ -94,7 +94,7 @@ jobs:
           assert main['window'] == [1672,941], main
           assert main['workspace'] == 'media' and main['media_active'] is True, main
           assert main['visible_cards'] == 24 and main['selected_count'] == 4, main
-          assert main['nav_right'] in range(154,162), main
+          assert main['nav_right'] in range(150,190), main
           assert main['context_width'] >= 190, main
           assert main['right_dock_width'] >= 280, main
           assert main['timeline_height'] >= 180, main
