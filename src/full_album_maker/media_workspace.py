@@ -323,21 +323,47 @@ class MediaInspectorPreview(QLabel):
                 height = 8 + ((index * 13 + 9) % max(16, r.height() - 34))
                 p.drawLine(x, middle - height // 2, x, middle + height // 2)
         else:
-            sky = QColor("#F3B26C") if self._asset.media_type == MediaType.VIDEO else QColor("#BFE2F8")
+            is_video = self._asset.media_type == MediaType.VIDEO
+            sky = QColor("#E99467") if is_video else QColor("#BFE2F8")
             p.fillRect(r, sky)
-            p.setBrush(QColor("#7A956F"))
-            p.drawPolygon(
-                QPolygon([
-                    r.bottomLeft(),
-                    r.topLeft() + QPoint(0, int(r.height() * 0.70)),
-                    QPoint(int(r.width() * 0.30), int(r.height() * 0.46)),
-                    QPoint(int(r.width() * 0.52), int(r.height() * 0.68)),
-                    QPoint(int(r.width() * 0.75), int(r.height() * 0.38)),
-                    r.bottomRight(),
-                ])
-            )
-            if self._asset.media_type == MediaType.VIDEO:
-                p.setBrush(QColor(16, 35, 74, 180))
+            p.setPen(Qt.PenStyle.NoPen)
+
+            if is_video:
+                # Generic sunset fallback for video preview. It is intentionally
+                # synthetic and never sourced from the immutable golden image.
+                p.setBrush(QColor("#F5C37B"))
+                p.drawRect(r.left(), r.top() + int(r.height() * 0.48), r.width(), int(r.height() * 0.52))
+                p.setBrush(QColor("#5D6260"))
+                p.drawPolygon(
+                    QPolygon([
+                        r.bottomLeft(),
+                        QPoint(r.left() + int(r.width() * 0.30), r.top() + int(r.height() * 0.65)),
+                        QPoint(r.left() + int(r.width() * 0.52), r.top() + int(r.height() * 0.78)),
+                        QPoint(r.left() + int(r.width() * 0.72), r.top() + int(r.height() * 0.55)),
+                        r.bottomRight(),
+                    ])
+                )
+                # A simple human-like silhouette gives a recognizable "video
+                # subject" fallback without reproducing any reference artwork.
+                p.setBrush(QColor("#3F3E48"))
+                person_x = r.left() + int(r.width() * 0.69)
+                p.drawEllipse(QRect(person_x, r.top() + 24, 24, 24))
+                p.drawRoundedRect(QRect(person_x - 7, r.top() + 45, 38, 72), 14, 14)
+            else:
+                p.setBrush(QColor("#7A956F"))
+                p.drawPolygon(
+                    QPolygon([
+                        r.bottomLeft(),
+                        r.topLeft() + QPoint(0, int(r.height() * 0.70)),
+                        QPoint(int(r.width() * 0.30), int(r.height() * 0.46)),
+                        QPoint(int(r.width() * 0.52), int(r.height() * 0.68)),
+                        QPoint(int(r.width() * 0.75), int(r.height() * 0.38)),
+                        r.bottomRight(),
+                    ])
+                )
+
+            if is_video:
+                p.setBrush(QColor(16, 35, 74, 190))
                 center = r.center()
                 p.drawEllipse(center, 20, 20)
                 p.setPen(QColor("#FFFFFF"))
