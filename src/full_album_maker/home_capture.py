@@ -219,6 +219,28 @@ def capture(
         "recent_empty": len(home_state.recent_projects) == 0,
         "output_invalid": home_state.mode.value == "HOME_OUTPUT_INVALID",
         "output_warning_visible": bool(inspector.output_warning.text()),
+        "home_hero": [home.hero.x(), home.hero.y(), home.hero.width(), home.hero.height()],
+        "home_recovery": [
+            home.recovery_banner.x(), home.recovery_banner.y(),
+            home.recovery_banner.width(), home.recovery_banner.height(),
+        ],
+        "home_recent_host": [
+            home.recent_host.x(), home.recent_host.y(),
+            home.recent_host.width(), home.recent_host.height(),
+        ],
+        "home_quick": [home.quick.x(), home.quick.y(), home.quick.width(), home.quick.height()],
+        "home_new_button": [
+            home.new_project_button.x(), home.new_project_button.y(),
+            home.new_project_button.width(), home.new_project_button.height(),
+        ],
+        "inspector_status_card": [
+            inspector.status_card.x(), inspector.status_card.y(),
+            inspector.status_card.width(), inspector.status_card.height(),
+        ],
+        "inspector_settings_card": [
+            inspector.settings_card.x(), inspector.settings_card.y(),
+            inspector.settings_card.width(), inspector.settings_card.height(),
+        ],
     }
     window.close()
     return geometry
