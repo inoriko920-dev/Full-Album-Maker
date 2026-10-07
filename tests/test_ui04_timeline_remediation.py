@@ -60,7 +60,7 @@ def test_ui04_timeline_remediation_matches_route_contract() -> None:
         assert shell.timeline.body.isHidden() is False
         assert window.editor_workspace.document().content_signature() == signature
 
-        print("UI04_TIMELINE_REMEDIATION_PASS")
+        print("UI04_TIMELINE_REMEDIATION_PASS", flush=True)
         window.hide()
         window.deleteLater()
         app.processEvents()
