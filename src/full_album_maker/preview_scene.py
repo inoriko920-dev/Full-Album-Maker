@@ -9,9 +9,10 @@ from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from .album_visuals import format_duration_tick, normalize_visual_properties
-from .editor_models import ProjectDocument, Transform
+from .editor_models import ProjectDocument, TIMEBASE, Transform
 from .spectrum_feature import dynamic_song_text, normalize_spectrum_properties
 from .timeline_resolver import TimelineResolver
+from .beat_visual_runtime import BeatVisualRuntime
 
 
 @dataclass
@@ -42,6 +43,7 @@ class PreviewCanvas(QWidget):
         self._preview_transform: Transform | None = None
         self._accurate_frame = QImage()
         self._accurate_frame_path = ""
+        self._beat_runtime: BeatVisualRuntime | None = None
 
     def set_document(self, document: ProjectDocument) -> None:
         self._document = document.clone()
@@ -51,6 +53,10 @@ class PreviewCanvas(QWidget):
 
     def set_playhead(self, tick: int) -> None:
         self._playhead_tick = max(0, int(tick))
+        self.update()
+
+    def set_beat_runtime(self, runtime: BeatVisualRuntime | None) -> None:
+        self._beat_runtime = runtime
         self.update()
 
     def set_selected_layer(self, layer_id: str | None) -> None:
@@ -150,18 +156,74 @@ class PreviewCanvas(QWidget):
             track = tracks.get(layer.track_id)
             if layer.layer_id not in active or not layer.enabled or track is None or not track.enabled:
                 continue
-            transform = self._current_transform(layer.layer_id)
+            base_transform = self._current_transform(layer.layer_id)
+            base_rect = self._rect_for_transform(canvas, base_transform)
+            transform = base_transform
+            effective_opacity = float(layer.opacity)
+            glow_amount = 0.0
+            beat_state = None
+            if (
+                self._beat_runtime is not None
+                and self._beat_runtime.has_layer(layer.layer_id)
+                and self._preview_transform is None
+            ):
+                effective, state = self._beat_runtime.effective_for_layer(
+                    layer,
+                    self._playhead_tick,
+                    render_geometry=True,
+                )
+                transform = Transform(
+                    x=effective.x,
+                    y=effective.y,
+                    width=effective.width,
+                    height=effective.height,
+                    rotation=effective.rotation,
+                    pivot_x=effective.pivot_x,
+                    pivot_y=effective.pivot_y,
+                )
+                effective_opacity = effective.opacity
+                glow_amount = state.glow_amount
+                beat_state = state
             rect = self._rect_for_transform(canvas, transform)
             painter.save()
+            painter.setOpacity(max(0.0, min(1.0, effective_opacity)))
             if self._supports_box_transform(layer):
                 center = rect.center()
                 painter.translate(center)
                 painter.rotate(transform.rotation)
                 painter.translate(-center)
             if self._accurate_frame.isNull():
+                if beat_state is not None and layer.type in {"text", "song_title"}:
+                    font = painter.font()
+                    base_size = font.pointSizeF()
+                    if base_size <= 0:
+                        base_size = 10.0
+                    font.setPointSizeF(max(1.0, base_size * float(beat_state.scale_multiplier)))
+                    painter.setFont(font)
                 self._paint_approx_layer(painter, rect, layer)
+                if glow_amount > 0.001:
+                    glow = QColor("#9fe8ff")
+                    glow.setAlphaF(max(0.0, min(0.75, glow_amount * 0.75)))
+                    painter.setPen(QPen(glow, max(1.0, 1.0 + 5.0 * glow_amount)))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRoundedRect(rect, 6.0, 6.0)
+                if self._beat_runtime is not None and self._beat_runtime.has_layer(layer.layer_id):
+                    particles = self._beat_runtime.particles_for_layer(layer.layer_id, self._playhead_tick)
+                    if particles:
+                        painter.setPen(Qt.PenStyle.NoPen)
+                        minimum = max(2.0, min(rect.width(), rect.height()))
+                        center = rect.center()
+                        for particle in particles:
+                            color = QColor("#dff8ff")
+                            color.setAlphaF(max(0.0, min(1.0, float(particle.alpha))))
+                            painter.setBrush(color)
+                            px = center.x() + float(particle.x_offset_normalized) * rect.width()
+                            py = center.y() + float(particle.y_offset_normalized) * rect.height()
+                            radius = max(1.0, float(particle.size_normalized) * minimum)
+                            painter.drawEllipse(QPointF(px, py), radius, radius)
+            painter.setOpacity(1.0)
             if layer.layer_id == self._selected_layer_id:
-                self._paint_selection(painter, rect, layer, track.locked)
+                self._paint_selection(painter, base_rect, layer, track.locked)
             painter.restore()
 
         if self._selected_layer_id and self._selected_layer_id not in active:
@@ -237,7 +299,15 @@ class PreviewCanvas(QWidget):
             painter.setBrush(QColor(props["center_color"]))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(center)
-            angle = (self._playhead_tick / 240000.0) / props["spin_seconds"] * math.tau
+            phase_cycles = (self._playhead_tick / TIMEBASE) / props["spin_seconds"]
+            if props.get("bpm_sync", False) and self._beat_runtime is not None:
+                phase_cycles = self._beat_runtime.vinyl_phase_cycles_at(
+                    self._playhead_tick,
+                    fallback_spin_seconds=props["spin_seconds"],
+                    beats_per_rotation=props["beats_per_rotation"],
+                    min_confidence=props["bpm_sync_min_confidence"],
+                )
+            angle = phase_cycles * math.tau
             edge = QPointF(
                 disc.center().x() + math.cos(angle) * size * 0.42,
                 disc.center().y() + math.sin(angle) * size * 0.42,

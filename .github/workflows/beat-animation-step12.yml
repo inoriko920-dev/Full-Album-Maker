@@ -1,0 +1,129 @@
+name: STEP12 Event Phase and Advanced Motion
+
+on:
+  push:
+    branches:
+      - feature/beat-animation-engine-v2
+    paths:
+      - "src/full_album_maker/event_phase_modulator.py"
+      - "src/full_album_maker/advanced_motion_contract.py"
+      - "src/full_album_maker/advanced_motion_engine.py"
+      - "src/full_album_maker/spark_burst_engine.py"
+      - "src/full_album_maker/spark_render_control.py"
+      - "src/full_album_maker/beat_animation_assignment.py"
+      - "src/full_album_maker/beat_visual_runtime.py"
+      - "src/full_album_maker/beat_render_control.py"
+      - "src/full_album_maker/beat_text_render_control.py"
+      - "src/full_album_maker/render_graph.py"
+      - "src/full_album_maker/spectrum_render_step08.py"
+      - "src/full_album_maker/v13_render_graph.py"
+      - "src/full_album_maker/preview_scene.py"
+      - "src/full_album_maker/property_inspector.py"
+      - "src/full_album_maker/editor_session.py"
+      - "tests/test_step12_event_phase.py"
+      - "tests/test_step12_advanced_motion.py"
+      - "tests/test_step12_spark_burst.py"
+      - "tests/test_step12_real_ffmpeg.py"
+      - ".github/workflows/beat-animation-step12.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install Linux Qt runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-audio-analysis-step04.lock
+          python -m pip install --disable-pip-version-check -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: STEP12 event phase tests
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_event_phase.py
+      - name: STEP12 advanced motion tests
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_advanced_motion.py
+      - name: STEP12 spark tests
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_spark_burst.py
+      - name: STEP11 AI regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step11_ai_beat_actions.py tests/test_step11_ai_beat_nlu.py tests/test_step11_ai_beat_provider.py
+      - name: STEP10 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step10_advanced_catalog.py tests/test_step10_music_styles.py tests/test_step10_vinyl_bpm_sync.py
+      - name: STEP09 Agent regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_agent_core.py
+      - name: STEP09 Beat regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_beat_expansion.py
+      - name: STEP08 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step08_beat_integration.py tests/test_step08_beat_preview.py
+      - name: STEP07 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step07_visual_bindings.py
+      - name: STEP06 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step06_animation_signals.py
+      - name: STEP05 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step05_music_events.py
+      - name: STEP04 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step04_audio_analysis.py
+      - name: Import smoke
+        env: {PYTHONPATH: src}
+        run: python -c "from full_album_maker.event_phase_modulator import EventPhaseEngine; from full_album_maker.advanced_motion_contract import AdvancedMotionPreset; from full_album_maker.spark_burst_engine import SPARK_PARTICLES_PER_BURST; assert len(AdvancedMotionPreset)==6 and SPARK_PARTICLES_PER_BURST==6; print('STEP12_IMPORT_OK')"
+
+  real-ffmpeg:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install FFmpeg and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-audio-analysis-step04.lock
+          python -m pip install --disable-pip-version-check -e .
+      - name: STEP12 real FFmpeg smoke
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_real_ffmpeg.py
+      - name: STEP10 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step10_real_ffmpeg.py
+      - name: STEP09 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_beat_real_ffmpeg.py
+      - name: STEP08 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step08_beat_real_ffmpeg.py

@@ -7,12 +7,16 @@ import re
 from typing import Iterable
 
 from .album_visuals import format_duration_tick, normalize_visual_properties
+from .beat_render_control import BeatRenderControlError, build_beat_render_control, render_filter_suffix
+from .beat_text_render_control import BeatTextRenderControlError, build_beat_text_render_control
 from .circular_spectrum import circular_spectrum_filter
 from .editor_models import Layer, ProjectDocument, TIMEBASE
 from .overlay_effects import effect_source_filter, normalize_effect_properties
 from .render_plan import RenderPlan, compile_render_plan
 from .spectrum_feature import dynamic_song_text, normalize_spectrum_properties
 from .timeline_resolver import TimelineResolver
+from .vinyl_bpm_sync import vinyl_phase_expression
+from .ffmpeg_filter_path import escape_filter_option_path
 
 
 class RenderCompileError(ValueError):
@@ -31,9 +35,7 @@ def ticks_to_seconds(value: int) -> float:
 
 
 def _filter_path(path: Path) -> str:
-    value = path.resolve().as_posix()
-    value = value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
-    return value
+    return escape_filter_option_path(path)
 
 
 def _color(value: object, default: str = "#ffffff") -> str:
@@ -93,6 +95,70 @@ def _rotation_chain(layer: Layer) -> str:
     if abs(value) < 0.0001:
         return ""
     return f",rotate={value:.8f}*PI/180:ow=rotw(iw):oh=roth(ih):c=none"
+
+
+def _beat_snapshot_glow_chain(layer: Layer) -> str:
+    raw = layer.properties.get("_beat_snapshot_glow", 0.0)
+    try:
+        glow = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise RenderCompileError("Beat snapshot glow tidak valid.") from exc
+    if not 0.0 <= glow <= 1.0:
+        raise RenderCompileError("Beat snapshot glow harus 0..1.")
+    if glow <= 1e-9:
+        return ""
+    brightness = 0.12 * glow
+    saturation = 1.0 + 0.15 * glow
+    return f",eq=brightness={brightness:.8f}:saturation={saturation:.8f}:eval=init"
+
+
+def _beat_snapshot_particle_chain(layer: Layer, width: int, height: int) -> str:
+    raw = layer.properties.get("_beat_snapshot_particles", ())
+    if raw in {None, ()}:
+        return ""
+    if not isinstance(raw, list) or len(raw) > 6:
+        raise RenderCompileError("Beat snapshot particles tidak valid.")
+    pieces: list[str] = []
+    minimum = max(2, min(int(width), int(height)))
+    for item in raw:
+        if not isinstance(item, dict):
+            raise RenderCompileError("Beat snapshot particle harus object.")
+        try:
+            ox = float(item.get("x", 0.0))
+            oy = float(item.get("y", 0.0))
+            size_norm = float(item.get("size", 0.005))
+            alpha = float(item.get("alpha", 0.0))
+        except (TypeError, ValueError) as exc:
+            raise RenderCompileError("Beat snapshot particle numeric invalid.") from exc
+        if not (-0.25 <= ox <= 0.25 and -0.25 <= oy <= 0.25 and 0.001 <= size_norm <= 0.03 and 0.0 <= alpha <= 1.0):
+            raise RenderCompileError("Beat snapshot particle di luar batas.")
+        size = max(2, int(round(minimum * size_norm)))
+        x = int(round(width / 2.0 + ox * width - size / 2.0))
+        y = int(round(height / 2.0 + oy * height - size / 2.0))
+        pieces.append(f",drawbox=x={x}:y={y}:w={size}:h={size}:color=white@{alpha:.5f}:t=fill")
+    return "".join(pieces)
+
+
+def _beat_snapshot_font_scale(layer: Layer) -> float:
+    raw = layer.properties.get("_beat_snapshot_font_scale", 1.0)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise RenderCompileError("Beat snapshot font scale tidak valid.") from exc
+    if not 0.5 <= value <= 2.0:
+        raise RenderCompileError("Beat snapshot font scale harus 0.5..2.0.")
+    return value
+
+
+def _beat_snapshot_borderw(layer: Layer) -> int:
+    raw = layer.properties.get("_beat_snapshot_glow", 0.0)
+    try:
+        glow = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise RenderCompileError("Beat snapshot text glow tidak valid.") from exc
+    if not 0.0 <= glow <= 1.0:
+        raise RenderCompileError("Beat snapshot text glow harus 0..1.")
+    return max(0, min(16, int(round(4.0 * glow))))
 
 
 def _escape_enable(intervals: Iterable[tuple[int, int]]) -> str:
@@ -387,6 +453,34 @@ class FFmpegV2Compiler:
                 rotate = _rotation_chain(layer)
                 alpha = max(0.0, min(1.0, float(layer.opacity)))
                 source_label = f"bg{local_stage}"
+                try:
+                    beat_control = build_beat_render_control(
+                        getattr(self, "_beat_visual_runtime", None),
+                        layer,
+                        base_width=width,
+                        base_height=height,
+                        fps=fps,
+                        intervals=intervals,
+                        work_dir=work,
+                        stream_key=f"background_{local_stage}",
+                    )
+                except BeatRenderControlError as exc:
+                    raise RenderCompileError(str(exc)) from exc
+                beat_suffix = (
+                    render_filter_suffix(
+                        beat_control,
+                        base_width=width,
+                        base_height=height,
+                    )
+                    if beat_control is not None
+                    else ""
+                )
+                snapshot_glow = _beat_snapshot_glow_chain(layer)
+                snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
+                static_rotate = rotate if beat_control is None or beat_control.rotate_filter is None else ""
+                overlay_x = beat_control.overlay_x_expr if beat_control is not None else _overlay_position_expr(layer, "x")
+                overlay_y = beat_control.overlay_y_expr if beat_control is not None else _overlay_position_expr(layer, "y")
+                overlay_filter = beat_control.overlay_filter if beat_control is not None else "overlay"
                 mode = str(
                     layer.properties.get(
                         "mode",
@@ -402,7 +496,9 @@ class FFmpegV2Compiler:
                     )
                     filters.append(
                         f"color=c={color}:s={width}x{height}:r={fps:g}:d={duration:.6f},"
-                        f"format=rgba,colorchannelmixer=aa={alpha:.6f}{rotate}[{source_label}]"
+                        f"format=rgba,colorchannelmixer=aa={alpha:.6f}"
+                        f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
+                        f"{static_rotate}[{source_label}]"
                     )
                 elif mode == "effect":
                     try:
@@ -417,7 +513,9 @@ class FFmpegV2Compiler:
                     except ValueError as exc:
                         raise RenderCompileError(str(exc)) from exc
                     filters.append(
-                        f"{effect_chain}{rotate}[{source_label}]"
+                        f"{effect_chain}"
+                        f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
+                        f"{static_rotate}[{source_label}]"
                     )
                 else:
                     asset = assets[layer.asset_refs[0]]
@@ -484,11 +582,12 @@ class FFmpegV2Compiler:
                     filters.append(
                         f"[{index}:v]{geometry}{freeze}{motion_chain},format=rgba,"
                         f"colorchannelmixer=aa={alpha:.6f},setpts=PTS-STARTPTS"
-                        f"{rotate}[{source_label}]"
+                        f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
+                        f"{static_rotate}[{source_label}]"
                     )
                 filters.append(
-                    f"[{current}][{source_label}]overlay=x='{_overlay_position_expr(layer, 'x')}':"
-                    f"y='{_overlay_position_expr(layer, 'y')}':shortest=0:"
+                    f"[{current}][{source_label}]{overlay_filter}=x='{overlay_x}':"
+                    f"y='{overlay_y}':shortest=0:"
                     f"eof_action=repeat:enable='{enable}'[{out}]"
                 )
                 current = out
@@ -534,14 +633,46 @@ class FFmpegV2Compiler:
                     source_label = f"cover{stage}"
                     out = f"v{stage}"
                     stage += 1
+                    try:
+                        beat_control = build_beat_render_control(
+                            getattr(self, "_beat_visual_runtime", None),
+                            layer,
+                            base_width=width,
+                            base_height=height,
+                            fps=fps,
+                            intervals=cover_intervals,
+                            work_dir=work,
+                            stream_key=f"cover_{stage}_{asset_id[:8]}",
+                        )
+                    except BeatRenderControlError as exc:
+                        raise RenderCompileError(str(exc)) from exc
+                    snapshot_glow = _beat_snapshot_glow_chain(layer)
+                    snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
+                    if beat_control is not None:
+                        suffix = render_filter_suffix(
+                            beat_control,
+                            base_width=width,
+                            base_height=height,
+                        )
+                        filters.append(
+                            f"[{index}:v]{geometry},format=rgba,"
+                            f"colorchannelmixer=aa={alpha:.6f}"
+                            f"{suffix},setpts=PTS-STARTPTS[{source_label}]"
+                        )
+                        overlay_x = beat_control.overlay_x_expr
+                        overlay_y = beat_control.overlay_y_expr
+                    else:
+                        filters.append(
+                            f"[{index}:v]{geometry},format=rgba,"
+                            f"colorchannelmixer=aa={alpha:.6f}{snapshot_glow}{snapshot_particles},"
+                            f"setpts=PTS-STARTPTS{rotate}[{source_label}]"
+                        )
+                        overlay_x = _overlay_position_expr(layer, "x")
+                        overlay_y = _overlay_position_expr(layer, "y")
+                    overlay_filter = beat_control.overlay_filter if beat_control is not None else "overlay"
                     filters.append(
-                        f"[{index}:v]{geometry},format=rgba,"
-                        f"colorchannelmixer=aa={alpha:.6f},setpts=PTS-STARTPTS"
-                        f"{rotate}[{source_label}]"
-                    )
-                    filters.append(
-                        f"[{current}][{source_label}]overlay=x='{_overlay_position_expr(layer, 'x')}':"
-                        f"y='{_overlay_position_expr(layer, 'y')}':shortest=0:"
+                        f"[{current}][{source_label}]{overlay_filter}=x='{overlay_x}':"
+                        f"y='{overlay_y}':shortest=0:"
                         f"eof_action=repeat:enable='{_escape_enable(cover_intervals)}'[{out}]"
                     )
                     current = out
@@ -557,10 +688,22 @@ class FFmpegV2Compiler:
                 center_rgb = _rgb(props["center_color"])
                 spin = props["spin_seconds"]
                 center_ratio = props["center_ratio"]
+                runtime = getattr(self, "_beat_visual_runtime", None)
+                snapshot_phase = layer.properties.get("_beat_snapshot_vinyl_phase_cycles")
+                phase_expr = f"(T/{spin:.9f})"
+                if snapshot_phase is not None:
+                    phase_expr = f"{float(snapshot_phase):.9f}"
+                elif props.get("bpm_sync", False) and runtime is not None:
+                    phase_expr = vinyl_phase_expression(
+                        runtime.tempo_segments,
+                        fallback_spin_seconds=spin,
+                        beats_per_rotation=props["beats_per_rotation"],
+                        min_confidence=props["bpm_sync_min_confidence"],
+                    )
                 radius = "hypot(X-W/2,Y-H/2)"
                 dot = (
-                    f"lte(hypot(X-(W/2+cos(2*PI*T/{spin:.6f})*W*0.32),"
-                    f"Y-(H/2+sin(2*PI*T/{spin:.6f})*H*0.32)),"
+                    f"lte(hypot(X-(W/2+cos(2*PI*({phase_expr}))*W*0.32),"
+                    f"Y-(H/2+sin(2*PI*({phase_expr}))*H*0.32)),"
                     "min(W,H)*0.025)"
                 )
                 channel_exprs: list[str] = []
@@ -577,16 +720,45 @@ class FFmpegV2Compiler:
                 source_label = f"vinyl{stage}"
                 out = f"v{stage}"
                 stage += 1
+                try:
+                    beat_control = build_beat_render_control(
+                        getattr(self, "_beat_visual_runtime", None),
+                        layer,
+                        base_width=width,
+                        base_height=height,
+                        fps=fps,
+                        intervals=intervals,
+                        work_dir=work,
+                        stream_key=f"vinyl_{stage}",
+                    )
+                except BeatRenderControlError as exc:
+                    raise RenderCompileError(str(exc)) from exc
+                snapshot_glow = _beat_snapshot_glow_chain(layer)
+                snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
+                beat_suffix = (
+                    render_filter_suffix(
+                        beat_control,
+                        base_width=width,
+                        base_height=height,
+                    )
+                    if beat_control is not None
+                    else ""
+                )
                 filters.append(
                     f"nullsrc=s={width}x{height}:r={fps:g}:d={duration:.6f},"
                     f"format=rgba,geq=r='{channel_exprs[0]}':"
                     f"g='{channel_exprs[1]}':b='{channel_exprs[2]}':"
                     f"a='if(lte({radius},min(W,H)/2),255,0)',"
-                    f"colorchannelmixer=aa={alpha:.6f}{rotate}[{source_label}]"
+                    f"colorchannelmixer=aa={alpha:.6f}"
+                    f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
+                    f"{'' if beat_control is not None else rotate}[{source_label}]"
                 )
+                overlay_x = beat_control.overlay_x_expr if beat_control is not None else _overlay_position_expr(layer, "x")
+                overlay_y = beat_control.overlay_y_expr if beat_control is not None else _overlay_position_expr(layer, "y")
+                overlay_filter = beat_control.overlay_filter if beat_control is not None else "overlay"
                 filters.append(
-                    f"[{current}][{source_label}]overlay=x='{_overlay_position_expr(layer, 'x')}':"
-                    f"y='{_overlay_position_expr(layer, 'y')}':shortest=0:"
+                    f"[{current}][{source_label}]{overlay_filter}=x='{overlay_x}':"
+                    f"y='{overlay_y}':shortest=0:"
                     f"eof_action=pass:enable='{enable}'[{out}]"
                 )
                 current = out
@@ -619,7 +791,7 @@ class FFmpegV2Compiler:
                     layer.properties.get("font_path", "") or ""
                 ).strip()
                 font_prefix = (
-                    f"fontfile='{_filter_path(Path(font_path))}':"
+                    f"fontfile={_filter_path(Path(font_path))}:"
                     if font_path
                     else ""
                 )
@@ -653,7 +825,7 @@ class FFmpegV2Compiler:
                         text_files.append(text_path)
                         y = row_index * row_height
                         common = (
-                            f"{font_prefix}textfile='{_filter_path(text_path)}':"
+                            f"{font_prefix}textfile={_filter_path(text_path)}:"
                             f"reload=0:x=10:y='{y:.3f}+({row_height:.3f}-text_h)/2':"
                             f"fontsize={fontsize}"
                         )
@@ -749,7 +921,7 @@ class FFmpegV2Compiler:
                     layer.properties.get("font_path", "") or ""
                 ).strip()
                 font_prefix = (
-                    f"fontfile='{_filter_path(Path(font_path))}':"
+                    f"fontfile={_filter_path(Path(font_path))}:"
                     if font_path
                     else ""
                 )
@@ -878,7 +1050,12 @@ class FFmpegV2Compiler:
                 fontcolor = _color(
                     layer.properties.get("color", "#ffffff")
                 )
-                fontsize = _font_size(layer, document.canvas.height)
+                base_fontsize = _font_size(layer, document.canvas.height)
+                snapshot_fontsize = max(
+                    4,
+                    round(base_fontsize * _beat_snapshot_font_scale(layer)),
+                )
+                snapshot_borderw = _beat_snapshot_borderw(layer)
                 for event in plan.audio_events:
                     event_intervals = _intersect_intervals(
                         intervals,
@@ -900,13 +1077,29 @@ class FFmpegV2Compiler:
                     text_files.append(text_path)
                     out = f"v{stage}"
                     stage += 1
+                    try:
+                        text_control = build_beat_text_render_control(
+                            getattr(self, "_beat_visual_runtime", None),
+                            layer,
+                            base_fontsize=base_fontsize,
+                            canvas_width=document.canvas.width,
+                            canvas_height=document.canvas.height,
+                            fps=fps,
+                            intervals=event_intervals,
+                            work_dir=work,
+                            stream_key=f"title_{stage}_{event.song_id[:8]}",
+                        )
+                    except BeatTextRenderControlError as exc:
+                        raise RenderCompileError(str(exc)) from exc
                     parts = [
-                        f"textfile='{_filter_path(text_path)}'",
+                        f"textfile={_filter_path(text_path)}",
                         "reload=0",
                         f"x={_position_expr(layer, 'x')}",
                         f"y={_position_expr(layer, 'y')}",
-                        f"fontsize={fontsize}",
+                        f"fontsize={base_fontsize if text_control is not None else snapshot_fontsize}",
                         f"fontcolor={fontcolor}",
+                        f"bordercolor={fontcolor}",
+                        f"borderw={0 if text_control is not None else snapshot_borderw}",
                         f"alpha={layer.opacity:.6f}",
                         f"enable='{_escape_enable(event_intervals)}'",
                     ]
@@ -916,13 +1109,21 @@ class FFmpegV2Compiler:
                     if font_path:
                         parts.insert(
                             0,
-                            f"fontfile='{_filter_path(Path(font_path))}'",
+                            f"fontfile={_filter_path(Path(font_path))}",
                         )
-                    filters.append(
-                        f"[{current}]drawtext="
-                        + ":".join(parts)
-                        + f"[{out}]"
-                    )
+                    if text_control is not None:
+                        filters.append(
+                            f"[{current}]{text_control.sendcmd_filter},"
+                            f"{text_control.drawtext_filter}="
+                            + ":".join(parts)
+                            + f"[{out}]"
+                        )
+                    else:
+                        filters.append(
+                            f"[{current}]drawtext="
+                            + ":".join(parts)
+                            + f"[{out}]"
+                        )
                     current = out
                 continue
 
@@ -931,16 +1132,37 @@ class FFmpegV2Compiler:
             text_path.write_text(text, encoding="utf-8")
             text_files.append(text_path)
             fontcolor = _color(layer.properties.get("color", "#ffffff"))
-            fontsize = _font_size(layer, document.canvas.height)
+            base_fontsize = _font_size(layer, document.canvas.height)
+            snapshot_fontsize = max(
+                4,
+                round(base_fontsize * _beat_snapshot_font_scale(layer)),
+            )
+            snapshot_borderw = _beat_snapshot_borderw(layer)
             out = f"v{stage}"
             stage += 1
+            try:
+                text_control = build_beat_text_render_control(
+                    getattr(self, "_beat_visual_runtime", None),
+                    layer,
+                    base_fontsize=base_fontsize,
+                    canvas_width=document.canvas.width,
+                    canvas_height=document.canvas.height,
+                    fps=fps,
+                    intervals=intervals,
+                    work_dir=work,
+                    stream_key=f"text_{stage}",
+                )
+            except BeatTextRenderControlError as exc:
+                raise RenderCompileError(str(exc)) from exc
             parts = [
-                f"textfile='{_filter_path(text_path)}'",
+                f"textfile={_filter_path(text_path)}",
                 "reload=0",
                 f"x={_position_expr(layer, 'x')}",
                 f"y={_position_expr(layer, 'y')}",
-                f"fontsize={fontsize}",
+                f"fontsize={base_fontsize if text_control is not None else snapshot_fontsize}",
                 f"fontcolor={fontcolor}",
+                f"bordercolor={fontcolor}",
+                f"borderw={0 if text_control is not None else snapshot_borderw}",
                 f"alpha={layer.opacity:.6f}",
                 f"enable='{enable}'",
             ]
@@ -950,11 +1172,19 @@ class FFmpegV2Compiler:
             if font_path:
                 parts.insert(
                     0,
-                    f"fontfile='{_filter_path(Path(font_path))}'",
+                    f"fontfile={_filter_path(Path(font_path))}",
                 )
-            filters.append(
-                f"[{current}]drawtext=" + ":".join(parts) + f"[{out}]"
-            )
+            if text_control is not None:
+                filters.append(
+                    f"[{current}]{text_control.sendcmd_filter},"
+                    f"{text_control.drawtext_filter}="
+                    + ":".join(parts)
+                    + f"[{out}]"
+                )
+            else:
+                filters.append(
+                    f"[{current}]drawtext=" + ":".join(parts) + f"[{out}]"
+                )
             current = out
 
         filters.append(f"[{current}]format=yuv420p[vout]")

@@ -12,6 +12,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .beat_animation_assignment import assignment_for_layer
+from .beat_layer_capabilities import beat_capability_for_layer
+from .beat_preset_catalog import preset_label
+from .beat_combo_catalog import (
+    supported_combos_for_layer,
+    matching_combo_id,
+)
+from .advanced_motion_contract import (
+    AdvancedMotionPreset,
+    motion_label,
+    motion_supported_for_layer,
+)
+from .visual_binding_contract import CoreBeatPreset
 from .editor_models import Layer, TIMEBASE, Transform
 from .spectrum_feature import SPECTRUM_CAPABILITIES, SPECTRUM_PRESETS
 
@@ -25,6 +38,7 @@ class PropertyInspector(QWidget):
     durationEdited = Signal(str, int)
     propertyEdited = Signal(str, str, object)
     spectrumPresetRequested = Signal(str, str)
+    beatAnimationEdited = Signal(str, object)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -33,6 +47,7 @@ class PropertyInspector(QWidget):
         self._layer_id = ""
         self._layer_type = ""
         self._updating = False
+        self._beat_existing_presets: tuple[str, ...] = ()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -139,15 +154,23 @@ class PropertyInspector(QWidget):
         self.vinyl_center_ratio = self._spin(0.05, 0.45, 0.01, 2)
         self.vinyl_groove_color = QLineEdit()
         self.vinyl_center_color = QLineEdit()
+        self.vinyl_bpm_sync = QCheckBox("Sinkron ke tempo lagu")
+        self.vinyl_beats_per_rotation = QComboBox()
+        for label, value in (("1 beat", 1.0), ("2 beat", 2.0), ("4 beat", 4.0), ("8 beat", 8.0)):
+            self.vinyl_beats_per_rotation.addItem(label, value)
         self.form.addRow("Putaran (detik)", self.vinyl_spin)
         self.form.addRow("Label Tengah", self.vinyl_center_ratio)
         self.form.addRow("Warna Groove", self.vinyl_groove_color)
         self.form.addRow("Warna Label", self.vinyl_center_color)
+        self.form.addRow("BPM Sync", self.vinyl_bpm_sync)
+        self.form.addRow("Beat / Putaran", self.vinyl_beats_per_rotation)
         self._vinyl_controls = (
             self.vinyl_spin,
             self.vinyl_center_ratio,
             self.vinyl_groove_color,
             self.vinyl_center_color,
+            self.vinyl_bpm_sync,
+            self.vinyl_beats_per_rotation,
         )
 
         self.playlist_max_items = self._spin(1, 30, 1, 0)
@@ -181,6 +204,33 @@ class PropertyInspector(QWidget):
         self.form.addRow("Warna Dasar", self.progress_bg_color)
         self._progress_controls = (self.progress_mode, self.progress_fill_color, self.progress_bg_color)
 
+        self.beat_enabled = QCheckBox("Aktif")
+        self.beat_combo = QComboBox()
+        self.beat_preset = QComboBox()
+        self.beat_intensity = self._spin(0.0, 200.0, 5.0, 0)
+        self.beat_intensity.setSuffix(" %")
+        self.beat_motion = QComboBox()
+        self.beat_motion_intensity = self._spin(0.0, 200.0, 5.0, 0)
+        self.beat_motion_intensity.setSuffix(" %")
+        self.beat_status = QLabel("")
+        self.beat_status.setStyleSheet("font-size:10px;color:#55708F;")
+        self.form.addRow("Beat Animation", self.beat_enabled)
+        self.form.addRow("Kombinasi", self.beat_combo)
+        self.form.addRow("Preset Beat", self.beat_preset)
+        self.form.addRow("Intensity", self.beat_intensity)
+        self.form.addRow("Motion", self.beat_motion)
+        self.form.addRow("Motion Intensity", self.beat_motion_intensity)
+        self.form.addRow("", self.beat_status)
+        self._beat_controls = (
+            self.beat_enabled,
+            self.beat_combo,
+            self.beat_preset,
+            self.beat_intensity,
+            self.beat_motion,
+            self.beat_motion_intensity,
+            self.beat_status,
+        )
+
         root.addStretch(1)
 
         for spin in (self.x, self.y, self.w, self.h, self.rotation):
@@ -206,6 +256,8 @@ class PropertyInspector(QWidget):
         self.vinyl_center_ratio.editingFinished.connect(lambda: self._emit_property("center_ratio", self.vinyl_center_ratio.value()))
         self.vinyl_groove_color.editingFinished.connect(lambda: self._emit_property("groove_color", self.vinyl_groove_color.text()))
         self.vinyl_center_color.editingFinished.connect(lambda: self._emit_property("center_color", self.vinyl_center_color.text()))
+        self.vinyl_bpm_sync.toggled.connect(lambda value: self._emit_property("bpm_sync", bool(value)))
+        self.vinyl_beats_per_rotation.activated.connect(lambda _index=0: self._emit_property("beats_per_rotation", float(self.vinyl_beats_per_rotation.currentData())))
         self.playlist_max_items.editingFinished.connect(lambda: self._emit_property("max_items", int(self.playlist_max_items.value())))
         self.playlist_font_size.editingFinished.connect(lambda: self._emit_property("font_size", int(self.playlist_font_size.value())))
         self.playlist_active_color.editingFinished.connect(lambda: self._emit_property("active_color", self.playlist_active_color.text()))
@@ -215,6 +267,12 @@ class PropertyInspector(QWidget):
         self.progress_mode.activated.connect(lambda: self._emit_property("mode", self.progress_mode.currentData()))
         self.progress_fill_color.editingFinished.connect(lambda: self._emit_property("fill_color", self.progress_fill_color.text()))
         self.progress_bg_color.editingFinished.connect(lambda: self._emit_property("background_color", self.progress_bg_color.text()))
+        self.beat_enabled.toggled.connect(self._emit_beat_animation)
+        self.beat_combo.activated.connect(self._apply_beat_combo_from_ui)
+        self.beat_preset.activated.connect(lambda _index=0: self._emit_beat_animation())
+        self.beat_intensity.editingFinished.connect(self._emit_beat_animation)
+        self.beat_motion.activated.connect(lambda _index=0: self._emit_beat_animation())
+        self.beat_motion_intensity.editingFinished.connect(self._emit_beat_animation)
         self.set_layer(None)
 
     @staticmethod
@@ -252,6 +310,7 @@ class PropertyInspector(QWidget):
             *self._vinyl_controls,
             *self._playlist_controls,
             *self._progress_controls,
+            *self._beat_controls,
         )
         controls = [
             self.enabled,
@@ -278,6 +337,7 @@ class PropertyInspector(QWidget):
             for control in special_controls:
                 self._set_field_visible(control, False)
             if layer is None:
+                self._beat_existing_presets = ()
                 return
 
             is_background = layer.type == "background"
@@ -289,6 +349,8 @@ class PropertyInspector(QWidget):
             is_playlist = layer.type == "playlist_visual"
             is_progress = layer.type == "progress"
             is_time = layer.type == "song_time"
+            beat_capability = beat_capability_for_layer(layer)
+            beat_supported = beat_capability.supported
             has_box_transform = layer.type in {
                 "background",
                 "spectrum",
@@ -316,6 +378,8 @@ class PropertyInspector(QWidget):
                 self._set_field_visible(control, is_playlist)
             for control in self._progress_controls:
                 self._set_field_visible(control, is_progress or is_time)
+            for control in self._beat_controls:
+                self._set_field_visible(control, beat_supported)
             self._set_field_visible(self.progress_fill_color, is_progress)
             self._set_field_visible(self.progress_bg_color, is_progress)
 
@@ -363,6 +427,9 @@ class PropertyInspector(QWidget):
                 self.vinyl_center_ratio.setValue(float(layer.properties.get("center_ratio", 0.18)))
                 self.vinyl_groove_color.setText(str(layer.properties.get("groove_color", "#2d2d2d")))
                 self.vinyl_center_color.setText(str(layer.properties.get("center_color", "#d9d9d9")))
+                self.vinyl_bpm_sync.setChecked(bool(layer.properties.get("bpm_sync", False)))
+                index = self.vinyl_beats_per_rotation.findData(float(layer.properties.get("beats_per_rotation", 4.0)))
+                self.vinyl_beats_per_rotation.setCurrentIndex(max(0, index))
 
             if is_playlist:
                 self.playlist_max_items.setValue(int(layer.properties.get("max_items", 8)))
@@ -377,9 +444,97 @@ class PropertyInspector(QWidget):
             if is_progress:
                 self.progress_fill_color.setText(str(layer.properties.get("fill_color", "#ffffff")))
                 self.progress_bg_color.setText(str(layer.properties.get("background_color", "#49515c")))
+
+            if beat_supported:
+                assignment = assignment_for_layer(layer)
+                self._beat_existing_presets = tuple(p.value for p in assignment.presets) if assignment else ()
+                self.beat_combo.clear()
+                self.beat_combo.addItem("Custom", "__custom__")
+                for combo in supported_combos_for_layer(layer):
+                    self.beat_combo.addItem(combo.label, combo.combo_id)
+                combo_id = matching_combo_id(assignment)
+                combo_index = self.beat_combo.findData(combo_id) if combo_id else 0
+                self.beat_combo.setCurrentIndex(max(0, combo_index))
+                self.beat_preset.clear()
+                for preset in beat_capability.supported_presets:
+                    self.beat_preset.addItem(preset_label(preset), preset.value)
+                if assignment and len(assignment.presets) > 1:
+                    self.beat_preset.insertItem(0, "Custom / Multi", "__multi__")
+                    self.beat_preset.setCurrentIndex(0)
+                elif assignment and assignment.presets:
+                    index = self.beat_preset.findData(assignment.presets[0].value)
+                    self.beat_preset.setCurrentIndex(max(0, index))
+                else:
+                    default_preset = CoreBeatPreset.STRONG_PUNCH
+                    index = self.beat_preset.findData(default_preset.value)
+                    self.beat_preset.setCurrentIndex(max(0, index))
+                self.beat_enabled.setChecked(assignment is not None)
+                self.beat_intensity.setValue((assignment.intensity if assignment else 1.0) * 100.0)
+                self.beat_motion.clear()
+                self.beat_motion.addItem("Tidak Ada", "none")
+                for motion in AdvancedMotionPreset:
+                    if motion_supported_for_layer(layer, motion):
+                        self.beat_motion.addItem(motion_label(motion), motion.value)
+                selected_motion = assignment.motion_preset.value if assignment and assignment.motion_preset is not None else "none"
+                motion_index = self.beat_motion.findData(selected_motion)
+                self.beat_motion.setCurrentIndex(max(0, motion_index))
+                self.beat_motion_intensity.setValue((assignment.motion_intensity if assignment else 1.0) * 100.0)
+                self.beat_status.setText(f"Render: {beat_capability.final_render_level.value}")
+                for control in self._beat_controls:
+                    control.setEnabled(not layer.locked)
+            else:
+                self._beat_existing_presets = ()
         finally:
             del blockers
             self._updating = False
+
+    def _apply_beat_combo_from_ui(self, *_args) -> None:
+        if self._updating or not self._layer_id:
+            return
+        combo_id = self.beat_combo.currentData()
+        if combo_id in {None, "", "__custom__"}:
+            return
+        from .beat_combo_catalog import combo_definition
+        combo = combo_definition(str(combo_id))
+        preset_index = self.beat_preset.findData(combo.visual_preset.value)
+        motion_index = self.beat_motion.findData(combo.motion_preset.value)
+        if preset_index < 0 or motion_index < 0:
+            return
+        self._updating = True
+        try:
+            self.beat_enabled.setChecked(True)
+            self.beat_preset.setCurrentIndex(preset_index)
+            self.beat_intensity.setValue(combo.visual_intensity * 100.0)
+            self.beat_motion.setCurrentIndex(motion_index)
+            self.beat_motion_intensity.setValue(combo.motion_intensity * 100.0)
+        finally:
+            self._updating = False
+        self._emit_beat_animation()
+
+    def _emit_beat_animation(self, *_args) -> None:
+        if self._updating or not self._layer_id:
+            return
+        if not self.beat_enabled.isChecked():
+            self.beatAnimationEdited.emit(self._layer_id, None)
+            return
+        data = self.beat_preset.currentData()
+        if data == "__multi__":
+            presets = list(self._beat_existing_presets)
+        elif data:
+            presets = [str(data)]
+        else:
+            return
+        if not presets:
+            return
+        motion_data = self.beat_motion.currentData()
+        payload = {
+            "enabled": True,
+            "presets": presets,
+            "intensity": float(self.beat_intensity.value()) / 100.0,
+            "motion_preset": None if motion_data in {None, "", "none"} else str(motion_data),
+            "motion_intensity": float(self.beat_motion_intensity.value()) / 100.0,
+        }
+        self.beatAnimationEdited.emit(self._layer_id, payload)
 
     def _emit_transform(self) -> None:
         if self._updating or not self._layer_id:

@@ -1,0 +1,124 @@
+name: STEP13 AI Motion Combo and Performance Hardening
+
+on:
+  push:
+    branches:
+      - feature/beat-animation-engine-v2
+    paths:
+      - "src/full_album_maker/beat_combo_catalog.py"
+      - "src/full_album_maker/ffmpeg_command_batch.py"
+      - "src/full_album_maker/beat_render_preflight.py"
+      - "src/full_album_maker/beat_render_control.py"
+      - "src/full_album_maker/spark_render_control.py"
+      - "src/full_album_maker/spark_burst_engine.py"
+      - "src/full_album_maker/property_inspector.py"
+      - "src/full_album_maker/ai_agent_core_step09.py"
+      - "src/full_album_maker/ai_action_registry_step09.py"
+      - "src/full_album_maker/ai_beat_nlu_step11.py"
+      - "src/full_album_maker/ai_provider_step09.py"
+      - "src/full_album_maker/ai_workspace_step09.py"
+      - "tests/test_step13_ai_combo_hardening.py"
+      - "tests/test_step13_real_ffmpeg.py"
+      - ".github/workflows/beat-animation-step13.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install Linux Qt runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-audio-analysis-step04.lock
+          python -m pip install --disable-pip-version-check -e .
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: STEP13 focused tests
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step13_ai_combo_hardening.py
+      - name: STEP12 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_event_phase.py tests/test_step12_advanced_motion.py tests/test_step12_spark_burst.py
+      - name: STEP11 AI regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step11_ai_beat_actions.py tests/test_step11_ai_beat_nlu.py tests/test_step11_ai_beat_provider.py
+      - name: STEP10 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step10_advanced_catalog.py tests/test_step10_music_styles.py tests/test_step10_vinyl_bpm_sync.py
+      - name: STEP09 Agent regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_agent_core.py
+      - name: STEP09 Beat regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_beat_expansion.py
+      - name: STEP08 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step08_beat_integration.py tests/test_step08_beat_preview.py
+      - name: STEP07 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step07_visual_bindings.py
+      - name: STEP06 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step06_animation_signals.py
+      - name: STEP05 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step05_music_events.py
+      - name: STEP04 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step04_audio_analysis.py
+      - name: Import smoke
+        env: {PYTHONPATH: src}
+        run: python -c "from full_album_maker.beat_combo_catalog import BEAT_COMBO_CATALOG; from full_album_maker.ffmpeg_command_batch import CommandBatchWriter; assert len(BEAT_COMBO_CATALOG)==8; print('STEP13_IMPORT_OK')"
+
+  real-ffmpeg:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install FFmpeg and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-audio-analysis-step04.lock
+          python -m pip install --disable-pip-version-check -e .
+      - name: STEP13 batched command real FFmpeg smoke
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step13_real_ffmpeg.py
+      - name: STEP12 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_real_ffmpeg.py
+      - name: STEP10 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step10_real_ffmpeg.py
+      - name: STEP09 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_beat_real_ffmpeg.py
+      - name: STEP08 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step08_beat_real_ffmpeg.py

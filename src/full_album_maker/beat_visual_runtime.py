@@ -1,0 +1,353 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from pathlib import Path
+import threading
+
+from .audio_analysis_cache import AudioAnalysisCache
+from .audio_analysis_service import AudioAnalysisService
+from .editor_models import Layer, ProjectDocument, Transform
+from .music_event_engine import build_music_event_timeline
+from .music_event_projection import project_album_events
+from .animation_signal_engine import AnimationSignalEngine, build_animation_signal_program
+from .event_phase_modulator import EventPhaseEngine
+from .advanced_motion_contract import AdvancedMotionPreset
+from .advanced_motion_engine import AdvancedMotionEngine, merge_visual_and_motion
+from .spark_burst_engine import SparkBurstEngine
+from .timeline_resolver import TimelineResolver
+from .visual_binding_contract import VisualBindingSet, VisualPropertyState
+from .visual_binding_engine import VisualPropertyBindingEngine, apply_visual_state
+from .beat_animation_assignment import assignment_for_layer, beat_enabled_layer_ids
+from .vinyl_bpm_sync import (
+    TempoSegment,
+    build_tempo_segments,
+    document_needs_beat_runtime,
+    tempo_at_tick as select_tempo_at_tick,
+    vinyl_phase_cycles_at as tempo_phase_cycles_at,
+    vinyl_spin_seconds_at as tempo_spin_seconds_at,
+)
+
+
+class BeatRuntimeError(RuntimeError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+@dataclass(frozen=True)
+class BeatRuntimeDiagnostics:
+    analyzed_assets: int
+    beat_layers: int
+    event_count: int
+    trigger_count: int
+    motion_layers: int = 0
+
+
+class BeatVisualRuntime:
+    def __init__(
+        self,
+        document_signature: str,
+        duration_tick: int,
+        signal_engine: AnimationSignalEngine,
+        bindings_by_layer_id: dict[str, VisualBindingSet],
+        diagnostics: BeatRuntimeDiagnostics,
+        tempo_segments: tuple[TempoSegment, ...] = (),
+        motions_by_layer_id: dict[str, tuple[AdvancedMotionPreset, float]] | None = None,
+    ) -> None:
+        self.document_signature = document_signature
+        self.duration_tick = int(duration_tick)
+        self.signal_engine = signal_engine
+        self.bindings_by_layer_id = dict(bindings_by_layer_id)
+        self._engines = {
+            layer_id: VisualPropertyBindingEngine(signal_engine, binding_set)
+            for layer_id, binding_set in bindings_by_layer_id.items()
+        }
+        self.phase_engine = EventPhaseEngine(signal_engine.program)
+        self.motions_by_layer_id = dict(motions_by_layer_id or {})
+        self._motion_engines = {
+            layer_id: AdvancedMotionEngine(signal_engine, self.phase_engine, preset, intensity)
+            for layer_id, (preset, intensity) in self.motions_by_layer_id.items()
+            if preset != AdvancedMotionPreset.SPARK_BURST
+        }
+        self._spark_engines = {
+            layer_id: SparkBurstEngine(self.phase_engine, intensity)
+            for layer_id, (preset, intensity) in self.motions_by_layer_id.items()
+            if preset == AdvancedMotionPreset.SPARK_BURST
+        }
+        self.diagnostics = diagnostics
+        self.tempo_segments = tuple(tempo_segments)
+
+    def tempo_at_tick(self, tick: int) -> TempoSegment | None:
+        return select_tempo_at_tick(self.tempo_segments, tick)
+
+    def vinyl_spin_seconds_at(
+        self,
+        tick: int,
+        *,
+        fallback_spin_seconds: float,
+        beats_per_rotation: float = 4.0,
+        min_confidence: float = 0.55,
+    ) -> float:
+        return tempo_spin_seconds_at(
+            self.tempo_segments,
+            tick,
+            fallback_spin_seconds=fallback_spin_seconds,
+            beats_per_rotation=beats_per_rotation,
+            min_confidence=min_confidence,
+        )
+
+    def vinyl_phase_cycles_at(
+        self,
+        tick: int,
+        *,
+        fallback_spin_seconds: float,
+        beats_per_rotation: float = 4.0,
+        min_confidence: float = 0.55,
+    ) -> float:
+        return tempo_phase_cycles_at(
+            self.tempo_segments,
+            tick,
+            fallback_spin_seconds=fallback_spin_seconds,
+            beats_per_rotation=beats_per_rotation,
+            min_confidence=min_confidence,
+        )
+
+    def has_layer(self, layer_id: str) -> bool:
+        return layer_id in self._engines
+
+    def binding_set(self, layer_id: str) -> VisualBindingSet:
+        try:
+            return self.bindings_by_layer_id[layer_id]
+        except KeyError as exc:
+            raise KeyError(layer_id) from exc
+
+    def state_for_layer(self, layer_id: str, tick: int) -> VisualPropertyState:
+        try:
+            engine = self._engines[layer_id]
+        except KeyError as exc:
+            raise KeyError(layer_id) from exc
+        state = engine.state(tick)
+        motion = self._motion_engines.get(layer_id)
+        if motion is not None:
+            state = merge_visual_and_motion(state, motion.state(tick))
+        return state
+
+    def particles_for_layer(self, layer_id: str, tick: int):
+        spark = self._spark_engines.get(layer_id)
+        return () if spark is None else spark.particles(tick)
+
+    def motion_preset_for_layer(self, layer_id: str) -> AdvancedMotionPreset | None:
+        value = self.motions_by_layer_id.get(layer_id)
+        return None if value is None else value[0]
+
+    def effective_for_layer(self, layer: Layer, tick: int, *, render_geometry: bool = True):
+        state = self.state_for_layer(layer.layer_id, tick)
+        if render_geometry and abs(state.zoom_multiplier - 1.0) > 1e-12:
+            state = replace(
+                state,
+                scale_multiplier=max(0.75, min(1.35, state.scale_multiplier * state.zoom_multiplier)),
+                zoom_multiplier=1.0,
+            )
+        return apply_visual_state(layer.transform, layer.opacity, state), state
+
+
+def _active_audio_assets(document: ProjectDocument):
+    assets = document.asset_map()
+    seen: set[str] = set()
+    result = []
+    for song in document.playlist.entries:
+        if not song.enabled or song.asset_id in seen:
+            continue
+        asset = assets[song.asset_id]
+        if asset.kind != "audio":
+            continue
+        seen.add(song.asset_id)
+        result.append(asset)
+    return tuple(result)
+
+
+def ensure_beat_analysis(
+    document: ProjectDocument,
+    *,
+    cache: AudioAnalysisCache | None = None,
+    ffmpeg_executable: str | None = None,
+    cancel_event: threading.Event | None = None,
+    timeout: float = 900.0,
+) -> dict[str, object]:
+    document.validate()
+    if not document_needs_beat_runtime(document):
+        return {}
+    cache_obj = cache or AudioAnalysisCache()
+    service = AudioAnalysisService(cache=cache_obj, ffmpeg_executable=ffmpeg_executable)
+    errors: list[tuple[str, str]] = []
+    results: dict[str, object] = {}
+    service.request_failed.connect(lambda ticket, error: errors.append((error.code, error.message)))
+    try:
+        assets = _active_audio_assets(document)
+        for asset in assets:
+            if cancel_event is not None and cancel_event.is_set():
+                raise BeatRuntimeError("CANCELLED", "Persiapan Beat Animation dibatalkan.")
+            cached = service.peek_cached(asset)
+            if cached is not None:
+                results[asset.asset_id] = cached
+            else:
+                service.request(asset)
+        try:
+            ready = service.wait_for_idle(timeout, cancel_event=cancel_event)
+        except Exception as exc:
+            from .audio_analysis_fingerprint import AnalysisCancelled
+            if isinstance(exc, AnalysisCancelled):
+                raise BeatRuntimeError("CANCELLED", "Persiapan Beat Animation dibatalkan.") from exc
+            raise
+        if not ready:
+            service.cancel()
+            raise BeatRuntimeError("ANALYSIS_TIMEOUT", "Analisis Beat Animation melewati batas waktu.")
+        if errors:
+            code, message = errors[0]
+            raise BeatRuntimeError(code, message)
+        for asset in assets:
+            if cancel_event is not None and cancel_event.is_set():
+                raise BeatRuntimeError("CANCELLED", "Persiapan Beat Animation dibatalkan.")
+            if asset.asset_id in results:
+                continue
+            result = service.last_result(asset.asset_id)
+            if result is None:
+                result = service.peek_cached(asset)
+            if result is None:
+                raise BeatRuntimeError("CACHE_MISS_AFTER_ANALYSIS", f"Cache analisis belum tersedia: {asset.original_name or Path(asset.locator).name}")
+            results[asset.asset_id] = result
+        return results
+    finally:
+        service.close()
+
+
+def build_beat_visual_runtime(
+    document: ProjectDocument,
+    *,
+    analysis_results: dict[str, object] | None = None,
+    cache: AudioAnalysisCache | None = None,
+    ffmpeg_executable: str | None = None,
+    cancel_event: threading.Event | None = None,
+    ensure_analysis: bool = True,
+) -> BeatVisualRuntime | None:
+    snapshot = document.clone()
+    snapshot.validate()
+    layer_ids = beat_enabled_layer_ids(snapshot)
+    if not document_needs_beat_runtime(snapshot):
+        return None
+
+    if analysis_results is None:
+        if ensure_analysis:
+            analysis_results = ensure_beat_analysis(
+                snapshot,
+                cache=cache,
+                ffmpeg_executable=ffmpeg_executable,
+                cancel_event=cancel_event,
+            )
+        else:
+            analysis_results = {}
+            cache_obj = cache or AudioAnalysisCache()
+            service = AudioAnalysisService(cache=cache_obj, ffmpeg_executable=ffmpeg_executable)
+            try:
+                for asset in _active_audio_assets(snapshot):
+                    result = service.peek_cached(asset)
+                    if result is None:
+                        raise BeatRuntimeError("ANALYSIS_CACHE_MISS", f"Analisis Beat belum tersedia: {asset.original_name or Path(asset.locator).name}")
+                    analysis_results[asset.asset_id] = result
+            finally:
+                service.close()
+
+    timelines = {}
+    for asset_id, result in analysis_results.items():
+        timelines[asset_id] = build_music_event_timeline(result)
+    resolved = TimelineResolver().resolve(snapshot)
+    if resolved.errors:
+        raise BeatRuntimeError("TIMELINE_INVALID", " | ".join(resolved.errors))
+    projected = project_album_events(snapshot, timelines, resolved=resolved)
+    tempo_segments = build_tempo_segments(snapshot, analysis_results, resolved=resolved)
+    program = build_animation_signal_program(projected, resolved.duration_tick)
+    signal_engine = AnimationSignalEngine(program)
+
+    layer_map = snapshot.layer_map()
+    bindings: dict[str, VisualBindingSet] = {}
+    motions: dict[str, tuple[AdvancedMotionPreset, float]] = {}
+    for layer_id in layer_ids:
+        assignment = assignment_for_layer(layer_map[layer_id])
+        if assignment is not None:
+            bindings[layer_id] = assignment.binding_set()
+            if assignment.motion_preset is not None:
+                motions[layer_id] = (assignment.motion_preset, float(assignment.motion_intensity))
+    diagnostics = BeatRuntimeDiagnostics(
+        analyzed_assets=len(analysis_results),
+        beat_layers=len(bindings),
+        event_count=len(projected),
+        trigger_count=len(program.triggers),
+        motion_layers=len(motions),
+    )
+    return BeatVisualRuntime(
+        snapshot.content_signature(),
+        resolved.duration_tick,
+        signal_engine,
+        bindings,
+        diagnostics,
+        tempo_segments=tempo_segments,
+        motions_by_layer_id=motions,
+    )
+
+
+def apply_beat_snapshot(
+    document: ProjectDocument,
+    runtime: BeatVisualRuntime | None,
+    tick: int,
+) -> ProjectDocument:
+    snapshot = document.clone()
+    if runtime is None:
+        return snapshot
+    if tick < 0:
+        raise ValueError("tick must be non-negative")
+    for layer in snapshot.layers:
+        layer.properties = dict(layer.properties)
+        if layer.type == "vinyl" and bool(layer.properties.get("bpm_sync", False)):
+            fallback = float(layer.properties.get("spin_seconds", 8.0))
+            bpr = float(layer.properties.get("beats_per_rotation", 4.0))
+            min_conf = float(layer.properties.get("bpm_sync_min_confidence", 0.55))
+            layer.properties["_beat_snapshot_vinyl_phase_cycles"] = float(
+                runtime.vinyl_phase_cycles_at(
+                    tick,
+                    fallback_spin_seconds=fallback,
+                    beats_per_rotation=bpr,
+                    min_confidence=min_conf,
+                )
+            )
+        if not runtime.has_layer(layer.layer_id):
+            continue
+        effective, state = runtime.effective_for_layer(layer, tick, render_geometry=True)
+        layer.transform = Transform(
+            x=effective.x,
+            y=effective.y,
+            width=effective.width,
+            height=effective.height,
+            rotation=effective.rotation,
+            pivot_x=effective.pivot_x,
+            pivot_y=effective.pivot_y,
+        )
+        layer.opacity = effective.opacity
+        layer.properties["_beat_snapshot_glow"] = float(state.glow_amount)
+        particles = runtime.particles_for_layer(layer.layer_id, tick)
+        if particles:
+            layer.properties["_beat_snapshot_particles"] = [
+                {
+                    "x": float(item.x_offset_normalized),
+                    "y": float(item.y_offset_normalized),
+                    "size": float(item.size_normalized),
+                    "alpha": float(item.alpha),
+                }
+                for item in particles
+            ]
+        if layer.type in {"text", "song_title"}:
+            layer.properties["_beat_snapshot_font_scale"] = float(state.scale_multiplier)
+        layer.animation = dict(layer.animation)
+        layer.animation.pop("beat_v1", None)
+    snapshot.validate()
+    return snapshot

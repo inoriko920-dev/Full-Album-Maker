@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -23,6 +24,9 @@ from PySide6.QtWidgets import (
 )
 
 from .auto_arrange import AutoArrange, AutoArrangeRecipe
+from .beat_visual_runtime import build_beat_visual_runtime
+from .music_style_presets import MUSIC_STYLE_CATALOG, MusicStylePreset
+from .vinyl_bpm_sync import document_needs_beat_runtime
 from .editor_commands import SetPlaylistEntries
 from .editor_models import ProjectDocument, TIMEBASE
 from .editor_session import EditorSession
@@ -41,6 +45,8 @@ from .timeline_editor import TimelineCanvas
 class _AsyncBridge(QObject):
     previewReady = Signal(str)
     renderDone = Signal(str)
+    beatRuntimeReady = Signal(int, object)
+    beatRuntimeFailed = Signal(int, str)
     error = Signal(str)
     log = Signal(str)
 
@@ -59,10 +65,15 @@ class EditorWorkspace(QWidget):
         self._last_dirty = self.session.is_dirty
         self._render_busy = False
         self._preview_busy = False
+        self._beat_runtime_busy = False
+        self._beat_runtime_generation = 0
+        self._beat_runtime_signature = ""
 
         self.bridge = _AsyncBridge(self)
         self.bridge.previewReady.connect(self._preview_ready)
         self.bridge.renderDone.connect(self._render_done)
+        self.bridge.beatRuntimeReady.connect(self._beat_runtime_ready)
+        self.bridge.beatRuntimeFailed.connect(self._beat_runtime_failed)
         self.bridge.error.connect(self._async_error)
         self.bridge.log.connect(self._set_status)
 
@@ -137,6 +148,13 @@ class EditorWorkspace(QWidget):
         self.zoom_slider.setRange(8, 300)
         self.zoom_slider.setValue(80)
         self.zoom_slider.setMaximumWidth(125)
+        self.music_style_combo = QComboBox()
+        self.music_style_combo.setObjectName("musicStyleCombo")
+        self.music_style_combo.setMaximumWidth(128)
+        for style in MusicStylePreset:
+            self.music_style_combo.addItem(MUSIC_STYLE_CATALOG[style].label, style.value)
+        self.apply_music_style_btn = QPushButton("Terapkan Gaya")
+        self.apply_music_style_btn.setObjectName("applyMusicStyle")
 
         for widget in (
             self.open_btn,
@@ -153,6 +171,9 @@ class EditorWorkspace(QWidget):
             self.render_btn,
         ):
             row.addWidget(widget)
+        row.addWidget(QLabel("Gaya Beat"))
+        row.addWidget(self.music_style_combo)
+        row.addWidget(self.apply_music_style_btn)
         row.addWidget(self.snap_check)
         row.addWidget(QLabel("Zoom"))
         row.addWidget(self.zoom_slider)
@@ -168,6 +189,7 @@ class EditorWorkspace(QWidget):
         self.delete_btn.clicked.connect(self.delete_selected)
         self.use_all_btn.clicked.connect(self.use_all_audio)
         self.auto_btn.clicked.connect(self.auto_arrange)
+        self.apply_music_style_btn.clicked.connect(self.apply_music_style)
         self.preview_btn.clicked.connect(self.render_accurate_preview)
         self.render_btn.clicked.connect(self.render_project)
         self.play_btn.clicked.connect(self.toggle_playback)
@@ -192,6 +214,7 @@ class EditorWorkspace(QWidget):
         self.inspector.startEdited.connect(self._move_layer_from_inspector)
         self.inspector.durationEdited.connect(self._trim_layer_from_inspector)
         self.inspector.propertyEdited.connect(self._set_property)
+        self.inspector.beatAnimationEdited.connect(self._set_beat_animation)
 
         self.playlist.moveRequested.connect(self._move_song)
         self.playlist.removeRequested.connect(self._remove_song)
@@ -221,6 +244,7 @@ class EditorWorkspace(QWidget):
         self.preview.set_document(doc)
         self.preview.set_selected_layer(selected[0] if len(selected) == 1 else None)
         self.preview.set_playhead(self.session.playhead_tick)
+        self._schedule_beat_runtime(doc)
         self.playlist.set_document(doc)
         self._refresh_inspector()
         self.undo_btn.setEnabled(self.session.can_undo)
@@ -234,6 +258,53 @@ class EditorWorkspace(QWidget):
             self._last_dirty = dirty
             self.dirtyChanged.emit(dirty)
         self.documentChanged.emit(doc)
+
+    def _schedule_beat_runtime(self, document: ProjectDocument) -> None:
+        signature = document.content_signature()
+        if not document_needs_beat_runtime(document):
+            self._beat_runtime_generation += 1
+            self._beat_runtime_busy = False
+            self._beat_runtime_signature = signature
+            self.preview.set_beat_runtime(None)
+            return
+        if signature == self._beat_runtime_signature:
+            return
+        self._beat_runtime_signature = signature
+        self._beat_runtime_generation += 1
+        generation = self._beat_runtime_generation
+        self._beat_runtime_busy = True
+        self.preview.set_beat_runtime(None)
+        snapshot = document.clone()
+
+        def worker() -> None:
+            try:
+                runtime = build_beat_visual_runtime(
+                    snapshot,
+                    ensure_analysis=True,
+                )
+                self.bridge.beatRuntimeReady.emit(generation, runtime)
+            except Exception as exc:
+                self.bridge.beatRuntimeFailed.emit(generation, str(exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _beat_runtime_ready(self, generation: int, runtime) -> None:
+        if generation != self._beat_runtime_generation:
+            return
+        self._beat_runtime_busy = False
+        self.preview.set_beat_runtime(runtime)
+        if runtime is not None:
+            self._set_status(
+                f"Beat preview siap: {runtime.diagnostics.beat_layers} layer / "
+                f"{runtime.diagnostics.trigger_count} trigger."
+            )
+
+    def _beat_runtime_failed(self, generation: int, message: str) -> None:
+        if generation != self._beat_runtime_generation:
+            return
+        self._beat_runtime_busy = False
+        self.preview.set_beat_runtime(None)
+        self._set_status(f"Beat preview belum siap: {message}")
 
     def _refresh_inspector(self) -> None:
         layer = self.session.selected_layer()
@@ -337,6 +408,20 @@ class EditorWorkspace(QWidget):
         except Exception as exc:
             self._set_status(f"Properti gagal: {exc}")
 
+    def _set_beat_animation(self, layer_id: str, payload) -> None:
+        try:
+            self.session.set_beat_animation_payload(layer_id, payload)
+            self._after_edit()
+            if payload is None:
+                self._set_status("Beat Animation dinonaktifkan.")
+            else:
+                presets = payload.get("presets", [])
+                label = presets[0] if len(presets) == 1 else "Custom / Multi"
+                intensity = round(float(payload.get("intensity", 1.0)) * 100)
+                self._set_status(f"Beat Animation aktif: {label} • {intensity}%")
+        except Exception as exc:
+            self._set_status(f"Beat Animation gagal: {exc}")
+
     def _set_track_enabled(self, track_id: str, value: bool) -> None:
         try:
             self.session.set_track_enabled(track_id, value)
@@ -374,6 +459,23 @@ class EditorWorkspace(QWidget):
             self._set_status(f"Playlist memakai {len(entries)} lagu dari Media.")
         except Exception as exc:
             self._set_status(f"Pakai semua lagu gagal: {exc}")
+
+    def apply_music_style(self) -> None:
+        try:
+            style = MusicStylePreset(str(self.music_style_combo.currentData()))
+            report = self.session.apply_music_style(style)
+            self._after_edit()
+            message = (
+                f"Gaya Beat {MUSIC_STYLE_CATALOG[style].label} diterapkan ke "
+                f"{report.applied_layers} layer"
+            )
+            if report.skipped_locked:
+                message += f"; {report.skipped_locked} locked dilewati"
+            if report.skipped_incompatible:
+                message += f"; {report.skipped_incompatible} incompatible dilewati"
+            self._set_status(message + ".")
+        except Exception as exc:
+            self._set_status(f"Gaya Beat gagal: {exc}")
 
     def auto_arrange(self) -> None:
         try:

@@ -1,0 +1,1 @@
+STEP04 validation rerun marker after forcing the ignored focused lock file into the validated implementation commit.

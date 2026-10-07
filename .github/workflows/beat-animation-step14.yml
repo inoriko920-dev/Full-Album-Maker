@@ -1,0 +1,159 @@
+name: STEP14 Final Performance Reliability Hardening
+
+on:
+  push:
+    branches:
+      - feature/beat-animation-engine-v2
+    paths:
+      - "pyproject.toml"
+      - "requirements.txt"
+      - "build/requirements-windows.lock"
+      - "build/write_release_capabilities.py"
+      - "THIRD_PARTY_NOTICES.md"
+      - "src/full_album_maker/audio_analysis_cache.py"
+      - "src/full_album_maker/audio_analysis_backend.py"
+      - "src/full_album_maker/audio_analysis_service.py"
+      - "src/full_album_maker/beat_visual_runtime.py"
+      - "src/full_album_maker/preview_service.py"
+      - "src/full_album_maker/release_beat_smoke.py"
+      - "src/full_album_maker/main.py"
+      - "tools/beat_analysis_frozen_smoke_step14.py"
+      - "tests/test_step14_*.py"
+      - ".github/workflows/beat-animation-step14.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install Linux Qt runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install exact STEP14 runtime
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-windows.lock
+          python -m pip install --disable-pip-version-check -e . --no-deps
+          python -m pip check
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: STEP14 focused tests
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step14_cache_recovery.py tests/test_step14_cancellation_preview.py tests/test_step14_dependency_contract.py tests/test_step14_long_project_stress.py
+      - name: STEP13 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step13_ai_combo_hardening.py
+      - name: STEP12 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_event_phase.py tests/test_step12_advanced_motion.py tests/test_step12_spark_burst.py
+      - name: STEP11 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step11_ai_beat_actions.py tests/test_step11_ai_beat_nlu.py tests/test_step11_ai_beat_provider.py
+      - name: STEP10 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step10_advanced_catalog.py tests/test_step10_music_styles.py tests/test_step10_vinyl_bpm_sync.py
+      - name: STEP09 Agent regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_agent_core.py
+      - name: STEP09 Beat regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_beat_expansion.py
+      - name: STEP08 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step08_beat_integration.py tests/test_step08_beat_preview.py
+      - name: STEP07 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step07_visual_bindings.py
+      - name: STEP06 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step06_animation_signals.py
+      - name: STEP05 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step05_music_events.py
+      - name: STEP04 regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step04_audio_analysis.py
+      - name: Scientific runtime smoke
+        env: {PYTHONPATH: src}
+        run: python tools/beat_analysis_frozen_smoke_step14.py
+
+  frozen-windows:
+    runs-on: windows-2025
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install exact Windows runtime
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-windows.lock
+          python -m pip install --disable-pip-version-check -e . --no-deps
+          python -m pip check
+      - name: Build dedicated frozen Beat smoke
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --console --onedir --name "BeatAnalysisStep14" --paths "$PWD\src" tools\beat_analysis_frozen_smoke_step14.py
+          .\dist\BeatAnalysisStep14\BeatAnalysisStep14.exe
+      - name: Build main onedir with scientific runtime
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name "Full Album Maker STEP14" --paths "$PWD\src" "$PWD\src\full_album_maker\main.py"
+          $exe = ".\dist\Full Album Maker STEP14\Full Album Maker STEP14.exe"
+          $p = Start-Process -FilePath $exe -ArgumentList "--beat-runtime-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Main frozen Beat runtime smoke failed: $($p.ExitCode)" }
+
+  real-ffmpeg-regression:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install FFmpeg and exact runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-windows.lock
+          python -m pip install --disable-pip-version-check -e . --no-deps
+          python -m pip check
+      - name: STEP13 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step13_real_ffmpeg.py
+      - name: STEP12 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step12_real_ffmpeg.py
+      - name: STEP10 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step10_real_ffmpeg.py
+      - name: STEP09 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step09_beat_real_ffmpeg.py
+      - name: STEP08 real FFmpeg regression
+        env: {PYTHONPATH: src}
+        run: python -m pytest -q tests/test_step08_beat_real_ffmpeg.py

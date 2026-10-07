@@ -1,0 +1,86 @@
+name: STEP08 Beat Preview Render Integration
+
+on:
+  push:
+    branches:
+      - feature/beat-animation-engine-v2
+    paths:
+      - "src/full_album_maker/beat_animation_assignment.py"
+      - "src/full_album_maker/beat_visual_runtime.py"
+      - "src/full_album_maker/beat_render_control.py"
+      - "src/full_album_maker/preview_scene.py"
+      - "src/full_album_maker/preview_service.py"
+      - "src/full_album_maker/editor_workspace.py"
+      - "src/full_album_maker/render_service_v2.py"
+      - "src/full_album_maker/render_graph.py"
+      - "src/full_album_maker/spectrum_render_step08.py"
+      - "tests/test_step08_beat_integration.py"
+      - "tests/test_step08_beat_preview.py"
+      - "tests/test_step08_beat_real_ffmpeg.py"
+      - ".github/workflows/beat-animation-step08.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+      FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install Linux Qt runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-audio-analysis-step04.lock
+          python -m pip install --disable-pip-version-check -r requirements-dev.txt
+      - name: Compile STEP08 modules
+        run: python -m compileall -q src/full_album_maker
+      - name: STEP08 focused tests
+        run: |
+          python -m pytest -q tests/test_step08_beat_integration.py tests/test_step08_beat_preview.py
+      - name: STEP07 regression
+        run: python -m pytest -q tests/test_step07_visual_bindings.py
+      - name: STEP06 regression
+        run: python -m pytest -q tests/test_step06_animation_signals.py
+      - name: STEP05 regression
+        run: python -m pytest -q tests/test_step05_music_events.py
+      - name: STEP04 regression
+        run: python -m pytest -q tests/test_step04_audio_analysis.py
+      - name: Import smoke
+        env:
+          PYTHONPATH: src
+        run: |
+          python -c "from full_album_maker.beat_animation_assignment import BeatAnimationAssignment; from full_album_maker.beat_visual_runtime import BeatVisualRuntime; from full_album_maker.beat_render_control import BeatRenderControl; print('STEP08_IMPORT_PASS')"
+
+  real-ffmpeg-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+      - name: Install FFmpeg and pytest
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install pytest==8.4.2
+      - name: Real FFmpeg runtime command smoke
+        run: python -m pytest -q tests/test_step08_beat_real_ffmpeg.py
