@@ -201,6 +201,7 @@ class EditorWorkspace(QWidget):
         self.inspector.startEdited.connect(self._move_layer_from_inspector)
         self.inspector.durationEdited.connect(self._trim_layer_from_inspector)
         self.inspector.propertyEdited.connect(self._set_property)
+        self.inspector.beatAnimationEdited.connect(self._set_beat_animation)
 
         self.playlist.moveRequested.connect(self._move_song)
         self.playlist.removeRequested.connect(self._remove_song)
@@ -393,6 +394,20 @@ class EditorWorkspace(QWidget):
             self._after_edit()
         except Exception as exc:
             self._set_status(f"Properti gagal: {exc}")
+
+    def _set_beat_animation(self, layer_id: str, payload) -> None:
+        try:
+            self.session.set_beat_animation_payload(layer_id, payload)
+            self._after_edit()
+            if payload is None:
+                self._set_status("Beat Animation dinonaktifkan.")
+            else:
+                presets = payload.get("presets", [])
+                label = presets[0] if len(presets) == 1 else "Custom / Multi"
+                intensity = round(float(payload.get("intensity", 1.0)) * 100)
+                self._set_status(f"Beat Animation aktif: {label} • {intensity}%")
+        except Exception as exc:
+            self._set_status(f"Beat Animation gagal: {exc}")
 
     def _set_track_enabled(self, track_id: str, value: bool) -> None:
         try:
