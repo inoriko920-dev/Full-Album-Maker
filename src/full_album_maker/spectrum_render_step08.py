@@ -9,6 +9,7 @@ from .editor_models import Layer, ProjectDocument
 from .render_graph import (
     CompiledFFmpeg,
     _beat_snapshot_glow_chain,
+    _beat_snapshot_particle_chain,
     _color,
     _ffmpeg_scale,
     _layer_size,
@@ -93,6 +94,7 @@ def _spectrum_source_chain(
         else ""
     )
     snapshot_glow = _beat_snapshot_glow_chain(layer)
+    snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
     static_rotate = rotate if beat_control is None or beat_control.rotate_filter is None else ""
 
     if style == "circular_spectrum":
@@ -128,7 +130,7 @@ def _spectrum_source_chain(
     chain = (
         f"[specaudio{audio_index}]volume={gain:.6f},{visual},"
         f"colorchannelmixer=aa={alpha:.6f}{mirror}"
-        f"{beat_suffix if beat_control is not None else snapshot_glow}"
+        f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
         f"{static_rotate}{output_label}"
     )
     return chain, beat_control
