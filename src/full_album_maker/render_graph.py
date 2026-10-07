@@ -113,6 +113,33 @@ def _beat_snapshot_glow_chain(layer: Layer) -> str:
     return f",eq=brightness={brightness:.8f}:saturation={saturation:.8f}:eval=init"
 
 
+def _beat_snapshot_particle_chain(layer: Layer, width: int, height: int) -> str:
+    raw = layer.properties.get("_beat_snapshot_particles", ())
+    if raw in {None, ()}:
+        return ""
+    if not isinstance(raw, list) or len(raw) > 6:
+        raise RenderCompileError("Beat snapshot particles tidak valid.")
+    pieces: list[str] = []
+    minimum = max(2, min(int(width), int(height)))
+    for item in raw:
+        if not isinstance(item, dict):
+            raise RenderCompileError("Beat snapshot particle harus object.")
+        try:
+            ox = float(item.get("x", 0.0))
+            oy = float(item.get("y", 0.0))
+            size_norm = float(item.get("size", 0.005))
+            alpha = float(item.get("alpha", 0.0))
+        except (TypeError, ValueError) as exc:
+            raise RenderCompileError("Beat snapshot particle numeric invalid.") from exc
+        if not (-0.25 <= ox <= 0.25 and -0.25 <= oy <= 0.25 and 0.001 <= size_norm <= 0.03 and 0.0 <= alpha <= 1.0):
+            raise RenderCompileError("Beat snapshot particle di luar batas.")
+        size = max(2, int(round(minimum * size_norm)))
+        x = int(round(width / 2.0 + ox * width - size / 2.0))
+        y = int(round(height / 2.0 + oy * height - size / 2.0))
+        pieces.append(f",drawbox=x={x}:y={y}:w={size}:h={size}:color=white@{alpha:.5f}:t=fill")
+    return "".join(pieces)
+
+
 def _beat_snapshot_font_scale(layer: Layer) -> float:
     raw = layer.properties.get("_beat_snapshot_font_scale", 1.0)
     try:
@@ -450,6 +477,7 @@ class FFmpegV2Compiler:
                     else ""
                 )
                 snapshot_glow = _beat_snapshot_glow_chain(layer)
+                snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
                 static_rotate = rotate if beat_control is None or beat_control.rotate_filter is None else ""
                 overlay_x = beat_control.overlay_x_expr if beat_control is not None else _overlay_position_expr(layer, "x")
                 overlay_y = beat_control.overlay_y_expr if beat_control is not None else _overlay_position_expr(layer, "y")
@@ -470,7 +498,7 @@ class FFmpegV2Compiler:
                     filters.append(
                         f"color=c={color}:s={width}x{height}:r={fps:g}:d={duration:.6f},"
                         f"format=rgba,colorchannelmixer=aa={alpha:.6f}"
-                        f"{beat_suffix if beat_control is not None else snapshot_glow}"
+                        f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
                         f"{static_rotate}[{source_label}]"
                     )
                 elif mode == "effect":
