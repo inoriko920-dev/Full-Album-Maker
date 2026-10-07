@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QScrollArea,
+    QSizePolicy,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -317,6 +318,7 @@ def _inspector_init(self, *args, **kwargs) -> None:
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QFrame.Shape.NoFrame)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     body = QWidget()
     root = QVBoxLayout(body)
     root.setContentsMargins(12, 8, 12, 10)
@@ -341,11 +343,16 @@ def _inspector_init(self, *args, **kwargs) -> None:
     choose = QHBoxLayout()
     self.image_button.setText("Pilih Foto")
     self.video_button.setText("Pilih Video")
-    choose.addWidget(self.image_button)
-    choose.addWidget(self.video_button)
+    for button in (self.image_button, self.video_button):
+        button.setMinimumWidth(0)
+        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    choose.addWidget(self.image_button, 1)
+    choose.addWidget(self.video_button, 1)
     root.addLayout(choose)
     repair = QHBoxLayout()
     self.auto_button.setText("Auto Match Visual")
+    for button in (self.auto_button, self.relink_button, self.clear_button):
+        button.setMinimumWidth(0)
     repair.addWidget(self.auto_button, 1)
     repair.addWidget(self.relink_button)
     repair.addWidget(self.clear_button)
@@ -360,6 +367,8 @@ def _inspector_init(self, *args, **kwargs) -> None:
     fit_label.setMinimumWidth(78)
     fit_row.addWidget(fit_label)
     self.ui05_fit = FAMSegmented([("fit", "Fit"), ("fill", "Fill")])
+    for button in self.ui05_fit._buttons.values():
+        button.setMinimumWidth(0)
     fit_row.addWidget(self.ui05_fit, 1)
     root.addLayout(fit_row)
     for key, button in self.ui05_fit._buttons.items():
@@ -380,6 +389,17 @@ def _inspector_init(self, *args, **kwargs) -> None:
     )):
         crop.addWidget(QLabel(label), row_index // 2, (row_index % 2) * 2)
         crop.addWidget(widget, row_index // 2, (row_index % 2) * 2 + 1)
+    for widget in (self.crop_x, self.crop_y, self.crop_w, self.crop_h):
+        widget.setMinimumWidth(0)
+        widget.setMaximumWidth(92)
+    for widget in (self.pos_x, self.pos_y):
+        widget.setMinimumWidth(0)
+        widget.setMaximumWidth(92)
+    self.scale.setMinimumWidth(0)
+    self.scale.setMaximumWidth(78)
+    self.transition_seconds.setMinimumWidth(0)
+    self.transition_seconds.setMaximumWidth(88)
+
     self.ui05_crop_panel.hide()
     self.ui05_crop_button.clicked.connect(
         lambda: self.ui05_crop_panel.setVisible(self.ui05_crop_panel.isHidden())
@@ -418,7 +438,10 @@ def _inspector_init(self, *args, **kwargs) -> None:
         ("pan_left", "Pan Left"),
         ("pan_right", "Pan Right"),
     ])
-    self.ui05_motion.setStyleSheet("QPushButton{font-size:10px;padding:5px 3px;}")
+    self.ui05_motion.setStyleSheet("QPushButton{font-size:10px;padding:5px 2px;}")
+    for button in self.ui05_motion._buttons.values():
+        button.setMinimumWidth(0)
+        button.setMaximumWidth(58)
     root.addWidget(self.ui05_motion)
     for key, button in self.ui05_motion._buttons.items():
         button.clicked.connect(
@@ -436,6 +459,8 @@ def _inspector_init(self, *args, **kwargs) -> None:
     trans_title.setObjectName("sectionHeading")
     root.addWidget(trans_title)
     self.ui05_transition = FAMSegmented([("cut", "Cut"), ("fade", "Fade"), ("slide", "Slide")])
+    for button in self.ui05_transition._buttons.values():
+        button.setMinimumWidth(0)
     root.addWidget(self.ui05_transition)
     for key, button in self.ui05_transition._buttons.items():
         button.clicked.connect(
@@ -692,6 +717,12 @@ def _apply_visual_geometry(window) -> None:
 
     host = shell.timeline
     host.body.hide()
+    inherited_header = host.layout().itemAt(0).layout() if host.layout().count() else None
+    if inherited_header is not None:
+        for index in range(inherited_header.count()):
+            widget = inherited_header.itemAt(index).widget()
+            if widget is not None:
+                widget.hide()
     panel = getattr(window, "_ui05_timeline_panel", None)
     if panel is not None:
         panel.show()
