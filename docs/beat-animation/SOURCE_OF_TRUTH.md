@@ -27,5 +27,7 @@
 
 - `STEP11_AI_AGENT_ACTION_REGISTRY_NATURAL_LANGUAGE_BEAT_CONTROL_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `4bc420567f4539f00b74df1be3052aac353b0934fb10d2ca982046282f0c2abb`
 
+- `STEP12_EVENT_PHASE_MODULATOR_ADVANCED_MOTION_EFFECTS_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `704e28e055f8230cc321b224f1c6115fc5123037f7bb76842ed0843ef3cecc64`
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
