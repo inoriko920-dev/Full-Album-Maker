@@ -150,7 +150,7 @@ def analyze_pcm(
         "high": _normalize(high, settings.normalization_low_percentile, settings.normalization_high_percentile),
         "onset": normalized_onset,
     }
-    return BackendOutput(
+    result = BackendOutput(
         duration_tick=duration_tick,
         tempo_bpm=tempo_bpm,
         beat_frames=beat_frames,
@@ -162,3 +162,22 @@ def analyze_pcm(
         onset_mean=float(np.mean(onset, dtype=np.float64)),
         onset_peak=float(np.max(onset)),
     )
+
+    # Windows keeps an mmap-backed PCM file locked until the memmap handle is
+    # closed explicitly. Drop the last sliding-window views before closing so
+    # analysis temp directories can be removed immediately after a successful
+    # result (and frozen executables behave the same as source runs).
+    try:
+        del windows
+    except UnboundLocalError:
+        pass
+    try:
+        del segment
+    except UnboundLocalError:
+        pass
+    if working is pcm:
+        del working
+    mmap_handle = getattr(pcm, "_mmap", None)
+    if mmap_handle is not None:
+        mmap_handle.close()
+    return result
