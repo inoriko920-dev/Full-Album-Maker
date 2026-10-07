@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
 )
 
 from .auto_arrange import AutoArrange, AutoArrangeRecipe
+from .beat_animation_assignment import document_has_beat_animation
+from .beat_visual_runtime import build_beat_visual_runtime
 from .editor_commands import SetPlaylistEntries
 from .editor_models import ProjectDocument, TIMEBASE
 from .editor_session import EditorSession
@@ -41,6 +43,8 @@ from .timeline_editor import TimelineCanvas
 class _AsyncBridge(QObject):
     previewReady = Signal(str)
     renderDone = Signal(str)
+    beatRuntimeReady = Signal(int, object)
+    beatRuntimeFailed = Signal(int, str)
     error = Signal(str)
     log = Signal(str)
 
@@ -59,10 +63,15 @@ class EditorWorkspace(QWidget):
         self._last_dirty = self.session.is_dirty
         self._render_busy = False
         self._preview_busy = False
+        self._beat_runtime_busy = False
+        self._beat_runtime_generation = 0
+        self._beat_runtime_signature = ""
 
         self.bridge = _AsyncBridge(self)
         self.bridge.previewReady.connect(self._preview_ready)
         self.bridge.renderDone.connect(self._render_done)
+        self.bridge.beatRuntimeReady.connect(self._beat_runtime_ready)
+        self.bridge.beatRuntimeFailed.connect(self._beat_runtime_failed)
         self.bridge.error.connect(self._async_error)
         self.bridge.log.connect(self._set_status)
 
@@ -221,6 +230,7 @@ class EditorWorkspace(QWidget):
         self.preview.set_document(doc)
         self.preview.set_selected_layer(selected[0] if len(selected) == 1 else None)
         self.preview.set_playhead(self.session.playhead_tick)
+        self._schedule_beat_runtime(doc)
         self.playlist.set_document(doc)
         self._refresh_inspector()
         self.undo_btn.setEnabled(self.session.can_undo)
@@ -234,6 +244,53 @@ class EditorWorkspace(QWidget):
             self._last_dirty = dirty
             self.dirtyChanged.emit(dirty)
         self.documentChanged.emit(doc)
+
+    def _schedule_beat_runtime(self, document: ProjectDocument) -> None:
+        signature = document.content_signature()
+        if not document_has_beat_animation(document):
+            self._beat_runtime_generation += 1
+            self._beat_runtime_busy = False
+            self._beat_runtime_signature = signature
+            self.preview.set_beat_runtime(None)
+            return
+        if signature == self._beat_runtime_signature:
+            return
+        self._beat_runtime_signature = signature
+        self._beat_runtime_generation += 1
+        generation = self._beat_runtime_generation
+        self._beat_runtime_busy = True
+        self.preview.set_beat_runtime(None)
+        snapshot = document.clone()
+
+        def worker() -> None:
+            try:
+                runtime = build_beat_visual_runtime(
+                    snapshot,
+                    ensure_analysis=True,
+                )
+                self.bridge.beatRuntimeReady.emit(generation, runtime)
+            except Exception as exc:
+                self.bridge.beatRuntimeFailed.emit(generation, str(exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _beat_runtime_ready(self, generation: int, runtime) -> None:
+        if generation != self._beat_runtime_generation:
+            return
+        self._beat_runtime_busy = False
+        self.preview.set_beat_runtime(runtime)
+        if runtime is not None:
+            self._set_status(
+                f"Beat preview siap: {runtime.diagnostics.beat_layers} layer / "
+                f"{runtime.diagnostics.trigger_count} trigger."
+            )
+
+    def _beat_runtime_failed(self, generation: int, message: str) -> None:
+        if generation != self._beat_runtime_generation:
+            return
+        self._beat_runtime_busy = False
+        self.preview.set_beat_runtime(None)
+        self._set_status(f"Beat preview belum siap: {message}")
 
     def _refresh_inspector(self) -> None:
         layer = self.session.selected_layer()
