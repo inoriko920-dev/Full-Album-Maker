@@ -61,6 +61,48 @@ def core_binding_set(preset: CoreBeatPreset | str) -> VisualBindingSet:
             VisualBinding(AnimationSignalChannel.ENERGY_UP, VisualProperty.SCALE_MULTIPLIER, 0.030),
             VisualBinding(AnimationSignalChannel.ENERGY_UP, VisualProperty.GLOW_AMOUNT, 0.200),
         ),
+        CoreBeatPreset.BEAT_ZOOM: (
+            VisualBinding(AnimationSignalChannel.BEAT, VisualProperty.ZOOM_MULTIPLIER, 0.035),
+        ),
+        CoreBeatPreset.BASS_ZOOM: (
+            VisualBinding(AnimationSignalChannel.BASS, VisualProperty.ZOOM_MULTIPLIER, 0.070),
+        ),
+        CoreBeatPreset.GLOW_PUMP: (
+            VisualBinding(AnimationSignalChannel.BEAT, VisualProperty.GLOW_AMOUNT, 0.220),
+        ),
+        CoreBeatPreset.BASS_GLOW: (
+            VisualBinding(AnimationSignalChannel.BASS, VisualProperty.GLOW_AMOUNT, 0.420),
+        ),
+        CoreBeatPreset.STRONG_GLOW: (
+            VisualBinding(AnimationSignalChannel.STRONG_BEAT, VisualProperty.GLOW_AMOUNT, 0.600),
+        ),
+        CoreBeatPreset.BEAT_TILT: (
+            VisualBinding(AnimationSignalChannel.BEAT, VisualProperty.ROTATION_OFFSET_DEG, 1.200),
+        ),
+        CoreBeatPreset.BASS_TILT: (
+            VisualBinding(AnimationSignalChannel.BASS, VisualProperty.ROTATION_OFFSET_DEG, 2.500),
+        ),
+        CoreBeatPreset.ENERGY_ZOOM: (
+            VisualBinding(AnimationSignalChannel.ENERGY_UP, VisualProperty.ZOOM_MULTIPLIER, 0.045),
+        ),
+        CoreBeatPreset.ENERGY_GLOW: (
+            VisualBinding(AnimationSignalChannel.ENERGY_UP, VisualProperty.GLOW_AMOUNT, 0.350),
+        ),
+        CoreBeatPreset.CLUB_PUNCH: (
+            VisualBinding(AnimationSignalChannel.STRONG_BEAT, VisualProperty.SCALE_MULTIPLIER, 0.110, response_gamma=0.82, min_signal=0.10),
+            VisualBinding(AnimationSignalChannel.STRONG_BEAT, VisualProperty.ZOOM_MULTIPLIER, 0.090, response_gamma=0.82, min_signal=0.10),
+            VisualBinding(AnimationSignalChannel.STRONG_BEAT, VisualProperty.GLOW_AMOUNT, 0.550, response_gamma=0.82, min_signal=0.10),
+        ),
+        CoreBeatPreset.BASS_PUNCH: (
+            VisualBinding(AnimationSignalChannel.BASS, VisualProperty.SCALE_MULTIPLIER, 0.085),
+            VisualBinding(AnimationSignalChannel.BASS, VisualProperty.ZOOM_MULTIPLIER, 0.045),
+            VisualBinding(AnimationSignalChannel.BASS, VisualProperty.GLOW_AMOUNT, 0.300),
+        ),
+        CoreBeatPreset.CINEMATIC_SWELL: (
+            VisualBinding(AnimationSignalChannel.ENERGY_UP, VisualProperty.SCALE_MULTIPLIER, 0.050),
+            VisualBinding(AnimationSignalChannel.ENERGY_UP, VisualProperty.ZOOM_MULTIPLIER, 0.040),
+            VisualBinding(AnimationSignalChannel.ENERGY_UP, VisualProperty.GLOW_AMOUNT, 0.280),
+        ),
     }
     result = VisualBindingSet(selected.value, mapping[selected])
     result.validate()
