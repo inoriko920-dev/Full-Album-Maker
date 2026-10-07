@@ -11,6 +11,12 @@ from .advanced_motion_contract import AdvancedMotionPreset, MOTION_PRESET_CATALO
 from .visual_binding_contract import VisualProperty
 from .beat_visual_runtime import BeatVisualRuntime
 from .spark_render_control import build_spark_render_control
+from .ffmpeg_command_batch import (
+    CommandBatchWriter,
+    CommandLimitError,
+    MAX_COMMAND_FILE_BYTES,
+    MAX_COMMAND_OPS,
+)
 
 MAX_COMMAND_ROWS = 250_000
 MAX_BEAT_RENDER_LAYERS = 4
@@ -31,6 +37,10 @@ class BeatRenderControl:
     overlay_x_expr: str
     overlay_y_expr: str
     command_rows: int
+    command_ops: int
+    command_bytes: int
+    spark_command_rows: int
+    spark_command_ops: int
     spark_filter_suffix: str
 
 
@@ -150,7 +160,7 @@ def build_beat_render_control(
     x_expr=f"({pivot_project_x:.10f}*main_w)-({float(layer.transform.pivot_x):.10f}*overlay_w)"
     y_expr=f"({pivot_project_y:.10f}*main_h)-({float(layer.transform.pivot_y):.10f}*overlay_h)"
 
-    rows=[]
+    writer=CommandBatchWriter(max_rows=MAX_COMMAND_ROWS)
     last=None
     for tick in ticks:
         state=runtime.state_for_layer(layer.layer_id,tick)
@@ -166,23 +176,21 @@ def build_beat_render_control(
             continue
         ts=tick/TIMEBASE
         if scale_name is not None and (last is None or current[:2]!=last[:2]):
-            rows.append(f"{ts:.6f} {scale_name} width {width};")
-            rows.append(f"{ts:.6f} {scale_name} height {height};")
+            writer.add(ts,scale_name,"width",width)
+            writer.add(ts,scale_name,"height",height)
         if rotate_name is not None and (last is None or current[2]!=last[2]):
-            rows.append(f"{ts:.6f} {rotate_name} angle {math.radians(rotation):.10f};")
+            writer.add(ts,rotate_name,"angle",f"{math.radians(rotation):.10f}")
         if glow_name is not None and (last is None or current[3]!=last[3]):
             brightness=max(-1.0,min(1.0,0.12*glow))
             saturation=max(0.0,min(3.0,1.0+0.15*glow))
-            rows.append(f"{ts:.6f} {glow_name} brightness {brightness:.8f};")
-            rows.append(f"{ts:.6f} {glow_name} saturation {saturation:.8f};")
+            writer.add(ts,glow_name,"brightness",f"{brightness:.8f}")
+            writer.add(ts,glow_name,"saturation",f"{saturation:.8f}")
         if VisualProperty.X_OFFSET_NORMALIZED in props and (last is None or current[4]!=last[4]):
             x_command=f"({pivot_project_x:.10f}*main_w)-({float(layer.transform.pivot_x):.10f}*overlay_w)+({x_offset:.10f}*main_w)"
-            rows.append(f"{ts:.6f} {overlay_name} x {x_command};")
+            writer.add(ts,overlay_name,"x",x_command)
         if VisualProperty.Y_OFFSET_NORMALIZED in props and (last is None or current[5]!=last[5]):
             y_command=f"({pivot_project_y:.10f}*main_h)-({float(layer.transform.pivot_y):.10f}*overlay_h)+({y_offset:.10f}*main_h)"
-            rows.append(f"{ts:.6f} {overlay_name} y {y_command};")
-        if len(rows)>MAX_COMMAND_ROWS:
-            raise BeatRenderControlError("Beat render command melebihi batas aman 250000 rows.")
+            writer.add(ts,overlay_name,"y",y_command)
         last=current
 
     spark_control = build_spark_render_control(
@@ -194,15 +202,35 @@ def build_beat_render_control(
         work_dir=work_dir,
         stream_key=stream_key,
     )
-    total_rows=len(rows)+(spark_control.command_rows if spark_control is not None else 0)
-    if total_rows>MAX_COMMAND_ROWS:
-        raise BeatRenderControlError("Beat + Spark command melebihi batas aman 250000 rows.")
-    if not rows and spark_control is None:
+    has_beat_commands=bool(writer.batches())
+    if not has_beat_commands and spark_control is None:
         return None
     work=Path(work_dir); work.mkdir(parents=True,exist_ok=True)
     command_file=work/f"beat-{token}.sendcmd"
-    command_file.write_text("\n".join(rows)+"\n",encoding="utf-8")
-    sendcmd=f"sendcmd=f='{_ffmpeg_path(command_file)}'" if rows else ""
+    if has_beat_commands:
+        try:
+            metrics=writer.write(command_file)
+        except CommandLimitError as exc:
+            raise BeatRenderControlError(f"Beat render command melewati batas aman: {exc}") from exc
+    else:
+        command_file.write_text("",encoding="utf-8")
+        from .ffmpeg_command_batch import CommandFileMetrics
+        metrics=CommandFileMetrics(0,0,0)
+
+    spark_rows=spark_control.command_rows if spark_control is not None else 0
+    spark_ops=spark_control.command_ops if spark_control is not None else 0
+    spark_bytes=spark_control.command_bytes if spark_control is not None else 0
+    total_rows=metrics.rows+spark_rows
+    total_ops=metrics.ops+spark_ops
+    total_bytes=metrics.bytes+spark_bytes
+    if total_rows>MAX_COMMAND_ROWS:
+        raise BeatRenderControlError("Beat + Spark command melebihi batas aman 250000 timestamp batches.")
+    if total_ops>MAX_COMMAND_OPS:
+        raise BeatRenderControlError("Beat + Spark command melebihi batas aman 1500000 operations.")
+    if total_bytes>MAX_COMMAND_FILE_BYTES:
+        raise BeatRenderControlError("Beat + Spark command melebihi batas aman 64 MiB.")
+
+    sendcmd=f"sendcmd=f='{_ffmpeg_path(command_file)}'" if has_beat_commands else ""
     return BeatRenderControl(
         command_file=command_file,
         sendcmd_filter=sendcmd,
@@ -213,6 +241,10 @@ def build_beat_render_control(
         overlay_x_expr=x_expr,
         overlay_y_expr=y_expr,
         command_rows=total_rows,
+        command_ops=total_ops,
+        command_bytes=total_bytes,
+        spark_command_rows=spark_rows,
+        spark_command_ops=spark_ops,
         spark_filter_suffix=spark_control.filter_suffix if spark_control is not None else "",
     )
 
