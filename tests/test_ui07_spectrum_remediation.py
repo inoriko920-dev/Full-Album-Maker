@@ -19,6 +19,7 @@ def test_ui07_spectrum_remediation_route_contract() -> None:
         os.environ.setdefault("FAM_STEP09_PROVIDER", "mock")
 
         import full_album_maker.main
+        from PySide6.QtCore import QEventLoop, QTimer
         from PySide6.QtWidgets import QApplication
         from full_album_maker.foundation_window import FoundationMainWindow
         from full_album_maker.spectrum_capture_step08 import _fixture_document
@@ -42,6 +43,9 @@ def test_ui07_spectrum_remediation_route_contract() -> None:
         window.foundation_shell.set_workspace("spectrum")
         window._s08_refresh(request_preview=False)
         window.show()
+        loop = QEventLoop()
+        QTimer.singleShot(60, loop.quit)
+        loop.exec()
         app.processEvents()
 
         shell = window.foundation_shell
