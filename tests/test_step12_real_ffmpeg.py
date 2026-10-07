@@ -51,7 +51,7 @@ def _cover(doc,image,motion):
         transform=Transform(x=.2,y=.18,width=.55,height=.62,pivot_x=.5,pivot_y=.5),
         properties={"fit":"fill","fallback_asset_id":image.asset_id},
         animation={"beat_v1":{
-            "enabled":True,"presets":["beat_pulse"],"intensity":.4,
+            "enabled":True,"presets":["subtle_beat_pulse"],"intensity":.4,
             "motion_preset":motion,"motion_intensity":1.0,
         }},
     )
