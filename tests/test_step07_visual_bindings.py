@@ -239,7 +239,17 @@ def test_zero_signal_exactly_restores_baseline():
 
 
 def test_core_preset_ids_unique():
-    ids=[core_binding_set(p).binding_set_id for p in CoreBeatPreset]; assert len(ids)==len(set(ids))==6
+    ids=[core_binding_set(p).binding_set_id for p in CoreBeatPreset]
+    assert len(ids)==len(set(ids))==18
+    legacy={
+        "subtle_beat_pulse",
+        "bass_pulse",
+        "strong_punch",
+        "onset_flash",
+        "rotation_nudge",
+        "energy_breathe",
+    }
+    assert legacy.issubset(set(ids))
 
 
 def test_layer_compatibility_is_deterministic():
