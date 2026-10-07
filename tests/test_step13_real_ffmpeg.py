@@ -30,8 +30,8 @@ def run_graph(tmp_path: Path, graph: str, inputs: list[str], name: str):
 
 def test_real_ffmpeg_accepts_batched_scale_and_glow(tmp_path):
     cmd=tmp_path/"scale.sendcmd"; w=CommandBatchWriter()
-    w.add(.10,"scale@beat_size","width",80)
-    w.add(.10,"scale@beat_size","height",80)
+    w.add(.10,"scale@beat_size","width",64)
+    w.add(.10,"scale@beat_size","height",64)
     w.add(.10,"eq@beat_glow","brightness","0.08")
     w.add(.10,"eq@beat_glow","saturation","1.10")
     w.write(cmd)
