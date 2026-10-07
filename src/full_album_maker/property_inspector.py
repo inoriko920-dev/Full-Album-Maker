@@ -15,6 +15,10 @@ from PySide6.QtWidgets import (
 from .beat_animation_assignment import assignment_for_layer
 from .beat_layer_capabilities import beat_capability_for_layer
 from .beat_preset_catalog import preset_label
+from .beat_combo_catalog import (
+    supported_combos_for_layer,
+    matching_combo_id,
+)
 from .advanced_motion_contract import (
     AdvancedMotionPreset,
     motion_label,
@@ -201,6 +205,7 @@ class PropertyInspector(QWidget):
         self._progress_controls = (self.progress_mode, self.progress_fill_color, self.progress_bg_color)
 
         self.beat_enabled = QCheckBox("Aktif")
+        self.beat_combo = QComboBox()
         self.beat_preset = QComboBox()
         self.beat_intensity = self._spin(0.0, 200.0, 5.0, 0)
         self.beat_intensity.setSuffix(" %")
@@ -210,6 +215,7 @@ class PropertyInspector(QWidget):
         self.beat_status = QLabel("")
         self.beat_status.setStyleSheet("font-size:10px;color:#55708F;")
         self.form.addRow("Beat Animation", self.beat_enabled)
+        self.form.addRow("Kombinasi", self.beat_combo)
         self.form.addRow("Preset Beat", self.beat_preset)
         self.form.addRow("Intensity", self.beat_intensity)
         self.form.addRow("Motion", self.beat_motion)
@@ -217,6 +223,7 @@ class PropertyInspector(QWidget):
         self.form.addRow("", self.beat_status)
         self._beat_controls = (
             self.beat_enabled,
+            self.beat_combo,
             self.beat_preset,
             self.beat_intensity,
             self.beat_motion,
@@ -261,6 +268,7 @@ class PropertyInspector(QWidget):
         self.progress_fill_color.editingFinished.connect(lambda: self._emit_property("fill_color", self.progress_fill_color.text()))
         self.progress_bg_color.editingFinished.connect(lambda: self._emit_property("background_color", self.progress_bg_color.text()))
         self.beat_enabled.toggled.connect(self._emit_beat_animation)
+        self.beat_combo.activated.connect(self._apply_beat_combo_from_ui)
         self.beat_preset.activated.connect(lambda _index=0: self._emit_beat_animation())
         self.beat_intensity.editingFinished.connect(self._emit_beat_animation)
         self.beat_motion.activated.connect(lambda _index=0: self._emit_beat_animation())
@@ -440,6 +448,13 @@ class PropertyInspector(QWidget):
             if beat_supported:
                 assignment = assignment_for_layer(layer)
                 self._beat_existing_presets = tuple(p.value for p in assignment.presets) if assignment else ()
+                self.beat_combo.clear()
+                self.beat_combo.addItem("Custom", "__custom__")
+                for combo in supported_combos_for_layer(layer):
+                    self.beat_combo.addItem(combo.label, combo.combo_id)
+                combo_id = matching_combo_id(assignment)
+                combo_index = self.beat_combo.findData(combo_id) if combo_id else 0
+                self.beat_combo.setCurrentIndex(max(0, combo_index))
                 self.beat_preset.clear()
                 for preset in beat_capability.supported_presets:
                     self.beat_preset.addItem(preset_label(preset), preset.value)
