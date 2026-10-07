@@ -52,6 +52,11 @@ _PROPERTY_AMOUNT_BOUNDS: dict[VisualProperty, tuple[float, float]] = {
     VisualProperty.GLOW_AMOUNT: (0.0, 1.0),
 }
 
+def visual_property_amount_bounds(property: VisualProperty) -> tuple[float, float]:
+    if not isinstance(property, VisualProperty):
+        raise ValueError("visual property is invalid")
+    return _PROPERTY_AMOUNT_BOUNDS[property]
+
 
 @dataclass(frozen=True)
 class VisualBinding:
