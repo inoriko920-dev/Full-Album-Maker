@@ -550,14 +550,44 @@ class FFmpegV2Compiler:
                     source_label = f"cover{stage}"
                     out = f"v{stage}"
                     stage += 1
+                    try:
+                        beat_control = build_beat_render_control(
+                            getattr(self, "_beat_visual_runtime", None),
+                            layer,
+                            base_width=width,
+                            base_height=height,
+                            fps=fps,
+                            intervals=cover_intervals,
+                            work_dir=work,
+                            stream_key=f"cover_{stage}_{asset_id[:8]}",
+                        )
+                    except BeatRenderControlError as exc:
+                        raise RenderCompileError(str(exc)) from exc
+                    snapshot_glow = _beat_snapshot_glow_chain(layer)
+                    if beat_control is not None:
+                        suffix = render_filter_suffix(
+                            beat_control,
+                            base_width=width,
+                            base_height=height,
+                        )
+                        filters.append(
+                            f"[{index}:v]{geometry},format=rgba,"
+                            f"colorchannelmixer=aa={alpha:.6f}"
+                            f"{suffix},setpts=PTS-STARTPTS[{source_label}]"
+                        )
+                        overlay_x = beat_control.overlay_x_expr
+                        overlay_y = beat_control.overlay_y_expr
+                    else:
+                        filters.append(
+                            f"[{index}:v]{geometry},format=rgba,"
+                            f"colorchannelmixer=aa={alpha:.6f}{snapshot_glow},"
+                            f"setpts=PTS-STARTPTS{rotate}[{source_label}]"
+                        )
+                        overlay_x = _overlay_position_expr(layer, "x")
+                        overlay_y = _overlay_position_expr(layer, "y")
                     filters.append(
-                        f"[{index}:v]{geometry},format=rgba,"
-                        f"colorchannelmixer=aa={alpha:.6f},setpts=PTS-STARTPTS"
-                        f"{rotate}[{source_label}]"
-                    )
-                    filters.append(
-                        f"[{current}][{source_label}]overlay=x='{_overlay_position_expr(layer, 'x')}':"
-                        f"y='{_overlay_position_expr(layer, 'y')}':shortest=0:"
+                        f"[{current}][{source_label}]overlay=x='{overlay_x}':"
+                        f"y='{overlay_y}':shortest=0:"
                         f"eof_action=repeat:enable='{_escape_enable(cover_intervals)}'[{out}]"
                     )
                     current = out
@@ -593,16 +623,43 @@ class FFmpegV2Compiler:
                 source_label = f"vinyl{stage}"
                 out = f"v{stage}"
                 stage += 1
+                try:
+                    beat_control = build_beat_render_control(
+                        getattr(self, "_beat_visual_runtime", None),
+                        layer,
+                        base_width=width,
+                        base_height=height,
+                        fps=fps,
+                        intervals=intervals,
+                        work_dir=work,
+                        stream_key=f"vinyl_{stage}",
+                    )
+                except BeatRenderControlError as exc:
+                    raise RenderCompileError(str(exc)) from exc
+                snapshot_glow = _beat_snapshot_glow_chain(layer)
+                beat_suffix = (
+                    render_filter_suffix(
+                        beat_control,
+                        base_width=width,
+                        base_height=height,
+                    )
+                    if beat_control is not None
+                    else ""
+                )
                 filters.append(
                     f"nullsrc=s={width}x{height}:r={fps:g}:d={duration:.6f},"
                     f"format=rgba,geq=r='{channel_exprs[0]}':"
                     f"g='{channel_exprs[1]}':b='{channel_exprs[2]}':"
                     f"a='if(lte({radius},min(W,H)/2),255,0)',"
-                    f"colorchannelmixer=aa={alpha:.6f}{rotate}[{source_label}]"
+                    f"colorchannelmixer=aa={alpha:.6f}"
+                    f"{beat_suffix if beat_control is not None else snapshot_glow}"
+                    f"{'' if beat_control is not None else rotate}[{source_label}]"
                 )
+                overlay_x = beat_control.overlay_x_expr if beat_control is not None else _overlay_position_expr(layer, "x")
+                overlay_y = beat_control.overlay_y_expr if beat_control is not None else _overlay_position_expr(layer, "y")
                 filters.append(
-                    f"[{current}][{source_label}]overlay=x='{_overlay_position_expr(layer, 'x')}':"
-                    f"y='{_overlay_position_expr(layer, 'y')}':shortest=0:"
+                    f"[{current}][{source_label}]overlay=x='{overlay_x}':"
+                    f"y='{overlay_y}':shortest=0:"
                     f"eof_action=pass:enable='{enable}'[{out}]"
                 )
                 current = out
