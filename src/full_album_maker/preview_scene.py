@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from .album_visuals import format_duration_tick, normalize_visual_properties
-from .editor_models import ProjectDocument, Transform
+from .editor_models import ProjectDocument, TIMEBASE, Transform
 from .spectrum_feature import dynamic_song_text, normalize_spectrum_properties
 from .timeline_resolver import TimelineResolver
 from .beat_visual_runtime import BeatVisualRuntime
@@ -285,7 +285,15 @@ class PreviewCanvas(QWidget):
             painter.setBrush(QColor(props["center_color"]))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(center)
-            angle = (self._playhead_tick / 240000.0) / props["spin_seconds"] * math.tau
+            phase_cycles = (self._playhead_tick / TIMEBASE) / props["spin_seconds"]
+            if props.get("bpm_sync", False) and self._beat_runtime is not None:
+                phase_cycles = self._beat_runtime.vinyl_phase_cycles_at(
+                    self._playhead_tick,
+                    fallback_spin_seconds=props["spin_seconds"],
+                    beats_per_rotation=props["beats_per_rotation"],
+                    min_confidence=props["bpm_sync_min_confidence"],
+                )
+            angle = phase_cycles * math.tau
             edge = QPointF(
                 disc.center().x() + math.cos(angle) * size * 0.42,
                 disc.center().y() + math.sin(angle) * size * 0.42,
