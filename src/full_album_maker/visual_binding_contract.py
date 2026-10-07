@@ -28,6 +28,18 @@ class CoreBeatPreset(str, Enum):
     ONSET_FLASH = "onset_flash"
     ROTATION_NUDGE = "rotation_nudge"
     ENERGY_BREATHE = "energy_breathe"
+    BEAT_ZOOM = "beat_zoom"
+    BASS_ZOOM = "bass_zoom"
+    GLOW_PUMP = "glow_pump"
+    BASS_GLOW = "bass_glow"
+    STRONG_GLOW = "strong_glow"
+    BEAT_TILT = "beat_tilt"
+    BASS_TILT = "bass_tilt"
+    ENERGY_ZOOM = "energy_zoom"
+    ENERGY_GLOW = "energy_glow"
+    CLUB_PUNCH = "club_punch"
+    BASS_PUNCH = "bass_punch"
+    CINEMATIC_SWELL = "cinematic_swell"
 
 
 _PROPERTY_AMOUNT_BOUNDS: dict[VisualProperty, tuple[float, float]] = {
