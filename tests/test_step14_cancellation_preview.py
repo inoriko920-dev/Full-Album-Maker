@@ -152,3 +152,18 @@ def test_preview_runtime_cache_clear_forces_rebuild(monkeypatch,tmp_path):
     service.clear_beat_runtime_cache()
     service._runtime_for(doc)
     assert len(built)==2
+
+
+def test_backend_releases_pcm_file_handle_after_success(tmp_path):
+    pcm=tmp_path/"releasable.f32"
+    # Long enough for normal memmap-backed analysis path.
+    samples=np.zeros(24000*2,dtype="<f4")
+    for start in range(0,len(samples),12000):
+        end=min(len(samples),start+180)
+        samples[start:end]=np.hanning((end-start)*2)[:end-start]
+    samples.tofile(pcm)
+    backend.analyze_pcm(pcm,AnalyzerSettings(),block_frames=64)
+    # This is the important Windows regression: an open memmap would raise
+    # WinError 32 here.
+    pcm.unlink()
+    assert not pcm.exists()
