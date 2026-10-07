@@ -24,6 +24,7 @@ class BeatRenderControl:
     scale_filter: str | None
     rotate_filter: str | None
     glow_filter: str | None
+    overlay_filter: str
     overlay_x_expr: str
     overlay_y_expr: str
     command_rows: int
@@ -87,8 +88,6 @@ def build_beat_render_control(
     props = _properties(runtime, layer.layer_id)
     unsupported = props & {
         VisualProperty.OPACITY_MULTIPLIER,
-        VisualProperty.X_OFFSET_NORMALIZED,
-        VisualProperty.Y_OFFSET_NORMALIZED,
     }
     if unsupported:
         names=", ".join(sorted(p.value for p in unsupported))
@@ -125,6 +124,7 @@ def build_beat_render_control(
     scale_name=f"scale@beat_size_{token}" if props & {VisualProperty.SCALE_MULTIPLIER,VisualProperty.ZOOM_MULTIPLIER} else None
     rotate_name=f"rotate@beat_rotate_{token}" if VisualProperty.ROTATION_OFFSET_DEG in props else None
     glow_name=f"eq@beat_glow_{token}" if VisualProperty.GLOW_AMOUNT in props else None
+    overlay_name=f"overlay@beat_overlay_{token}"
 
     pivot_project_x=float(layer.transform.x)+float(layer.transform.pivot_x)*float(layer.transform.width)
     pivot_project_y=float(layer.transform.y)+float(layer.transform.pivot_y)*float(layer.transform.height)
@@ -140,7 +140,9 @@ def build_beat_render_control(
         height=max(2,int(round(base_height*factor)))
         rotation=float(state.rotation_offset_deg)
         glow=float(state.glow_amount)
-        current=(width,height,round(rotation,7),round(glow,7))
+        x_offset=float(state.x_offset_normalized)
+        y_offset=float(state.y_offset_normalized)
+        current=(width,height,round(rotation,7),round(glow,7),round(x_offset,9),round(y_offset,9))
         if current==last:
             continue
         ts=tick/TIMEBASE
@@ -154,6 +156,12 @@ def build_beat_render_control(
             saturation=max(0.0,min(3.0,1.0+0.15*glow))
             rows.append(f"{ts:.6f} {glow_name} brightness {brightness:.8f};")
             rows.append(f"{ts:.6f} {glow_name} saturation {saturation:.8f};")
+        if VisualProperty.X_OFFSET_NORMALIZED in props and (last is None or current[4]!=last[4]):
+            x_command=f"({pivot_project_x:.10f}*main_w)-({float(layer.transform.pivot_x):.10f}*overlay_w)+({x_offset:.10f}*main_w)"
+            rows.append(f"{ts:.6f} {overlay_name} x {x_command};")
+        if VisualProperty.Y_OFFSET_NORMALIZED in props and (last is None or current[5]!=last[5]):
+            y_command=f"({pivot_project_y:.10f}*main_h)-({float(layer.transform.pivot_y):.10f}*overlay_h)+({y_offset:.10f}*main_h)"
+            rows.append(f"{ts:.6f} {overlay_name} y {y_command};")
         if len(rows)>MAX_COMMAND_ROWS:
             raise BeatRenderControlError("Beat render command melebihi batas aman 250000 rows.")
         last=current
@@ -170,6 +178,7 @@ def build_beat_render_control(
         scale_filter=scale_name,
         rotate_filter=rotate_name,
         glow_filter=glow_name,
+        overlay_filter=overlay_name,
         overlay_x_expr=x_expr,
         overlay_y_expr=y_expr,
         command_rows=len(rows),
