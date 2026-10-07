@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-06-visual
+      - ui/ui05-visual-remediation-v160
   workflow_dispatch:
 
 permissions:
