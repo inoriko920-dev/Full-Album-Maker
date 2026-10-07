@@ -326,7 +326,19 @@ def build_agent_context_snapshot(
                 {
                     "id": motion.value,
                     "label": definition.label,
-                    "aliases": [definition.label, motion.value.replace("_", " ")],
+                    "aliases": [
+                        definition.label,
+                        motion.value.replace("_", " "),
+                        *(
+                            ["spark"] if motion.value == "spark_burst" else
+                            ["shake"] if motion.value == "camera_shake" else
+                            ["wobble"] if motion.value == "alternating_wobble" else
+                            ["sway"] if motion.value == "bass_sway" else
+                            ["bounce"] if motion.value == "beat_bounce" else
+                            ["four way kick"] if motion.value == "four_way_kick" else
+                            []
+                        ),
+                    ],
                     "recommended_intensity": float(definition.recommended_intensity),
                 }
                 for motion, definition in MOTION_PRESET_CATALOG.items()
