@@ -24,8 +24,8 @@ jobs:
     runs-on: windows-2025
     env:
       EXPECTED_VERSION: "1.6.0"
-      EXPECTED_MAIN_SHA: "584c94774e6197ecf60ecedb3bffd5a8797e7737"
-      RC_LABEL: "RC1"
+      EXPECTED_MAIN_SHA: "0e8e8a107415cd00e5dd458a166356854013f080"
+      RC_LABEL: "RC2"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

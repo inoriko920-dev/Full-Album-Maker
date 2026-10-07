@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-04-album
+      - ui/ui03-album-remediation-v150
   workflow_dispatch:
 
 permissions:
@@ -50,7 +51,8 @@ jobs:
             tests/test_step04_album_model.py \
             tests/test_step04_album_ui.py \
             tests/test_step04_album_integration.py \
-            tests/test_step04_album_acceptance.py
+            tests/test_step04_album_acceptance.py \
+            tests/test_ui03_album_remediation.py
       - name: Run STEP03 regressions
         run: |
           python -m pytest -q \
@@ -92,8 +94,8 @@ jobs:
           assert main['workspace'] == 'album' and main['album_active'] is True, main
           assert main['context_visible'] is True and main['inspector_active'] is True, main
           assert main['timeline_visible'] is True, main
-          assert main['context_width'] in range(254, 275), main
-          assert main['right_dock_width'] in range(338, 359), main
+          assert main['context_width'] in range(292, 303), main
+          assert main['right_dock_width'] in range(304, 315), main
           assert main['timeline_height'] in range(184, 205), main
           assert main['status_height'] in range(26, 31), main
           assert main['table_rows'] == 10, main
@@ -113,7 +115,8 @@ jobs:
           compact = geometry('album-1366-final')
           assert compact['window'] == [1366, 768] and compact['album_active'] is True, compact
           assert compact['table_rows'] == 10 and compact['selected_count'] == 12, compact
-          assert compact['right_dock_width'] in range(290, 311), compact
+          assert compact['context_width'] in range(210, 223), compact
+          assert compact['right_dock_width'] in range(280, 293), compact
           print('STEP04_ALBUM_GEOMETRY_PASS')
           PY
       - name: Verify immutable Album golden and build overlay when available
