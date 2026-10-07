@@ -15,6 +15,11 @@ from PySide6.QtWidgets import (
 from .beat_animation_assignment import assignment_for_layer
 from .beat_layer_capabilities import beat_capability_for_layer
 from .beat_preset_catalog import preset_label
+from .advanced_motion_contract import (
+    AdvancedMotionPreset,
+    motion_label,
+    motion_supported_for_layer,
+)
 from .visual_binding_contract import CoreBeatPreset
 from .editor_models import Layer, TIMEBASE, Transform
 from .spectrum_feature import SPECTRUM_CAPABILITIES, SPECTRUM_PRESETS
@@ -199,13 +204,25 @@ class PropertyInspector(QWidget):
         self.beat_preset = QComboBox()
         self.beat_intensity = self._spin(0.0, 200.0, 5.0, 0)
         self.beat_intensity.setSuffix(" %")
+        self.beat_motion = QComboBox()
+        self.beat_motion_intensity = self._spin(0.0, 200.0, 5.0, 0)
+        self.beat_motion_intensity.setSuffix(" %")
         self.beat_status = QLabel("")
         self.beat_status.setStyleSheet("font-size:10px;color:#55708F;")
         self.form.addRow("Beat Animation", self.beat_enabled)
         self.form.addRow("Preset Beat", self.beat_preset)
         self.form.addRow("Intensity", self.beat_intensity)
+        self.form.addRow("Motion", self.beat_motion)
+        self.form.addRow("Motion Intensity", self.beat_motion_intensity)
         self.form.addRow("", self.beat_status)
-        self._beat_controls = (self.beat_enabled, self.beat_preset, self.beat_intensity, self.beat_status)
+        self._beat_controls = (
+            self.beat_enabled,
+            self.beat_preset,
+            self.beat_intensity,
+            self.beat_motion,
+            self.beat_motion_intensity,
+            self.beat_status,
+        )
 
         root.addStretch(1)
 
@@ -246,6 +263,8 @@ class PropertyInspector(QWidget):
         self.beat_enabled.toggled.connect(self._emit_beat_animation)
         self.beat_preset.activated.connect(lambda _index=0: self._emit_beat_animation())
         self.beat_intensity.editingFinished.connect(self._emit_beat_animation)
+        self.beat_motion.activated.connect(lambda _index=0: self._emit_beat_animation())
+        self.beat_motion_intensity.editingFinished.connect(self._emit_beat_animation)
         self.set_layer(None)
 
     @staticmethod
@@ -436,6 +455,15 @@ class PropertyInspector(QWidget):
                     self.beat_preset.setCurrentIndex(max(0, index))
                 self.beat_enabled.setChecked(assignment is not None)
                 self.beat_intensity.setValue((assignment.intensity if assignment else 1.0) * 100.0)
+                self.beat_motion.clear()
+                self.beat_motion.addItem("Tidak Ada", "none")
+                for motion in AdvancedMotionPreset:
+                    if motion_supported_for_layer(layer, motion):
+                        self.beat_motion.addItem(motion_label(motion), motion.value)
+                selected_motion = assignment.motion_preset.value if assignment and assignment.motion_preset is not None else "none"
+                motion_index = self.beat_motion.findData(selected_motion)
+                self.beat_motion.setCurrentIndex(max(0, motion_index))
+                self.beat_motion_intensity.setValue((assignment.motion_intensity if assignment else 1.0) * 100.0)
                 self.beat_status.setText(f"Render: {beat_capability.final_render_level.value}")
                 for control in self._beat_controls:
                     control.setEnabled(not layer.locked)
@@ -460,10 +488,13 @@ class PropertyInspector(QWidget):
             return
         if not presets:
             return
+        motion_data = self.beat_motion.currentData()
         payload = {
             "enabled": True,
             "presets": presets,
             "intensity": float(self.beat_intensity.value()) / 100.0,
+            "motion_preset": None if motion_data in {None, "", "none"} else str(motion_data),
+            "motion_intensity": float(self.beat_motion_intensity.value()) / 100.0,
         }
         self.beatAnimationEdited.emit(self._layer_id, payload)
 
