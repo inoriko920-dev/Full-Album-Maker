@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-09-ai-agent
+      - ui/ui08-ai-agent-remediation-v160
   workflow_dispatch:
 
 permissions:
