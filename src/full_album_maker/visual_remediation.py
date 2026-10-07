@@ -683,6 +683,9 @@ def _apply_visual_geometry(window) -> None:
     shell.context.setMinimumWidth(context)
     shell.context.setMaximumWidth(context)
     if not shell.inspector.collapsed:
+        # InspectorDockHost may reapply its remembered expanded width after
+        # route/layout events. Own that remembered width while UI-05 is active.
+        shell.inspector._expanded_width = right
         shell.inspector.setMinimumWidth(right)
         shell.inspector.setMaximumWidth(right)
     shell.horizontal_splitter.setSizes([nav, context, center, right])
@@ -722,9 +725,19 @@ def _window_route(self, route: str) -> None:
         if not getattr(self, "_ui05_seek_connected", False):
             self.visual_workspace_s06.ui05_progress.sliderMoved.connect(lambda value: _seek_from_slider(self, value))
             self._ui05_seek_connected = True
-    elif route != "timeline":
+    else:
         self._ui05_timeline_panel.hide()
-        host.body.setVisible(not host.collapsed)
+        if route != "timeline":
+            host.body.setVisible(not host.collapsed)
+
+        # Return inspector sizing ownership to the previous remediation layer.
+        compact = bool(getattr(self.foundation_shell, "_responsive_compact", False))
+        if route == "timeline":
+            restored = 286 if compact else TOKENS.right_dock_width
+        else:
+            restored = TOKENS.right_dock_compact_width if compact else TOKENS.right_dock_width
+        self.foundation_shell.inspector._expanded_width = restored
+        self.foundation_shell._apply_shell_sizes(route)
 
 
 def _shell_workspace(self, route: str) -> None:
