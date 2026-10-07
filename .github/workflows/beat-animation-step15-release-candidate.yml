@@ -6,12 +6,11 @@ on:
     branches:
       - feature/beat-animation-engine-v2
     paths:
-      - "src/full_album_maker/__init__.py"
-      - "src/full_album_maker/main.py"
-      - "src/full_album_maker/release_beat_export_smoke.py"
+      - "src/full_album_maker/**"
+      - "tests/**"
       - "pyproject.toml"
-      - "build/requirements-windows.lock"
-      - "build/write_release_capabilities.py"
+      - "build/**"
+      - "tools/**"
       - "THIRD_PARTY_NOTICES.md"
       - "docs/RELEASE_NOTES_v1.6.0.md"
       - ".github/workflows/build-windows-portable.yml"
