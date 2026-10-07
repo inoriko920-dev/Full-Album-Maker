@@ -36,5 +36,7 @@
 
 - `STEP15_WINDOWS_PORTABLE_FINAL_RELEASE_CANDIDATE_GATE_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `270ca1b69b22352e4711a864c11e850ca2f9118fde51cb66f755ab0346e29e6a`
 
+- `STEP15_FINAL_RELEASE_CANDIDATE_GO_REPORT_FULL_ALBUM_MAKER_2026-10-07.md` — final gate **GO**, RC source `ccbd8f3a9d2b5b98942e0bfd939c464c7cb4db5a`, 955 tests PASS, artifact ID `11481790505`.
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
