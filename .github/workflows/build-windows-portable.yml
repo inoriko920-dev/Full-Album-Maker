@@ -39,6 +39,7 @@ jobs:
         run: |
           python -m pip install pip==26.2.1
           python -m pip install -r build/requirements-windows.lock
+          python -m pip check
 
       - name: Download pinned FFmpeg and portable font assets
         shell: pwsh
@@ -88,6 +89,7 @@ jobs:
         run: |
           ffmpeg -version
           ffprobe -version
+          python -m compileall -q src
           python -m pytest -q
 
       - name: Prepare Windows icon
@@ -168,6 +170,16 @@ jobs:
             if ($smokeProcess.ExitCode -ne 0) {
               throw "Portable smoke keluar dengan kode $($smokeProcess.ExitCode)."
             }
+
+            $beatRuntime = Start-Process -FilePath $app.FullName -ArgumentList "--beat-runtime-smoke" -Wait -PassThru
+            if ($beatRuntime.ExitCode -ne 0) {
+              throw "Beat runtime smoke keluar dengan kode $($beatRuntime.ExitCode)."
+            }
+
+            $beatExport = Start-Process -FilePath $app.FullName -ArgumentList "--beat-export-smoke" -Wait -PassThru
+            if ($beatExport.ExitCode -ne 0) {
+              throw "Beat export smoke keluar dengan kode $($beatExport.ExitCode)."
+            }
           }
           finally {
             $env:PATH = $oldPath
@@ -185,6 +197,19 @@ jobs:
           }
           if ($smoke.gui_title -notlike "*v$env:APP_VERSION*") {
             throw "GUI portable tidak menampilkan versi release $env:APP_VERSION. Title: $($smoke.gui_title)"
+          }
+
+          $beatReport = Join-Path $app.DirectoryName "temp\beat-export-smoke.json"
+          if (-not (Test-Path $beatReport)) { throw "beat-export-smoke.json tidak dibuat." }
+          $beat = Get-Content $beatReport -Raw | ConvertFrom-Json
+          if (-not $beat.ok -or $beat.api_key_present) {
+            throw "Beat V2 portable export smoke gagal atau mendeteksi API key."
+          }
+          if ($beat.output_streams -notcontains "audio" -or $beat.output_streams -notcontains "video") {
+            throw "Beat V2 smoke output belum terverifikasi audio+video."
+          }
+          if ($beat.trigger_count -le 0 -or $beat.cover_scale_at_beat -le 1.0 -or $beat.spectrum_glow_at_onset -le 0) {
+            throw "Beat V2 smoke tidak membuktikan signal visual aktif."
           }
 
       # actions/upload-artifact v7.0.1 — Node 24, pinned by full commit SHA.
