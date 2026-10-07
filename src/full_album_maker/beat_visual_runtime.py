@@ -259,6 +259,19 @@ def apply_beat_snapshot(
     if tick < 0:
         raise ValueError("tick must be non-negative")
     for layer in snapshot.layers:
+        layer.properties = dict(layer.properties)
+        if layer.type == "vinyl" and bool(layer.properties.get("bpm_sync", False)):
+            fallback = float(layer.properties.get("spin_seconds", 8.0))
+            bpr = float(layer.properties.get("beats_per_rotation", 4.0))
+            min_conf = float(layer.properties.get("bpm_sync_min_confidence", 0.55))
+            layer.properties["_beat_snapshot_vinyl_phase_cycles"] = float(
+                runtime.vinyl_phase_cycles_at(
+                    tick,
+                    fallback_spin_seconds=fallback,
+                    beats_per_rotation=bpr,
+                    min_confidence=min_conf,
+                )
+            )
         if not runtime.has_layer(layer.layer_id):
             continue
         effective, state = runtime.effective_for_layer(layer, tick, render_geometry=True)
@@ -272,7 +285,6 @@ def apply_beat_snapshot(
             pivot_y=effective.pivot_y,
         )
         layer.opacity = effective.opacity
-        layer.properties = dict(layer.properties)
         layer.properties["_beat_snapshot_glow"] = float(state.glow_amount)
         if layer.type in {"text", "song_title"}:
             layer.properties["_beat_snapshot_font_scale"] = float(state.scale_multiplier)
