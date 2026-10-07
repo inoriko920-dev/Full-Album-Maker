@@ -37,7 +37,7 @@ def _audio(path: Path, duration=1.0):
 def _image(path: Path):
     subprocess.run([
         _ffmpeg(),"-y","-hide_banner","-loglevel","error",
-        "-f","lavfi","-i","color=c=#c03030:s=320x180:d=0.1",
+        "-f","lavfi","-i","color=c=#c03030:s=320x240:d=0.1",
         "-frames:v","1",str(path),
     ],check=True)
     return path
@@ -45,8 +45,8 @@ def _image(path: Path):
 
 def _doc(tmp_path: Path, *, real_audio=False):
     doc=ProjectDocument.new_empty("STEP09 real")
-    doc.canvas.width=320; doc.canvas.height=180
-    doc.canvas.fps_num=20; doc.canvas.fps_den=1
+    doc.canvas.width=320; doc.canvas.height=240
+    doc.canvas.fps_num=30; doc.canvas.fps_den=1
     duration=TIMEBASE
     audio_path=tmp_path/"song.wav" if real_audio else tmp_path/"unused.wav"
     if real_audio:
