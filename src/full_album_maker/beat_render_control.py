@@ -177,6 +177,9 @@ def build_beat_render_control(
         work_dir=work_dir,
         stream_key=stream_key,
     )
+    total_rows=len(rows)+(spark_control.command_rows if spark_control is not None else 0)
+    if total_rows>MAX_COMMAND_ROWS:
+        raise BeatRenderControlError("Beat + Spark command melebihi batas aman 250000 rows.")
     if not rows and spark_control is None:
         return None
     work=Path(work_dir); work.mkdir(parents=True,exist_ok=True)
@@ -192,7 +195,7 @@ def build_beat_render_control(
         overlay_filter=overlay_name,
         overlay_x_expr=x_expr,
         overlay_y_expr=y_expr,
-        command_rows=len(rows) + (spark_control.command_rows if spark_control is not None else 0),
+        command_rows=total_rows,
         spark_filter_suffix=spark_control.filter_suffix if spark_control is not None else "",
     )
 
