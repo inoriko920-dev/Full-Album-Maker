@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-08-spectrum
+      - ui/ui07-spectrum-remediation-v160
   workflow_dispatch:
 
 permissions:
@@ -58,7 +59,8 @@ jobs:
           python -m pytest -q \
             tests/test_step08_spectrum_ui.py \
             tests/test_step08_spectrum_preview_async.py \
-            tests/test_step08_spectrum_failure.py
+            tests/test_step08_spectrum_failure.py \
+            tests/test_ui07_spectrum_remediation.py
       - name: Run recovered Spectrum regression
         run: |
           python -m pytest -q \
@@ -88,8 +90,13 @@ jobs:
       # Real audio analysis/capture comes after regression so installing Linux
       # FFmpeg cannot alter legacy tool-detection tests above.
       - name: Install FFmpeg for STEP08 real-audio evidence
+        timeout-minutes: 12
         run: |
-          sudo apt-get install -y ffmpeg
+          if command -v ffmpeg >/dev/null 2>&1; then
+            echo "Using runner FFmpeg: $(command -v ffmpeg)"
+          else
+            sudo apt-get install -y -o Acquire::Retries=5 ffmpeg
+          fi
           ffmpeg -version | head -n 1
       - name: Capture deterministic STEP08 Spectrum evidence
         run: |
@@ -117,8 +124,8 @@ jobs:
           assert main['workspace'] == 'spectrum' and main['spectrum_active'] is True, main
           assert main['context_visible'] is True and main['inspector_active'] is True, main
           assert main['timeline_visible'] is True, main
-          assert main['context_width'] in range(254, 275), main
-          assert main['right_dock_width'] in range(338, 359), main
+          assert main['context_width'] in range(374, 395), main
+          assert main['right_dock_width'] in range(310, 331), main
           assert main['timeline_height'] in range(242, 263), main
           assert main['status_height'] in range(26, 31), main
           assert main['layer_count'] == 4 and main['spectrum_count'] == 1, main
