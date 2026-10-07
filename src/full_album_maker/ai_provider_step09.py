@@ -18,6 +18,7 @@ from .ai_agent_core_step09 import (
     deterministic_plan_id,
 )
 from .key_pool import GeminiKeyPool
+from .ai_beat_nlu_step11 import interpret_beat_prompt
 
 
 class AgentProviderError(RuntimeError):
@@ -96,6 +97,29 @@ def _build_plan(
     return plan
 
 
+def _beat_fast_path(
+    prompt: str,
+    context: AgentContextSnapshot,
+    *,
+    provider: str,
+) -> ProviderInterpretation | None:
+    decision = interpret_beat_prompt(prompt, context)
+    if decision is None:
+        return None
+    if decision.clarification:
+        return ProviderInterpretation(
+            message=decision.message or "Target Beat belum cukup jelas.",
+            clarification=decision.clarification,
+        )
+    if not decision.actions:
+        return None
+    plan = _build_plan(prompt, context, decision.actions, provider=provider)
+    return ProviderInterpretation(
+        message=decision.message or "Rencana Beat siap untuk Preview Diff.",
+        plan=plan,
+    )
+
+
 class MockStep09Provider:
     """Deterministic provider for golden tests and offline/manual QA.
 
@@ -112,6 +136,9 @@ class MockStep09Provider:
         context: AgentContextSnapshot,
     ) -> ProviderInterpretation:
         context.validate()
+        beat = _beat_fast_path(prompt, context, provider=self.provider_id)
+        if beat is not None:
+            return beat
         normalized = _normalize(prompt)
         required_terms = ("20", "visual", "slowmo", "0 5", "susun", "timeline")
         if not all(term in normalized for term in required_terms):
@@ -291,8 +318,59 @@ STEP09_GEMINI_TOOLS: tuple[dict[str, Any], ...] = (
     },
 )
 
+STEP11_BEAT_GEMINI_TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "set_beat_preset",
+        "description": "Terapkan satu preset Beat yang terdaftar di beat_context ke layer_id yang diizinkan.",
+        "parameters": _obj(
+            {
+                "layer_ids": {"type": "array", "items": {"type": "string"}},
+                "preset_id": {"type": "string"},
+                "intensity": {"type": "number", "minimum": 0.0, "maximum": 2.0},
+            },
+            ("layer_ids", "preset_id", "intensity"),
+        ),
+    },
+    {
+        "name": "adjust_beat_intensity",
+        "description": "Ubah intensity relatif tanpa mengganti preset Beat yang sudah aktif.",
+        "parameters": _obj(
+            {
+                "layer_ids": {"type": "array", "items": {"type": "string"}},
+                "delta": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+            },
+            ("layer_ids", "delta"),
+        ),
+    },
+    {
+        "name": "clear_beat_animation",
+        "description": "Nonaktifkan Beat Animation pada layer target tanpa mengubah BPM Sync Vinyl.",
+        "parameters": _obj(
+            {"layer_ids": {"type": "array", "items": {"type": "string"}}},
+            ("layer_ids",),
+        ),
+    },
+    {
+        "name": "apply_music_style",
+        "description": "Terapkan satu Music Style yang terdaftar pada beat_context ke project.",
+        "parameters": _obj({"style_id": {"type": "string"}}, ("style_id",)),
+    },
+    {
+        "name": "set_vinyl_bpm_sync",
+        "description": "Aktif/nonaktifkan sinkronisasi Vinyl ke tempo lagu pada layer Vinyl target.",
+        "parameters": _obj(
+            {
+                "layer_ids": {"type": "array", "items": {"type": "string"}},
+                "enabled": {"type": "boolean"},
+                "beats_per_rotation": {"type": "number", "enum": [1, 2, 4, 8]},
+            },
+            ("layer_ids", "enabled", "beats_per_rotation"),
+        ),
+    },
+)
 
-STEP09_GEMINI_SYSTEM = """Kamu adalah intent planner untuk AI Agent Full Album Maker STEP09.
+
+STEP09_GEMINI_SYSTEM = """Kamu adalah intent planner untuk AI Agent Full Album Maker STEP11.
 Bahasa utama Indonesia. Tugasmu hanya menerjemahkan instruksi pengguna menjadi function call dari daftar tool yang diberikan.
 
 Aturan keras:
@@ -306,6 +384,12 @@ Aturan keras:
 8. Jangan pernah meminta/menampilkan API key, file path, shell command, arbitrary code, render, atau save-template.
 9. Bila ada beberapa aksi, keluarkan semua function call dalam urutan dependency logis: assignment sebelum speed, setting sebelum Auto Susun.
 10. Jika tidak ada aksi aman yang dapat dibentuk, balas teks klarifikasi tanpa function call.
+11. Beat Animation hanya boleh memakai preset/style/layer_id dari beat_context.
+12. Permintaan genre seperti EDM, Dangdut Remix, Hip-Hop, Chill, atau Cinematic harus memakai apply_music_style, bukan meniru recipe manual.
+13. Preset eksplisit memakai set_beat_preset. Permintaan hanya "lebih kuat/lembut" memakai adjust_beat_intensity tanpa mengganti preset.
+14. Sinkronisasi Vinyl ke BPM memakai set_vinyl_bpm_sync; default 4 beat per putaran bila user tidak menentukan.
+15. Untuk action layer-spesifik, prioritaskan selected Beat layer. Jika tidak ada target unik dan user tidak mengatakan semua/seluruh, tanyakan klarifikasi.
+16. Jangan pernah membuat BPM, beat timestamp, envelope, atau hasil analyzer; Agent hanya mengubah konfigurasi registry-backed.
 """
 
 
@@ -330,6 +414,9 @@ class GeminiStep09Provider:
         context: AgentContextSnapshot,
     ) -> ProviderInterpretation:
         context.validate()
+        beat = _beat_fast_path(prompt, context, provider="local-beat")
+        if beat is not None:
+            return beat
         payload = {
             "systemInstruction": {
                 "parts": [
@@ -341,7 +428,7 @@ class GeminiStep09Provider:
                 ]
             },
             "contents": [{"role": "user", "parts": [{"text": str(prompt)[:4000]}]}],
-            "tools": [{"functionDeclarations": list(STEP09_GEMINI_TOOLS)}],
+            "tools": [{"functionDeclarations": list(STEP09_GEMINI_TOOLS + STEP11_BEAT_GEMINI_TOOLS)}],
         }
         response = self.pool.request_json(self._url(), payload)
         candidates = response.get("candidates") or []
