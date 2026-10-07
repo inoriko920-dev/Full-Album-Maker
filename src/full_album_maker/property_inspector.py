@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from .beat_animation_assignment import assignment_for_layer
 from .beat_layer_capabilities import beat_capability_for_layer
+from .beat_preset_catalog import preset_label
 from .visual_binding_contract import CoreBeatPreset
 from .editor_models import Layer, TIMEBASE, Transform
 from .spectrum_feature import SPECTRUM_CAPABILITIES, SPECTRUM_PRESETS
@@ -144,15 +145,23 @@ class PropertyInspector(QWidget):
         self.vinyl_center_ratio = self._spin(0.05, 0.45, 0.01, 2)
         self.vinyl_groove_color = QLineEdit()
         self.vinyl_center_color = QLineEdit()
+        self.vinyl_bpm_sync = QCheckBox("Sinkron ke tempo lagu")
+        self.vinyl_beats_per_rotation = QComboBox()
+        for label, value in (("1 beat", 1.0), ("2 beat", 2.0), ("4 beat", 4.0), ("8 beat", 8.0)):
+            self.vinyl_beats_per_rotation.addItem(label, value)
         self.form.addRow("Putaran (detik)", self.vinyl_spin)
         self.form.addRow("Label Tengah", self.vinyl_center_ratio)
         self.form.addRow("Warna Groove", self.vinyl_groove_color)
         self.form.addRow("Warna Label", self.vinyl_center_color)
+        self.form.addRow("BPM Sync", self.vinyl_bpm_sync)
+        self.form.addRow("Beat / Putaran", self.vinyl_beats_per_rotation)
         self._vinyl_controls = (
             self.vinyl_spin,
             self.vinyl_center_ratio,
             self.vinyl_groove_color,
             self.vinyl_center_color,
+            self.vinyl_bpm_sync,
+            self.vinyl_beats_per_rotation,
         )
 
         self.playlist_max_items = self._spin(1, 30, 1, 0)
@@ -223,6 +232,8 @@ class PropertyInspector(QWidget):
         self.vinyl_center_ratio.editingFinished.connect(lambda: self._emit_property("center_ratio", self.vinyl_center_ratio.value()))
         self.vinyl_groove_color.editingFinished.connect(lambda: self._emit_property("groove_color", self.vinyl_groove_color.text()))
         self.vinyl_center_color.editingFinished.connect(lambda: self._emit_property("center_color", self.vinyl_center_color.text()))
+        self.vinyl_bpm_sync.toggled.connect(lambda value: self._emit_property("bpm_sync", bool(value)))
+        self.vinyl_beats_per_rotation.activated.connect(lambda _index=0: self._emit_property("beats_per_rotation", float(self.vinyl_beats_per_rotation.currentData())))
         self.playlist_max_items.editingFinished.connect(lambda: self._emit_property("max_items", int(self.playlist_max_items.value())))
         self.playlist_font_size.editingFinished.connect(lambda: self._emit_property("font_size", int(self.playlist_font_size.value())))
         self.playlist_active_color.editingFinished.connect(lambda: self._emit_property("active_color", self.playlist_active_color.text()))
@@ -389,6 +400,9 @@ class PropertyInspector(QWidget):
                 self.vinyl_center_ratio.setValue(float(layer.properties.get("center_ratio", 0.18)))
                 self.vinyl_groove_color.setText(str(layer.properties.get("groove_color", "#2d2d2d")))
                 self.vinyl_center_color.setText(str(layer.properties.get("center_color", "#d9d9d9")))
+                self.vinyl_bpm_sync.setChecked(bool(layer.properties.get("bpm_sync", False)))
+                index = self.vinyl_beats_per_rotation.findData(float(layer.properties.get("beats_per_rotation", 4.0)))
+                self.vinyl_beats_per_rotation.setCurrentIndex(max(0, index))
 
             if is_playlist:
                 self.playlist_max_items.setValue(int(layer.properties.get("max_items", 8)))
@@ -408,16 +422,8 @@ class PropertyInspector(QWidget):
                 assignment = assignment_for_layer(layer)
                 self._beat_existing_presets = tuple(p.value for p in assignment.presets) if assignment else ()
                 self.beat_preset.clear()
-                labels = {
-                    CoreBeatPreset.SUBTLE_BEAT_PULSE: "Beat Pulse",
-                    CoreBeatPreset.BASS_PULSE: "Bass Pulse",
-                    CoreBeatPreset.STRONG_PUNCH: "Strong Punch",
-                    CoreBeatPreset.ONSET_FLASH: "Onset Flash",
-                    CoreBeatPreset.ROTATION_NUDGE: "Rotation Nudge",
-                    CoreBeatPreset.ENERGY_BREATHE: "Energy Breathe",
-                }
                 for preset in beat_capability.supported_presets:
-                    self.beat_preset.addItem(labels[preset], preset.value)
+                    self.beat_preset.addItem(preset_label(preset), preset.value)
                 if assignment and len(assignment.presets) > 1:
                     self.beat_preset.insertItem(0, "Custom / Multi", "__multi__")
                     self.beat_preset.setCurrentIndex(0)
