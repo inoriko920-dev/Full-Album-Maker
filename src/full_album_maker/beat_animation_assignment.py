@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 from .editor_models import Layer
-from .visual_binding_contract import CoreBeatPreset, VisualBindingSet
+from .visual_binding_contract import CoreBeatPreset, VisualBinding, VisualBindingSet
 from .visual_binding_engine import combine_binding_sets, core_binding_set
 
 BEAT_ASSIGNMENT_KEY = "beat_v1"
@@ -13,6 +14,7 @@ BEAT_ASSIGNMENT_KEY = "beat_v1"
 class BeatAnimationAssignment:
     enabled: bool
     presets: tuple[CoreBeatPreset, ...]
+    intensity: float = 1.0
 
     def validate(self) -> None:
         if not isinstance(self.enabled, bool):
@@ -23,13 +25,31 @@ class BeatAnimationAssignment:
             raise ValueError("beat_v1 presets must be unique")
         if len(self.presets) > len(CoreBeatPreset):
             raise ValueError("too many beat_v1 presets")
+        value = float(self.intensity)
+        if not math.isfinite(value) or not 0.0 <= value <= 2.0:
+            raise ValueError("beat_v1.intensity must be in 0..2")
 
     def binding_set(self) -> VisualBindingSet:
         self.validate()
-        return combine_binding_sets(
+        base = combine_binding_sets(
             *(core_binding_set(preset) for preset in self.presets),
             binding_set_id="beat_v1:" + "+".join(p.value for p in self.presets),
         )
+        scaled = VisualBindingSet(
+            binding_set_id=f"{base.binding_set_id}:intensity={float(self.intensity):.6f}",
+            bindings=tuple(
+                VisualBinding(
+                    channel=binding.channel,
+                    property=binding.property,
+                    amount=float(binding.amount) * float(self.intensity),
+                    response_gamma=binding.response_gamma,
+                    min_signal=binding.min_signal,
+                )
+                for binding in base.bindings
+            ),
+        )
+        scaled.validate()
+        return scaled
 
 
 def assignment_for_layer(layer: Layer) -> BeatAnimationAssignment | None:
@@ -53,7 +73,11 @@ def assignment_for_layer(layer: Layer) -> BeatAnimationAssignment | None:
         except ValueError as exc:
             raise ValueError(f"unknown beat_v1 preset: {value}") from exc
         presets.append(preset)
-    result = BeatAnimationAssignment(True, tuple(presets))
+    try:
+        intensity = float(raw.get("intensity", 1.0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("beat_v1.intensity must be numeric") from exc
+    result = BeatAnimationAssignment(True, tuple(presets), intensity)
     result.validate()
     return result
 
