@@ -123,7 +123,8 @@ jobs:
           assert compact['workspace'] == 'ai_agent' and compact['ai_active'] is True, compact
           assert compact['conversation_visible'] is True and compact['context_dock_active'] is True, compact
           assert compact['timeline_visible'] is True, compact
-          assert compact['context_width'] in range(235, 256), compact\n          assert compact['right_dock_width'] in range(270, 291), compact
+          assert compact['context_width'] in range(235, 256), compact
+          assert compact['right_dock_width'] in range(270, 291), compact
           assert compact['state'] == 'PREVIEW_READY', compact
           assert compact['scope_song_count'] == 20, compact
           assert compact['visual_action_count'] == 20, compact
