@@ -34,5 +34,7 @@
 
 - `STEP14_FINAL_PERFORMANCE_RELIABILITY_HARDENING_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `32a58069c247528ac87d1614627ad235aa0c07dd43b3fb3006228b9798bef45d`
 
+- `STEP15_WINDOWS_PORTABLE_FINAL_RELEASE_CANDIDATE_GATE_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `270ca1b69b22352e4711a864c11e850ca2f9118fde51cb66f755ab0346e29e6a`
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
