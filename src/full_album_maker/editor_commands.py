@@ -99,6 +99,30 @@ class SetLayerProperty(EditorCommand):
 
 
 @dataclass
+class SetLayerAnimationValue(EditorCommand):
+    layer_id: str
+    key: str
+    value: Any
+    _missing: bool = False
+
+    def apply(self, document: ProjectDocument) -> EditorCommand:
+        layer = document.layer_map().get(self.layer_id)
+        if layer is None:
+            raise CommandError("Layer tidak ditemukan.")
+        if layer.locked:
+            raise CommandError("Layer terkunci tidak dapat diubah.")
+        if not isinstance(self.key, str) or not self.key.strip():
+            raise CommandError("Key animation tidak valid.")
+        missing = self.key not in layer.animation
+        old = deepcopy(layer.animation.get(self.key))
+        if self._missing:
+            layer.animation.pop(self.key, None)
+        else:
+            layer.animation[self.key] = deepcopy(self.value)
+        return SetLayerAnimationValue(self.layer_id, self.key, old, _missing=missing)
+
+
+@dataclass
 class MoveAbsoluteLayer(EditorCommand):
     layer_id: str
     start_tick: int
