@@ -10,6 +10,10 @@ from .editor_models import Layer, ProjectDocument, Transform
 from .music_event_engine import build_music_event_timeline
 from .music_event_projection import project_album_events
 from .animation_signal_engine import AnimationSignalEngine, build_animation_signal_program
+from .event_phase_modulator import EventPhaseEngine
+from .advanced_motion_contract import AdvancedMotionPreset
+from .advanced_motion_engine import AdvancedMotionEngine, merge_visual_and_motion
+from .spark_burst_engine import SparkBurstEngine
 from .timeline_resolver import TimelineResolver
 from .visual_binding_contract import VisualBindingSet, VisualPropertyState
 from .visual_binding_engine import VisualPropertyBindingEngine, apply_visual_state
@@ -37,6 +41,7 @@ class BeatRuntimeDiagnostics:
     beat_layers: int
     event_count: int
     trigger_count: int
+    motion_layers: int = 0
 
 
 class BeatVisualRuntime:
@@ -48,6 +53,7 @@ class BeatVisualRuntime:
         bindings_by_layer_id: dict[str, VisualBindingSet],
         diagnostics: BeatRuntimeDiagnostics,
         tempo_segments: tuple[TempoSegment, ...] = (),
+        motions_by_layer_id: dict[str, tuple[AdvancedMotionPreset, float]] | None = None,
     ) -> None:
         self.document_signature = document_signature
         self.duration_tick = int(duration_tick)
@@ -56,6 +62,18 @@ class BeatVisualRuntime:
         self._engines = {
             layer_id: VisualPropertyBindingEngine(signal_engine, binding_set)
             for layer_id, binding_set in bindings_by_layer_id.items()
+        }
+        self.phase_engine = EventPhaseEngine(signal_engine.program)
+        self.motions_by_layer_id = dict(motions_by_layer_id or {})
+        self._motion_engines = {
+            layer_id: AdvancedMotionEngine(signal_engine, self.phase_engine, preset, intensity)
+            for layer_id, (preset, intensity) in self.motions_by_layer_id.items()
+            if preset != AdvancedMotionPreset.SPARK_BURST
+        }
+        self._spark_engines = {
+            layer_id: SparkBurstEngine(self.phase_engine, intensity)
+            for layer_id, (preset, intensity) in self.motions_by_layer_id.items()
+            if preset == AdvancedMotionPreset.SPARK_BURST
         }
         self.diagnostics = diagnostics
         self.tempo_segments = tuple(tempo_segments)
@@ -109,7 +127,19 @@ class BeatVisualRuntime:
             engine = self._engines[layer_id]
         except KeyError as exc:
             raise KeyError(layer_id) from exc
-        return engine.state(tick)
+        state = engine.state(tick)
+        motion = self._motion_engines.get(layer_id)
+        if motion is not None:
+            state = merge_visual_and_motion(state, motion.state(tick))
+        return state
+
+    def particles_for_layer(self, layer_id: str, tick: int):
+        spark = self._spark_engines.get(layer_id)
+        return () if spark is None else spark.particles(tick)
+
+    def motion_preset_for_layer(self, layer_id: str) -> AdvancedMotionPreset | None:
+        value = self.motions_by_layer_id.get(layer_id)
+        return None if value is None else value[0]
 
     def effective_for_layer(self, layer: Layer, tick: int, *, render_geometry: bool = True):
         state = self.state_for_layer(layer.layer_id, tick)
@@ -228,15 +258,19 @@ def build_beat_visual_runtime(
 
     layer_map = snapshot.layer_map()
     bindings: dict[str, VisualBindingSet] = {}
+    motions: dict[str, tuple[AdvancedMotionPreset, float]] = {}
     for layer_id in layer_ids:
         assignment = assignment_for_layer(layer_map[layer_id])
         if assignment is not None:
             bindings[layer_id] = assignment.binding_set()
+            if assignment.motion_preset is not None:
+                motions[layer_id] = (assignment.motion_preset, float(assignment.motion_intensity))
     diagnostics = BeatRuntimeDiagnostics(
         analyzed_assets=len(analysis_results),
         beat_layers=len(bindings),
         event_count=len(projected),
         trigger_count=len(program.triggers),
+        motion_layers=len(motions),
     )
     return BeatVisualRuntime(
         snapshot.content_signature(),
@@ -245,6 +279,7 @@ def build_beat_visual_runtime(
         bindings,
         diagnostics,
         tempo_segments=tempo_segments,
+        motions_by_layer_id=motions,
     )
 
 
@@ -286,6 +321,17 @@ def apply_beat_snapshot(
         )
         layer.opacity = effective.opacity
         layer.properties["_beat_snapshot_glow"] = float(state.glow_amount)
+        particles = runtime.particles_for_layer(layer.layer_id, tick)
+        if particles:
+            layer.properties["_beat_snapshot_particles"] = [
+                {
+                    "x": float(item.x_offset_normalized),
+                    "y": float(item.y_offset_normalized),
+                    "size": float(item.size_normalized),
+                    "alpha": float(item.alpha),
+                }
+                for item in particles
+            ]
         if layer.type in {"text", "song_title"}:
             layer.properties["_beat_snapshot_font_scale"] = float(state.scale_multiplier)
         layer.animation = dict(layer.animation)
