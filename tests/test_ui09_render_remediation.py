@@ -83,8 +83,10 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert window.editor_workspace.document().content_signature() == signature
 
         print("UI09_RENDER_REMEDIATION_PASS", flush=True)
-        window._s10_async.close()
-        window._s09_async.close()
+        if getattr(window, "_s10_async", None) is not None:
+            window._s10_async.close()
+        if getattr(window, "_s09_async", None) is not None:
+            window._s09_async.close()
         window.hide()
         window.deleteLater()
         app.processEvents()
