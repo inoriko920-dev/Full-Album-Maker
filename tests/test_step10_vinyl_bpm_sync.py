@@ -7,8 +7,9 @@ import pytest
 from full_album_maker.album_visuals import make_vinyl_layer, normalize_visual_properties
 from full_album_maker.animation_signal_engine import AnimationSignalEngine, build_animation_signal_program
 from full_album_maker.audio_analysis_contract import AnalysisQuality, TempoSummary
-from full_album_maker.beat_visual_runtime import BeatRuntimeDiagnostics, BeatVisualRuntime, build_beat_visual_runtime
+from full_album_maker.beat_visual_runtime import BeatRuntimeDiagnostics, BeatVisualRuntime, apply_beat_snapshot, build_beat_visual_runtime
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
+from full_album_maker.spectrum_render_step08 import Step08FFmpegCompiler
 from full_album_maker.vinyl_bpm_sync import (
     TempoSegment,
     build_tempo_segments,
@@ -143,3 +144,23 @@ def test_invalid_latest_overlap_overrides_old_valid_tempo_with_fallback():
     # The newer invalid segment must be represented explicitly with fallback,
     # not skipped in a way that lets the older 120 BPM segment leak through.
     assert "if(between(T,2.000000000,4.000000000),(T/8.000000000)" in expr
+
+
+def test_accurate_snapshot_bakes_exact_bpm_phase(tmp_path):
+    doc,audio,song,vinyl=_doc()
+    program=build_animation_signal_program((),4*TIMEBASE)
+    runtime=BeatVisualRuntime(
+        doc.content_signature(),4*TIMEBASE,AnimationSignalEngine(program),{},
+        BeatRuntimeDiagnostics(1,0,0,0),
+        tempo_segments=(_segment(120,end=4*TIMEBASE,song=song.song_id),),
+    )
+    snap=apply_beat_snapshot(doc,runtime,TIMEBASE)
+    sl=snap.layer_map()[vinyl.layer_id]
+    assert sl.properties["_beat_snapshot_vinyl_phase_cycles"]==pytest.approx(.5)
+    assert "_beat_snapshot_vinyl_phase_cycles" not in doc.layer_map()[vinyl.layer_id].properties
+    compiled=Step08FFmpegCompiler("ffmpeg").compile_video(
+        snap,tmp_path/"out.mp4",tmp_path,include_audio=False
+    )
+    args=list(compiled.args)
+    graph=args[args.index("-filter_complex")+1]
+    assert "cos(2*PI*(0.500000000))" in graph
