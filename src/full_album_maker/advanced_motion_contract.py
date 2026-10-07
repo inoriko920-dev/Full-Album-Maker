@@ -42,7 +42,7 @@ class MotionPresetDefinition:
 
 
 MOTION_PRESET_CATALOG: dict[AdvancedMotionPreset, MotionPresetDefinition] = {
-    AdvancedMotionPreset.ALTERNATING_WOBBLE: MotionPresetDefinition(AdvancedMotionPreset.ALTERNATING_WOBBLE,"Alternating Wobble","strong_beat",.85,True),
+    AdvancedMotionPreset.ALTERNATING_WOBBLE: MotionPresetDefinition(AdvancedMotionPreset.ALTERNATING_WOBBLE,"Alternating Wobble","strong_beat",.85,False),
     AdvancedMotionPreset.BASS_SWAY: MotionPresetDefinition(AdvancedMotionPreset.BASS_SWAY,"Bass Sway","bass",.90,False),
     AdvancedMotionPreset.CAMERA_SHAKE: MotionPresetDefinition(AdvancedMotionPreset.CAMERA_SHAKE,"Camera Shake","strong_beat",.80,False),
     AdvancedMotionPreset.BEAT_BOUNCE: MotionPresetDefinition(AdvancedMotionPreset.BEAT_BOUNCE,"Beat Bounce","beat",.75,True),
