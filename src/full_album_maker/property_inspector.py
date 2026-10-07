@@ -12,6 +12,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .beat_animation_assignment import assignment_for_layer
+from .beat_layer_capabilities import beat_capability_for_layer
+from .visual_binding_contract import CoreBeatPreset
 from .editor_models import Layer, TIMEBASE, Transform
 from .spectrum_feature import SPECTRUM_CAPABILITIES, SPECTRUM_PRESETS
 
@@ -25,6 +28,7 @@ class PropertyInspector(QWidget):
     durationEdited = Signal(str, int)
     propertyEdited = Signal(str, str, object)
     spectrumPresetRequested = Signal(str, str)
+    beatAnimationEdited = Signal(str, object)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -33,6 +37,7 @@ class PropertyInspector(QWidget):
         self._layer_id = ""
         self._layer_type = ""
         self._updating = False
+        self._beat_existing_presets: tuple[str, ...] = ()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -181,6 +186,18 @@ class PropertyInspector(QWidget):
         self.form.addRow("Warna Dasar", self.progress_bg_color)
         self._progress_controls = (self.progress_mode, self.progress_fill_color, self.progress_bg_color)
 
+        self.beat_enabled = QCheckBox("Aktif")
+        self.beat_preset = QComboBox()
+        self.beat_intensity = self._spin(0.0, 200.0, 5.0, 0)
+        self.beat_intensity.setSuffix(" %")
+        self.beat_status = QLabel("")
+        self.beat_status.setStyleSheet("font-size:10px;color:#55708F;")
+        self.form.addRow("Beat Animation", self.beat_enabled)
+        self.form.addRow("Preset Beat", self.beat_preset)
+        self.form.addRow("Intensity", self.beat_intensity)
+        self.form.addRow("", self.beat_status)
+        self._beat_controls = (self.beat_enabled, self.beat_preset, self.beat_intensity, self.beat_status)
+
         root.addStretch(1)
 
         for spin in (self.x, self.y, self.w, self.h, self.rotation):
@@ -215,6 +232,9 @@ class PropertyInspector(QWidget):
         self.progress_mode.activated.connect(lambda: self._emit_property("mode", self.progress_mode.currentData()))
         self.progress_fill_color.editingFinished.connect(lambda: self._emit_property("fill_color", self.progress_fill_color.text()))
         self.progress_bg_color.editingFinished.connect(lambda: self._emit_property("background_color", self.progress_bg_color.text()))
+        self.beat_enabled.toggled.connect(self._emit_beat_animation)
+        self.beat_preset.activated.connect(lambda _index=0: self._emit_beat_animation())
+        self.beat_intensity.editingFinished.connect(self._emit_beat_animation)
         self.set_layer(None)
 
     @staticmethod
@@ -252,6 +272,7 @@ class PropertyInspector(QWidget):
             *self._vinyl_controls,
             *self._playlist_controls,
             *self._progress_controls,
+            *self._beat_controls,
         )
         controls = [
             self.enabled,
@@ -278,6 +299,7 @@ class PropertyInspector(QWidget):
             for control in special_controls:
                 self._set_field_visible(control, False)
             if layer is None:
+                self._beat_existing_presets = ()
                 return
 
             is_background = layer.type == "background"
@@ -289,6 +311,8 @@ class PropertyInspector(QWidget):
             is_playlist = layer.type == "playlist_visual"
             is_progress = layer.type == "progress"
             is_time = layer.type == "song_time"
+            beat_capability = beat_capability_for_layer(layer)
+            beat_supported = beat_capability.supported
             has_box_transform = layer.type in {
                 "background",
                 "spectrum",
@@ -316,6 +340,8 @@ class PropertyInspector(QWidget):
                 self._set_field_visible(control, is_playlist)
             for control in self._progress_controls:
                 self._set_field_visible(control, is_progress or is_time)
+            for control in self._beat_controls:
+                self._set_field_visible(control, beat_supported)
             self._set_field_visible(self.progress_fill_color, is_progress)
             self._set_field_visible(self.progress_bg_color, is_progress)
 
@@ -377,9 +403,63 @@ class PropertyInspector(QWidget):
             if is_progress:
                 self.progress_fill_color.setText(str(layer.properties.get("fill_color", "#ffffff")))
                 self.progress_bg_color.setText(str(layer.properties.get("background_color", "#49515c")))
+
+            if beat_supported:
+                assignment = assignment_for_layer(layer)
+                self._beat_existing_presets = tuple(p.value for p in assignment.presets) if assignment else ()
+                self.beat_preset.clear()
+                labels = {
+                    CoreBeatPreset.SUBTLE_BEAT_PULSE: "Beat Pulse",
+                    CoreBeatPreset.BASS_PULSE: "Bass Pulse",
+                    CoreBeatPreset.STRONG_PUNCH: "Strong Punch",
+                    CoreBeatPreset.ONSET_FLASH: "Onset Flash",
+                    CoreBeatPreset.ROTATION_NUDGE: "Rotation Nudge",
+                    CoreBeatPreset.ENERGY_BREATHE: "Energy Breathe",
+                }
+                for preset in beat_capability.supported_presets:
+                    self.beat_preset.addItem(labels[preset], preset.value)
+                if assignment and len(assignment.presets) > 1:
+                    self.beat_preset.insertItem(0, "Custom / Multi", "__multi__")
+                    self.beat_preset.setCurrentIndex(0)
+                elif assignment and assignment.presets:
+                    index = self.beat_preset.findData(assignment.presets[0].value)
+                    self.beat_preset.setCurrentIndex(max(0, index))
+                else:
+                    default_preset = CoreBeatPreset.STRONG_PUNCH
+                    index = self.beat_preset.findData(default_preset.value)
+                    self.beat_preset.setCurrentIndex(max(0, index))
+                self.beat_enabled.setChecked(assignment is not None)
+                self.beat_intensity.setValue((assignment.intensity if assignment else 1.0) * 100.0)
+                self.beat_status.setText(f"Render: {beat_capability.final_render_level.value}")
+                for control in self._beat_controls:
+                    control.setEnabled(not layer.locked)
+            else:
+                self._beat_existing_presets = ()
         finally:
             del blockers
             self._updating = False
+
+    def _emit_beat_animation(self, *_args) -> None:
+        if self._updating or not self._layer_id:
+            return
+        if not self.beat_enabled.isChecked():
+            self.beatAnimationEdited.emit(self._layer_id, None)
+            return
+        data = self.beat_preset.currentData()
+        if data == "__multi__":
+            presets = list(self._beat_existing_presets)
+        elif data:
+            presets = [str(data)]
+        else:
+            return
+        if not presets:
+            return
+        payload = {
+            "enabled": True,
+            "presets": presets,
+            "intensity": float(self.beat_intensity.value()) / 100.0,
+        }
+        self.beatAnimationEdited.emit(self._layer_id, payload)
 
     def _emit_transform(self) -> None:
         if self._updating or not self._layer_id:
