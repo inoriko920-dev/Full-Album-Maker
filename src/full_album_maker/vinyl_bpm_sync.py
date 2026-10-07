@@ -135,11 +135,14 @@ def vinyl_phase_expression(
     expr=f"(T/{fallback:.9f})"
     bpr=normalize_beats_per_rotation(beats_per_rotation)
     for segment in sorted(segments,key=lambda s:(s.start_tick,s.end_tick,s.song_id)):
-        if not _valid(segment,min_confidence):
-            continue
         start=segment.start_tick/TIMEBASE
         end=segment.end_tick/TIMEBASE
-        spin=synced_spin_seconds(segment.bpm,bpr)
-        phase=f"((T-{start:.9f})/{spin:.9f})"
+        if _valid(segment,min_confidence):
+            spin=synced_spin_seconds(segment.bpm,bpr)
+            phase=f"((T-{start:.9f})/{spin:.9f})"
+        else:
+            # Match vinyl_phase_cycles_at(): an invalid active tempo segment
+            # must fall back instead of leaking an older overlapping song BPM.
+            phase=f"(T/{fallback:.9f})"
         expr=f"if(between(T,{start:.9f},{end:.9f}),{phase},{expr})"
     return expr
