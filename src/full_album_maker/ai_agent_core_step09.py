@@ -327,6 +327,7 @@ def build_agent_context_snapshot(
                     "id": motion.value,
                     "label": definition.label,
                     "aliases": [definition.label, motion.value.replace("_", " ")],
+                    "recommended_intensity": float(definition.recommended_intensity),
                 }
                 for motion, definition in MOTION_PRESET_CATALOG.items()
             ],
