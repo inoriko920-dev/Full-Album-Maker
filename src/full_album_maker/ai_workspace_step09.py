@@ -31,6 +31,8 @@ from .foundation_components import FAMButton, FAMCard
 from .foundation_tokens import TOKENS
 from .beat_preset_catalog import preset_label
 from .music_style_presets import MUSIC_STYLE_CATALOG, MusicStylePreset
+from .advanced_motion_contract import motion_label
+from .beat_combo_catalog import BEAT_COMBO_CATALOG
 
 
 def _chip(text: str) -> QLabel:
@@ -343,10 +345,29 @@ class AITaskCanvas(QFrame):
                 enabled = bool(action.args.get("enabled", False))
                 bpr = float(action.args.get("beats_per_rotation", 4.0))
                 groups.append(("Vinyl BPM Sync", f"{'Aktif' if enabled else 'Nonaktif'} • {bpr:g} beat/putaran"))
+            elif action.name == "set_beat_motion":
+                motion_id = str(action.args.get("motion_preset", ""))
+                try:
+                    label = motion_label(motion_id)
+                except KeyError:
+                    label = motion_id or "?"
+                intensity = round(float(action.args.get("motion_intensity", 1.0)) * 100)
+                groups.append(("Motion Beat", f"{label} • {intensity}%"))
+            elif action.name == "adjust_motion_intensity":
+                delta = float(action.args.get("delta", 0.0))
+                groups.append(("Motion Intensity", f"{delta:+.0%}"))
+            elif action.name == "clear_beat_motion":
+                groups.append(("Motion Beat", "Nonaktifkan pada layer target"))
+            elif action.name == "apply_beat_combo":
+                combo_id = str(action.args.get("combo_id", ""))
+                label = BEAT_COMBO_CATALOG.get(combo_id).label if combo_id in BEAT_COMBO_CATALOG else (combo_id or "?")
+                groups.append(("Kombinasi Beat", label))
         known = {
             "set_song_visual", "set_song_video_speed", "auto_arrange_timeline",
             "apply_music_style", "set_beat_preset", "adjust_beat_intensity",
             "clear_beat_animation", "set_vinyl_bpm_sync",
+            "set_beat_motion", "adjust_motion_intensity",
+            "clear_beat_motion", "apply_beat_combo",
         }
         other = [action.name for action in plan.actions if action.name not in known]
         if other:
