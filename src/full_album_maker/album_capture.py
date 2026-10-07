@@ -14,7 +14,7 @@ from .foundation_tokens import TOKENS
 
 
 def _make_artwork(path: Path, seed: int, *, width: int = 160, height: int = 92) -> None:
-    from PySide6.QtCore import QPointF, QRectF
+    from PySide6.QtCore import QPointF, QRectF, Qt
     from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPen, QPolygonF
 
     palettes = (
