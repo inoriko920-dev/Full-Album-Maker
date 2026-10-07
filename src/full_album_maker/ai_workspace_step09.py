@@ -29,6 +29,8 @@ from .ai_history_step09 import AgentHistoryEntry, SavedAgentCommand
 from .ai_session_step09 import AgentSessionSnapshot
 from .foundation_components import FAMButton, FAMCard
 from .foundation_tokens import TOKENS
+from .beat_preset_catalog import preset_label
+from .music_style_presets import MUSIC_STYLE_CATALOG, MusicStylePreset
 
 
 def _chip(text: str) -> QLabel:
@@ -316,7 +318,36 @@ class AITaskCanvas(QFrame):
             groups.append(("Atur kecepatan visual", f"speed {speed.args.get('speed')}x melalui action contract Visual"))
         if any(action.name == "auto_arrange_timeline" for action in plan.actions):
             groups.append(("Susun timeline", "Auto Susun lokal melalui action whitelist"))
-        known = {"set_song_visual", "set_song_video_speed", "auto_arrange_timeline"}
+        for action in plan.actions:
+            if action.name == "apply_music_style":
+                style_id = str(action.args.get("style_id", ""))
+                try:
+                    label = MUSIC_STYLE_CATALOG[MusicStylePreset(style_id)].label
+                except (KeyError, ValueError):
+                    label = style_id or "?"
+                groups.append(("Gaya Beat", label))
+            elif action.name == "set_beat_preset":
+                preset_id = str(action.args.get("preset_id", ""))
+                try:
+                    label = preset_label(preset_id)
+                except KeyError:
+                    label = preset_id or "?"
+                intensity = round(float(action.args.get("intensity", 1.0)) * 100)
+                groups.append(("Beat Preset", f"{label} • {intensity}%"))
+            elif action.name == "adjust_beat_intensity":
+                delta = float(action.args.get("delta", 0.0))
+                groups.append(("Beat Intensity", f"{delta:+.0%}"))
+            elif action.name == "clear_beat_animation":
+                groups.append(("Beat Animation", "Nonaktifkan pada layer target"))
+            elif action.name == "set_vinyl_bpm_sync":
+                enabled = bool(action.args.get("enabled", False))
+                bpr = float(action.args.get("beats_per_rotation", 4.0))
+                groups.append(("Vinyl BPM Sync", f"{'Aktif' if enabled else 'Nonaktif'} • {bpr:g} beat/putaran"))
+        known = {
+            "set_song_visual", "set_song_video_speed", "auto_arrange_timeline",
+            "apply_music_style", "set_beat_preset", "adjust_beat_intensity",
+            "clear_beat_animation", "set_vinyl_bpm_sync",
+        }
         other = [action.name for action in plan.actions if action.name not in known]
         if other:
             groups.append(("Action tambahan", ", ".join(other[:8])))
@@ -405,6 +436,7 @@ class AIContextDock(QFrame):
             AgentPermission.PLAYLIST_WRITE.value: "Album / Playlist",
             AgentPermission.TEMPLATE_WRITE.value: "Template",
             AgentPermission.SPECTRUM_WRITE.value: "Spectrum",
+            AgentPermission.BEAT_WRITE.value: "Beat Animation",
         }
         for permission, label in labels.items():
             check = QCheckBox(label)
