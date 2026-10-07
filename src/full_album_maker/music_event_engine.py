@@ -199,16 +199,17 @@ def build_music_event_timeline(
 
     events: list[MusicEvent] = []
     if result.tempo.quality != AnalysisQuality.SILENT:
-        events.extend(
-            MusicEvent(
-                beat.tick,
-                MusicEventType.BEAT,
-                clamp_unit(beat.strength),
-                clamp_unit(beat.confidence),
-                "analysis.beat",
+        if result.tempo.quality in {AnalysisQuality.MEDIUM, AnalysisQuality.HIGH}:
+            events.extend(
+                MusicEvent(
+                    beat.tick,
+                    MusicEventType.BEAT,
+                    clamp_unit(beat.strength),
+                    clamp_unit(beat.confidence),
+                    "analysis.beat",
+                )
+                for beat in result.beats
             )
-            for beat in result.beats
-        )
         events.extend(
             MusicEvent(
                 onset.tick,
