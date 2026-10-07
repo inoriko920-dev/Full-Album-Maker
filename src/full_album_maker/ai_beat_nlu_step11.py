@@ -44,6 +44,7 @@ def _target_layers(
     context: AgentContextSnapshot,
     *,
     require_assignment: bool=False,
+    require_motion: bool=False,
     vinyl_only: bool=False,
     allow_all_explicit: bool=False,
     prompt_norm: str="",
@@ -58,6 +59,8 @@ def _target_layers(
         if vinyl_only and str(item.get("type",""))!="vinyl":
             continue
         if require_assignment and not item.get("current_presets"):
+            continue
+        if require_motion and not item.get("current_motion"):
             continue
         candidates.append(item)
 
@@ -108,6 +111,74 @@ def interpret_beat_prompt(prompt: str, context: AgentContextSnapshot) -> BeatNLU
     text=_norm(raw)
     if not text:
         return None
+
+    # STEP13 exact combination aliases take precedence over broad style/preset aliases.
+    combo_matches=[]
+    for alias,item in _aliases(beat.get("combo_catalog",[])):
+        if _contains_phrase(text,alias):
+            combo_matches.append((alias,item))
+    unique_combos={str(item.get("id","")):item for _alias,item in combo_matches if str(item.get("id",""))}
+    if len(unique_combos)==1 and any(word in text.split() for word in ("pakai","gunakan","terapkan","kombinasi")):
+        item=next(iter(unique_combos.values()))
+        ids,clarification=_target_layers(context,require_assignment=False,allow_all_explicit=True,prompt_norm=text)
+        if clarification:
+            return BeatNLUDecision(clarification=clarification,message="Target kombinasi Beat belum unik.")
+        action=AgentActionCall("apply_beat_combo",{"layer_ids":list(ids),"combo_id":str(item["id"])})
+        action.validate()
+        return BeatNLUDecision((action,),f"Kombinasi Beat {item.get('label',item['id'])} siap dipreview.")
+
+    # Explicit motion aliases.
+    motion_matches=[]
+    for alias,item in _aliases(beat.get("motion_catalog",[])):
+        if _contains_phrase(text,alias):
+            motion_matches.append((alias,item))
+    unique_motions={str(item.get("id","")):item for _alias,item in motion_matches if str(item.get("id",""))}
+
+    if ("motion" in text.split()) and any(word in text.split() for word in ("hapus","matikan","nonaktifkan")):
+        ids,clarification=_target_layers(context,require_assignment=True,require_motion=True,allow_all_explicit=True,prompt_norm=text)
+        if clarification:
+            return BeatNLUDecision(clarification=clarification,message="Target motion Beat belum unik.")
+        action=AgentActionCall("clear_beat_motion",{"layer_ids":list(ids)})
+        action.validate()
+        return BeatNLUDecision((action,),"Motion Beat akan dihapus tanpa mengubah visual Beat.")
+
+    motion_words={"motion","shake","wobble","sway","bounce","spark","kick","guncang","goyang"}
+    qualitative_motion=bool(motion_words.intersection(text.split()))
+    motion_delta=None
+    if qualitative_motion:
+        if "sedikit lebih kuat" in text:
+            motion_delta=.10
+        elif "jauh lebih kuat" in text or "sangat lebih kuat" in text:
+            motion_delta=.50
+        elif "lebih kuat" in text or "kuatkan" in text:
+            motion_delta=.25
+        elif "sedikit lebih lembut" in text or "sedikit lebih pelan" in text:
+            motion_delta=-.10
+        elif "lebih lembut" in text or "lebih pelan" in text:
+            motion_delta=-.25
+    if motion_delta is not None:
+        ids,clarification=_target_layers(context,require_assignment=True,require_motion=True,allow_all_explicit=True,prompt_norm=text)
+        if clarification:
+            return BeatNLUDecision(clarification=clarification,message="Target motion intensity belum unik.")
+        action=AgentActionCall("adjust_motion_intensity",{"layer_ids":list(ids),"delta":float(motion_delta)})
+        action.validate()
+        return BeatNLUDecision((action,),f"Motion intensity akan diubah {motion_delta:+.2f}.")
+
+    if len(unique_motions)==1 and (
+        any(word in text.split() for word in ("pakai","gunakan","terapkan","tambah","tambahkan"))
+        or "spark" in text.split()
+    ):
+        item=next(iter(unique_motions.values()))
+        ids,clarification=_target_layers(context,require_assignment=True,allow_all_explicit=True,prompt_norm=text)
+        if clarification:
+            return BeatNLUDecision(clarification=clarification,message="Target motion Beat belum unik.")
+        intensity=float(item.get("recommended_intensity",1.0))
+        action=AgentActionCall(
+            "set_beat_motion",
+            {"layer_ids":list(ids),"motion_preset":str(item["id"]),"motion_intensity":intensity},
+        )
+        action.validate()
+        return BeatNLUDecision((action,),f"Motion {item.get('label',item['id'])} siap dipreview.")
 
     # Explicit preset aliases are more specific than broad genre aliases.
     # Example: "Club Punch 120%" must not be reduced to Music Style "club".
