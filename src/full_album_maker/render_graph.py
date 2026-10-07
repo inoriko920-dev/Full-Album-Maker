@@ -266,6 +266,159 @@ class FFmpegV2Compiler:
                 except ValueError as exc:
                     raise RenderCompileError(str(exc)) from exc
             if layer.type == "background":
+                mode = str(
+                    layer.properties.get(
+                        "mode",
+                        "asset" if layer.asset_refs else "solid",
+                    )
+                )
+                if mode == "effect":
+                    try:
+                        normalize_effect_properties(layer.properties)
+                    except ValueError as exc:
+                        raise RenderCompileError(str(exc)) from exc
+                elif mode not in {"solid", "asset"}:
+                    raise RenderCompileError("Mode background harus solid/asset/effect.")
+            active_layers.append(layer)
+
+            if layer.type == "background":
+                mode = str(
+                    layer.properties.get(
+                        "mode",
+                        "asset" if layer.asset_refs else "solid",
+                    )
+                )
+                if mode in {"solid", "effect"}:
+                    continue
+                if not layer.asset_refs:
+                    raise RenderCompileError(
+                        "Background asset tidak memiliki referensi media."
+                    )
+                asset = assets.get(layer.asset_refs[0])
+                if asset is None or asset.kind not in {"image", "video"}:
+                    raise RenderCompileError("Background harus merujuk image/video.")
+                if asset.asset_id in media_input_index:
+                    continue
+                media_input_index[asset.asset_id] = next_input
+                next_input += 1
+                if asset.kind == "image":
+                    args += ["-loop", "1", "-i", asset.locator]
+                else:
+                    playback = str(layer.properties.get("playback", "loop"))
+                    if playback not in {"loop", "freeze"}:
+                        raise RenderCompileError(
+                            "playback background harus loop/freeze."
+                        )
+                    if playback == "loop":
+                        args += [
+                            "-stream_loop",
+                            "-1",
+                            "-an",
+                            "-i",
+                            asset.locator,
+                        ]
+                    else:
+                        args += ["-an", "-i", asset.locator]
+
+        cover_layers = [
+            layer for layer in active_layers if layer.type == "song_cover"
+        ]
+        for layer in cover_layers:
+            props = normalize_visual_properties("song_cover", layer.properties)
+            fallback_id = props["fallback_asset_id"]
+            if fallback_id and fallback_id not in assets:
+                raise RenderCompileError("Fallback cover tidak ditemukan di Media.")
+            used_ids: set[str] = set()
+            for event in plan.audio_events:
+                song = songs[event.song_id]
+                asset_id = song.cover_asset_id or fallback_id
+                if not asset_id or asset_id in used_ids:
+                    continue
+                asset = assets.get(asset_id)
+                if asset is None or asset.kind != "image":
+                    raise RenderCompileError(
+                        "Cover dinamis harus merujuk asset image."
+                    )
+                used_ids.add(asset_id)
+                cover_input_index[(layer.layer_id, asset_id)] = next_input
+                next_input += 1
+                args += ["-loop", "1", "-i", asset.locator]
+
+        spectrum_layers = [
+            layer for layer in active_layers if layer.type == "spectrum"
+        ]
+        needs_album_audio = include_audio or bool(spectrum_layers)
+        audio_input_index: dict[str, int] = {}
+        if needs_album_audio:
+            for event in plan.audio_events:
+                asset = assets[event.asset_id]
+                audio_input_index[event.song_id] = next_input
+                next_input += 1
+                source_in = ticks_to_seconds(event.source_in_tick)
+                source_duration = ticks_to_seconds(
+                    event.source_out_tick - event.source_in_tick
+                )
+                args += [
+                    "-ss",
+                    f"{source_in:.6f}",
+                    "-t",
+                    f"{source_duration:.6f}",
+                    "-i",
+                    asset.locator,
+                ]
+
+        filters: list[str] = ["[0:v]setpts=PTS-STARTPTS[v0]"]
+        current = "v0"
+        text_files: list[Path] = []
+
+        spectrum_audio_labels: dict[str, str] = {}
+        if needs_album_audio:
+            audio_labels: list[str] = []
+            for idx, event in enumerate(plan.audio_events):
+                input_index = audio_input_index[event.song_id]
+                label = f"aseg{idx}"
+                event_duration = ticks_to_seconds(
+                    event.end_tick - event.start_tick
+                )
+                filters.append(
+                    f"[{input_index}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+                    f"atrim=duration={event_duration:.6f},asetpts=PTS-STARTPTS[{label}]"
+                )
+                audio_labels.append(f"[{label}]")
+            filters.append(
+                "".join(audio_labels)
+                + f"concat=n={len(audio_labels)}:v=0:a=1[album_audio]"
+            )
+
+            branches: list[tuple[str, str]] = []
+            if include_audio:
+                branches.append(("render", "aout"))
+            for idx, layer in enumerate(spectrum_layers):
+                label = f"specaudio{idx}"
+                branches.append((layer.layer_id, label))
+                spectrum_audio_labels[layer.layer_id] = label
+            if len(branches) == 1:
+                filters.append(f"[album_audio]anull[{branches[0][1]}]")
+            else:
+                outputs = "".join(f"[{label}]" for _, label in branches)
+                filters.append(
+                    f"[album_audio]asplit={len(branches)}{outputs}"
+                )
+
+        stage = 1
+        for layer in active_layers:
+            resolved_layer = resolved_by_layer.get(layer.layer_id)
+            intervals = (
+                []
+                if resolved_layer is None
+                else [
+                    (item.start_tick, item.end_tick)
+                    for item in resolved_layer.intervals
+                ]
+            )
+            enable = _escape_enable(intervals)
+
+            if layer.type == "background":
                 out = f"v{stage}"
                 local_stage = stage
                 stage += 1
