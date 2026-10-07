@@ -15,7 +15,7 @@ _originals: dict[str, Any] = {}
 
 def _layer_row_init(self, *args, **kwargs) -> None:
     _originals["layer_row_init"](self, *args, **kwargs)
-    self.setFixedHeight(36)
+    self.setFixedHeight(34)
 
 
 def _context_init(self, *args, **kwargs) -> None:
@@ -23,6 +23,7 @@ def _context_init(self, *args, **kwargs) -> None:
     root = self.layout()
     root.setContentsMargins(8, 6, 8, 7)
     root.setSpacing(5)
+    self.layer_layout.setSpacing(3)
     self.layer_scroll.setMinimumHeight(176)
     self.layer_scroll.setMaximumHeight(176)
     self.add_button.setText("＋  Tambah Spectrum")
