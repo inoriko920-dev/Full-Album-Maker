@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -57,7 +57,7 @@ def _placeholder_icon(kind: str) -> QIcon:
     if kind == "video":
         p.drawRoundedRect(QRectF(23, 13, 42, 28), 4, 4)
         p.setBrush(QColor(fg))
-        p.drawPolygon([(39, 20), (39, 34), (52, 27)])
+        p.drawPolygon(QPolygonF([QPointF(39, 20), QPointF(39, 34), QPointF(52, 27)]))
     elif kind == "image":
         p.drawRoundedRect(QRectF(16, 10, 56, 34), 4, 4)
         p.drawLine(20, 39, 36, 25)
