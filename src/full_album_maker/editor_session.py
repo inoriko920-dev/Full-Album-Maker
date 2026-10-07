@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+from .beat_animation_assignment import BEAT_ASSIGNMENT_KEY, assignment_for_layer
+from .beat_layer_capabilities import preset_supported_for_layer
+from .visual_binding_contract import CoreBeatPreset
 from .album_visuals import (
     make_playlist_visual_layer,
     make_progress_layer,
@@ -15,6 +18,7 @@ from .editor_commands import (
     DeleteLayer,
     DuplicateLayer,
     SetLayerProperty,
+    SetLayerAnimationValue,
 )
 from .editor_controller import EditorController
 from .editor_interaction_commands import (
@@ -243,6 +247,47 @@ class EditorSession:
     def set_property(self, layer_id: str, key: str, value) -> ProjectDocument:
         self.controller.dispatch(SetLayerProperty(layer_id, key, value))
         return self._after_mutation()
+
+    def set_beat_animation_payload(self, layer_id: str, payload: dict | None) -> ProjectDocument:
+        layer = self.snapshot().layer_map().get(layer_id)
+        if layer is None:
+            raise ValueError("Layer tidak ditemukan.")
+        if payload is None:
+            self.controller.dispatch(SetLayerAnimationValue(layer_id, BEAT_ASSIGNMENT_KEY, None, _missing=True))
+            return self._after_mutation()
+        if not isinstance(payload, dict):
+            raise ValueError("Assignment Beat Animation tidak valid.")
+        probe = self.snapshot().layer_map()[layer_id]
+        from copy import deepcopy
+        probe = deepcopy(probe)
+        probe.animation = deepcopy(probe.animation)
+        probe.animation[BEAT_ASSIGNMENT_KEY] = deepcopy(payload)
+        assignment = assignment_for_layer(probe)
+        if assignment is None:
+            raise ValueError("Assignment Beat Animation harus aktif.")
+        for preset in assignment.presets:
+            if not preset_supported_for_layer(probe, preset):
+                raise ValueError(f"Preset Beat tidak didukung untuk layer ini: {preset.value}")
+        self.controller.dispatch(SetLayerAnimationValue(layer_id, BEAT_ASSIGNMENT_KEY, deepcopy(payload)))
+        return self._after_mutation()
+
+    def set_beat_animation(
+        self,
+        layer_id: str,
+        *,
+        enabled: bool,
+        preset: CoreBeatPreset | str | None = None,
+        intensity: float = 1.0,
+    ) -> ProjectDocument:
+        if not enabled:
+            return self.set_beat_animation_payload(layer_id, None)
+        if preset is None:
+            raise ValueError("Preset Beat wajib dipilih.")
+        selected = preset if isinstance(preset, CoreBeatPreset) else CoreBeatPreset(str(preset))
+        return self.set_beat_animation_payload(
+            layer_id,
+            {"enabled": True, "presets": [selected.value], "intensity": float(intensity)},
+        )
 
     def set_track_enabled(self, track_id: str, enabled: bool) -> ProjectDocument:
         self.controller.dispatch(SetTrackEnabled(track_id, enabled))
