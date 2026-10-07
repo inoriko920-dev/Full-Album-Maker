@@ -25,7 +25,7 @@ jobs:
           mkdir inbound parts
           gh run download "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" -n "$SOURCE_ARTIFACT" -D inbound
           test -s "inbound/$MASTER_FILE"
-          sha256sum -c "inbound/$MASTER_FILE.sha256"
+          (cd inbound && sha256sum -c "$MASTER_FILE.sha256")
 
       - name: Split without modifying master bytes
         run: |
