@@ -78,6 +78,11 @@ def main(argv: list[str] | None = None) -> int:
 
         return run_beat_runtime_smoke()
 
+    if "--beat-export-smoke" in args:
+        from full_album_maker.release_beat_export_smoke import run_beat_export_smoke
+
+        return run_beat_export_smoke()
+
     # Import after installing the compatibility/presentation layers so the recovered
     # v1.4 window keeps its proven engine while the integrated workspaces extend it.
     from full_album_maker.v14_window import run
