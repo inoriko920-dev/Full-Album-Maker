@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -23,8 +24,9 @@ from PySide6.QtWidgets import (
 )
 
 from .auto_arrange import AutoArrange, AutoArrangeRecipe
-from .beat_animation_assignment import document_has_beat_animation
 from .beat_visual_runtime import build_beat_visual_runtime
+from .music_style_presets import MUSIC_STYLE_CATALOG, MusicStylePreset
+from .vinyl_bpm_sync import document_needs_beat_runtime
 from .editor_commands import SetPlaylistEntries
 from .editor_models import ProjectDocument, TIMEBASE
 from .editor_session import EditorSession
@@ -146,6 +148,13 @@ class EditorWorkspace(QWidget):
         self.zoom_slider.setRange(8, 300)
         self.zoom_slider.setValue(80)
         self.zoom_slider.setMaximumWidth(125)
+        self.music_style_combo = QComboBox()
+        self.music_style_combo.setObjectName("musicStyleCombo")
+        self.music_style_combo.setMaximumWidth(128)
+        for style in MusicStylePreset:
+            self.music_style_combo.addItem(MUSIC_STYLE_CATALOG[style].label, style.value)
+        self.apply_music_style_btn = QPushButton("Terapkan Gaya")
+        self.apply_music_style_btn.setObjectName("applyMusicStyle")
 
         for widget in (
             self.open_btn,
@@ -162,6 +171,9 @@ class EditorWorkspace(QWidget):
             self.render_btn,
         ):
             row.addWidget(widget)
+        row.addWidget(QLabel("Gaya Beat"))
+        row.addWidget(self.music_style_combo)
+        row.addWidget(self.apply_music_style_btn)
         row.addWidget(self.snap_check)
         row.addWidget(QLabel("Zoom"))
         row.addWidget(self.zoom_slider)
@@ -177,6 +189,7 @@ class EditorWorkspace(QWidget):
         self.delete_btn.clicked.connect(self.delete_selected)
         self.use_all_btn.clicked.connect(self.use_all_audio)
         self.auto_btn.clicked.connect(self.auto_arrange)
+        self.apply_music_style_btn.clicked.connect(self.apply_music_style)
         self.preview_btn.clicked.connect(self.render_accurate_preview)
         self.render_btn.clicked.connect(self.render_project)
         self.play_btn.clicked.connect(self.toggle_playback)
@@ -248,7 +261,7 @@ class EditorWorkspace(QWidget):
 
     def _schedule_beat_runtime(self, document: ProjectDocument) -> None:
         signature = document.content_signature()
-        if not document_has_beat_animation(document):
+        if not document_needs_beat_runtime(document):
             self._beat_runtime_generation += 1
             self._beat_runtime_busy = False
             self._beat_runtime_signature = signature
@@ -446,6 +459,23 @@ class EditorWorkspace(QWidget):
             self._set_status(f"Playlist memakai {len(entries)} lagu dari Media.")
         except Exception as exc:
             self._set_status(f"Pakai semua lagu gagal: {exc}")
+
+    def apply_music_style(self) -> None:
+        try:
+            style = MusicStylePreset(str(self.music_style_combo.currentData()))
+            report = self.session.apply_music_style(style)
+            self._after_edit()
+            message = (
+                f"Gaya Beat {MUSIC_STYLE_CATALOG[style].label} diterapkan ke "
+                f"{report.applied_layers} layer"
+            )
+            if report.skipped_locked:
+                message += f"; {report.skipped_locked} locked dilewati"
+            if report.skipped_incompatible:
+                message += f"; {report.skipped_incompatible} incompatible dilewati"
+            self._set_status(message + ".")
+        except Exception as exc:
+            self._set_status(f"Gaya Beat gagal: {exc}")
 
     def auto_arrange(self) -> None:
         try:
