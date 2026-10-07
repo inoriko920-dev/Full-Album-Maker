@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 import hashlib
 import math
 
@@ -98,7 +98,11 @@ class EventPhaseEngine:
             channel: tuple(sorted(values,key=lambda t:(t.event_tick,t.start_tick,t.song_id,t.asset_id,t.source_tick)))
             for channel,values in grouped.items()
         }
-        self._event_ticks={channel: tuple(t.event_tick for t in values) for channel,values in self._by_channel.items()}
+        self._start_ticks={channel: tuple(t.start_tick for t in values) for channel,values in self._by_channel.items()}
+        self._max_window={
+            channel: max((t.end_tick-t.start_tick for t in values), default=0)
+            for channel,values in self._by_channel.items()
+        }
         self._index={
             _trigger_identity(trigger): index
             for channel in sorted(self._by_channel,key=lambda c:c.value)
@@ -118,7 +122,13 @@ class EventPhaseEngine:
         if not isinstance(tick,int) or tick < 0:
             raise ValueError("tick must be non-negative integer")
         values=self._by_channel.get(channel,())
-        return tuple(t for t in values if t.start_tick <= tick <= t.end_tick)
+        if not values:
+            return ()
+        starts=self._start_ticks[channel]
+        max_window=self._max_window[channel]
+        lo=bisect_left(starts,max(0,tick-max_window))
+        hi=bisect_right(starts,tick)
+        return tuple(t for t in values[lo:hi] if t.end_tick >= tick)
 
     def _winner(self, channel: AnimationSignalChannel, tick: int) -> SignalTrigger | None:
         active=self.active_triggers(channel,tick)
