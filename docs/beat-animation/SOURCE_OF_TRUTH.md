@@ -40,3 +40,10 @@
 
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
+
+
+## Integration and release handoff
+- `INTEGRATION_AND_RELEASE_HANDOFF.md` — canonical continuation document after STEP15; **not STEP16**.
+- STEP00–15 engine development is complete. Remaining work is synchronization with current `main`, RC2 regression/build validation, controlled merge, and stable v1.6.0 release.
+- Current integration baseline recorded by the handoff: `main` `0e8e8a107415cd00e5dd458a166356854013f080` (UI-03 Album remediation).
+- Before changing integration code, read the handoff and current-main UI remediation documentation in addition to the STEP00–15 source of truth.
