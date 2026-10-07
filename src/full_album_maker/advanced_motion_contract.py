@@ -47,7 +47,7 @@ MOTION_PRESET_CATALOG: dict[AdvancedMotionPreset, MotionPresetDefinition] = {
     AdvancedMotionPreset.CAMERA_SHAKE: MotionPresetDefinition(AdvancedMotionPreset.CAMERA_SHAKE,"Camera Shake","strong_beat",.80,False),
     AdvancedMotionPreset.BEAT_BOUNCE: MotionPresetDefinition(AdvancedMotionPreset.BEAT_BOUNCE,"Beat Bounce","beat",.75,True),
     AdvancedMotionPreset.FOUR_WAY_KICK: MotionPresetDefinition(AdvancedMotionPreset.FOUR_WAY_KICK,"Four-Way Kick","strong_beat",.90,False),
-    AdvancedMotionPreset.SPARK_BURST: MotionPresetDefinition(AdvancedMotionPreset.SPARK_BURST,"Spark Burst","strong_beat",.85,True),
+    AdvancedMotionPreset.SPARK_BURST: MotionPresetDefinition(AdvancedMotionPreset.SPARK_BURST,"Spark Burst","strong_beat",.85,False),
 }
 
 
