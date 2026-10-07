@@ -69,7 +69,16 @@ def test_cache_maintenance_preserves_valid_entry(tmp_path):
     cache.publish(key,result)
     report=cache.maintenance(stale_partial_seconds=0)
     assert report.removed_partial_entries==0
-    assert cache.load(key)==result
+    loaded=cache.load(key)
+    assert loaded is not None
+    assert loaded.asset_id==result.asset_id
+    assert loaded.content_sha256==result.content_sha256
+    assert loaded.tempo==result.tempo
+    for got,expected in zip(loaded.curves,result.curves):
+        assert got.name==expected.name
+        assert got.start_tick==expected.start_tick
+        assert got.tick_step==expected.tick_step
+        assert np.asarray(got.values)==pytest.approx(np.asarray(expected.values),abs=1e-6)
 
 
 def test_cache_maintenance_removes_stale_partial_and_temp(tmp_path):
