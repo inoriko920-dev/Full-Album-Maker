@@ -9,6 +9,7 @@ import threading
 from typing import Callable
 
 from .atomic_io import atomic_write_text
+from .beat_visual_runtime import BeatRuntimeError, build_beat_visual_runtime
 from .editor_models import ProjectDocument
 from .paths import ffmpeg_path, output_dir
 from .render_graph import RenderCompileError
@@ -204,7 +205,18 @@ class EditorRenderService:
                 dir=dest.parent,
             ) as folder:
                 work = Path(folder)
-                compiled = Step08FFmpegCompiler(self.ffmpeg).compile_video(
+                beat_runtime = build_beat_visual_runtime(
+                    snapshot,
+                    ffmpeg_executable=self.ffmpeg,
+                    cancel_event=cancel_event,
+                    ensure_analysis=True,
+                )
+                if beat_runtime is not None and beat_runtime.diagnostics.beat_layers > 4:
+                    raise RenderErrorV2("Beat render V1 maksimal 4 layer aktif.")
+                compiled = Step08FFmpegCompiler(
+                    self.ffmpeg,
+                    beat_runtime=beat_runtime,
+                ).compile_video(
                     snapshot,
                     staged,
                     work,
@@ -245,7 +257,7 @@ class EditorRenderService:
                 publish_bundle_transactional(
                     zip(stages, [dest, chapter, tracklist, timeline])
                 )
-        except (RenderCompileError, OSError, subprocess.SubprocessError, ValueError) as exc:
+        except (BeatRuntimeError, RenderCompileError, OSError, subprocess.SubprocessError, ValueError) as exc:
             raise RenderErrorV2(str(exc)) from exc
         finally:
             for path in stages:
