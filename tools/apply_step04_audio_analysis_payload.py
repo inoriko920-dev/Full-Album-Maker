@@ -8,23 +8,24 @@ import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD_ROOT = ROOT / "docs" / "beat-animation" / "_step04_source_payload"
-PARTS = [PAYLOAD_ROOT / f"part{i}.txt" for i in range(1, 4)]
-EXPECTED_PART_SHA256 = {
-    1: "bf9d63c3945211ef511da8b1628f6771bd45a13dccc920fe708573d7461dee77",
-    2: "80e6cd382bacc5eaab48728a5309c57858df9a622bb9977e923b2c7a1ffc61af",
-    3: "56b24c05ea2b71bf4748fc4368e4fa58309d8b8155ddd1927cede0b9d2e2e640",
-}
+PARTS = [
+    ("part1.txt", "bf9d63c3945211ef511da8b1628f6771bd45a13dccc920fe708573d7461dee77"),
+    ("part2a.txt", "f82274b7d367f1b981b493739806c6df2a81aee48fae87f13d8b7103895fb80f"),
+    ("part2b.txt", "b746be77b707a094385d78a2acb961590d0b6cb087c498904df14c2a50f21ddf"),
+    ("part2c.txt", "52090fad01af42c481b865d4f5748372aec810aa2e92753cd0cfa6c79d426a5b"),
+    ("part3_exact.txt", "56b24c05ea2b71bf4748fc4368e4fa58309d8b8155ddd1927cede0b9d2e2e640"),
+]
 EXPECTED_BUNDLE_SHA256 = "af58c93835d15533b659b95c3315ef980b8e6ad62135561b0b825c6eb4528f29"
 
 
 def load_bundle() -> dict[str, str]:
     encoded: list[str] = []
-    for index, path in enumerate(PARTS, start=1):
+    for filename, expected in PARTS:
+        path = PAYLOAD_ROOT / filename
         raw = path.read_bytes()
         actual = hashlib.sha256(raw).hexdigest()
-        expected = EXPECTED_PART_SHA256[index]
         if actual != expected:
-            raise RuntimeError(f"STEP04 payload part {index} checksum mismatch: {actual} != {expected}")
+            raise RuntimeError(f"STEP04 payload {filename} checksum mismatch: {actual} != {expected}")
         encoded.append(raw.decode("ascii"))
     packed = base64.b64decode("".join(encoded), validate=True)
     decoded = zlib.decompress(packed)
