@@ -62,6 +62,8 @@ def build_beat_text_render_control(
     layer: Layer,
     *,
     base_fontsize: int,
+    canvas_width: int,
+    canvas_height: int,
     fps: float,
     intervals: list[tuple[int, int]],
     work_dir: str | Path,
@@ -73,6 +75,8 @@ def build_beat_text_render_control(
         raise BeatTextRenderControlError("Beat text control hanya untuk text/song_title.")
     if base_fontsize < 4:
         raise BeatTextRenderControlError("Font size Beat text minimal 4px.")
+    if canvas_width <= 0 or canvas_height <= 0:
+        raise BeatTextRenderControlError("Ukuran canvas Beat text tidak valid.")
     if fps <= 0 or not math.isfinite(float(fps)):
         raise BeatTextRenderControlError("FPS Beat text tidak valid.")
 
@@ -112,14 +116,22 @@ def build_beat_text_render_control(
     token = _safe_token(f"{layer.layer_id}_{stream_key}")
     target = f"drawtext@beat_text_{token}"
     rows: list[str] = []
-    last: tuple[int, int, float] | None = None
+    last: tuple[int, int, float, float, float] | None = None
+    base_x = float(layer.transform.x) * float(canvas_width)
+    base_y = float(layer.transform.y) * float(canvas_height)
+    base_w = float(layer.transform.width) * float(canvas_width)
+    base_h = float(layer.transform.height) * float(canvas_height)
+    pivot_x = float(layer.transform.pivot_x)
+    pivot_y = float(layer.transform.pivot_y)
     for tick in ticks:
         state = runtime.state_for_layer(layer.layer_id, tick)
         factor = max(0.50, min(2.00, float(state.scale_multiplier) * float(state.zoom_multiplier)))
         fontsize = max(4, int(round(base_fontsize * factor)))
         borderw = max(0, min(16, int(round(4.0 * float(state.glow_amount)))))
         alpha = max(0.0, min(1.0, float(state.opacity_multiplier)))
-        current = (fontsize, borderw, round(alpha, 7))
+        x = base_x - pivot_x * base_w * (factor - 1.0) + float(state.x_offset_normalized) * float(canvas_width)
+        y = base_y - pivot_y * base_h * (factor - 1.0) + float(state.y_offset_normalized) * float(canvas_height)
+        current = (fontsize, borderw, round(alpha, 7), round(x, 6), round(y, 6))
         if current == last:
             continue
         ts = tick / TIMEBASE
@@ -127,6 +139,10 @@ def build_beat_text_render_control(
             rows.append(f"{ts:.6f} {target} fontsize {fontsize};")
         if last is None or current[1] != last[1]:
             rows.append(f"{ts:.6f} {target} borderw {borderw};")
+        if last is None or current[3] != last[3]:
+            rows.append(f"{ts:.6f} {target} x {x:.6f};")
+        if last is None or current[4] != last[4]:
+            rows.append(f"{ts:.6f} {target} y {y:.6f};")
         if VisualProperty.OPACITY_MULTIPLIER in props and (last is None or current[2] != last[2]):
             rows.append(f"{ts:.6f} {target} alpha {alpha:.7f};")
         if len(rows) > MAX_COMMAND_ROWS:
