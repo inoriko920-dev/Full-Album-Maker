@@ -225,12 +225,13 @@ def test_text_render_control_writes_fontsize_and_borderw(tmp_path):
     layer=_beat_layer(doc,"text")
     runtime=_runtime(doc,layer)
     control=build_beat_text_render_control(
-        runtime,layer,base_fontsize=40,fps=30,
+        runtime,layer,base_fontsize=40,canvas_width=320,canvas_height=240,fps=30,
         intervals=[(0,2*TIMEBASE)],work_dir=tmp_path,stream_key="text",
     )
     assert control is not None
     body=control.command_file.read_text(encoding="utf-8")
     assert " fontsize " in body and " borderw " in body
+    assert " x " in body and " y " in body
     assert "drawtext@beat_text_" in body
 
 
@@ -240,7 +241,7 @@ def test_text_rotation_nudge_fails_closed(tmp_path):
     runtime=_runtime(doc,layer)
     with pytest.raises(BeatTextRenderControlError):
         build_beat_text_render_control(
-            runtime,layer,base_fontsize=40,fps=30,
+            runtime,layer,base_fontsize=40,canvas_width=320,canvas_height=240,fps=30,
             intervals=[(0,2*TIMEBASE)],work_dir=tmp_path,stream_key="text",
         )
 
