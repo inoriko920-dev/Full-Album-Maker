@@ -19,6 +19,7 @@ from .editor_commands import (
     DuplicateLayer,
     SetLayerProperty,
     SetLayerAnimationValue,
+    ReplaceDocument,
 )
 from .editor_controller import EditorController
 from .editor_interaction_commands import (
@@ -34,6 +35,11 @@ from .editor_interaction_commands import (
 from .editor_models import Layer, ProjectDocument, TIMEBASE, TimeBinding, Transform
 from .spectrum_feature import make_dynamic_title_layer, make_spectrum_layer
 from .timeline_resolver import ResolvedTimeline, TimelineResolver
+from .music_style_presets import (
+    MusicStylePreset,
+    MusicStyleApplyReport,
+    apply_music_style as build_music_style_document,
+)
 
 
 @dataclass(frozen=True)
@@ -288,6 +294,15 @@ class EditorSession:
             layer_id,
             {"enabled": True, "presets": [selected.value], "intensity": float(intensity)},
         )
+
+    def apply_music_style(
+        self,
+        style: MusicStylePreset | str,
+    ) -> MusicStyleApplyReport:
+        replacement, report = build_music_style_document(self.snapshot(), style)
+        self.controller.dispatch(ReplaceDocument(replacement))
+        self._after_mutation()
+        return report
 
     def set_track_enabled(self, track_id: str, enabled: bool) -> ProjectDocument:
         self.controller.dispatch(SetTrackEnabled(track_id, enabled))
