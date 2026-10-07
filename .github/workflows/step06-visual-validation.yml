@@ -55,7 +55,8 @@ jobs:
             tests/test_step06_visual_precision.py \
             tests/test_step06_visual_assignment.py \
             tests/test_step06_visual_preview_decode.py \
-            tests/test_step06_visual_ui.py
+            tests/test_step06_visual_ui.py \
+            tests/test_ui05_visual_remediation.py
       - name: Run recovered v1.3 Visual regression
         run: python -m pytest -q tests/test_editor_v2_v13_song_visuals.py
       - name: Run STEP05 Timeline regression gate
@@ -94,19 +95,19 @@ jobs:
           assert main['workspace'] == 'visual' and main['visual_active'] is True, main
           assert main['context_visible'] is True and main['inspector_active'] is True, main
           assert main['timeline_visible'] is True, main
-          assert main['context_width'] in range(254, 275), main
-          assert main['right_dock_width'] in range(338, 359), main
-          assert main['timeline_height'] in range(228, 249), main
+          assert main['context_width'] in range(374, 395), main
+          assert main['right_dock_width'] in range(358, 379), main
+          assert main['timeline_height'] in range(215, 226), main
           assert main['status_height'] in range(26, 31), main
-          assert main['song_rows'] == 6 and main['song_count'] == 6, main
+          assert main['song_rows'] == 14 and main['song_count'] == 14, main
           assert main['selected_count'] == 1, main
           assert main['primary_song'] == 'Senja di Kota Ini', main
           assert main['primary_state'] == 'image', main
-          assert main['counts'] == {'all': 6, 'empty': 1, 'image': 2, 'video': 2, 'missing': 1}, main
-          assert main['fit'] == 'fill' and main['motion'] == 'ken_burns', main
-          assert main['transition'] == 'fade' and abs(main['transition_seconds'] - 1.2) < 1e-9, main
+          assert main['counts'] == {'all': 14, 'empty': 2, 'image': 8, 'video': 4, 'missing': 0}, main
+          assert main['fit'] == 'fit' and main['motion'] == 'ken_burns', main
+          assert main['transition'] == 'fade' and abs(main['transition_seconds'] - 1.0) < 1e-9, main
           assert main['apply_label'] == 'Apply to Selected (1)', main
-          assert 'Foto' in main['source_label'] and 'visual-foto-1.png' in main['source_label'], main
+          assert 'Foto' in main['source_label'] and 'senja-kota-ini.png' in main['source_label'], main
           assert main['content_unchanged_by_route'] is True, main
 
           compact = geometry('visual-1366-final')
@@ -114,9 +115,9 @@ jobs:
           assert compact['workspace'] == 'visual' and compact['visual_active'] is True, compact
           assert compact['context_visible'] is True and compact['inspector_active'] is True, compact
           assert compact['timeline_visible'] is True, compact
-          assert compact['song_rows'] == 6 and compact['selected_count'] == 1, compact
-          assert compact['right_dock_width'] in range(290, 311), compact
-          assert compact['content_unchanged_by_route'] is True, compact
+          assert compact['song_rows'] == 14 and compact['selected_count'] == 1, compact
+          assert compact['context_width'] in range(290, 311), compact\n          assert compact['right_dock_width'] in range(290, 311), compact
+          assert compact['timeline_height'] in range(215, 226), compact\n          assert compact['content_unchanged_by_route'] is True, compact
           print('STEP06_VISUAL_GEOMETRY_PASS')
           PY
       - name: Verify immutable Visual golden and build overlay when available
