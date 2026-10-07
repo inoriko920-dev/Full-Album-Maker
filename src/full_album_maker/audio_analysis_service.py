@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import threading
+import time
 from typing import Callable, Generic, TypeVar
 
 import numpy as np
@@ -97,6 +98,7 @@ class AudioAnalysisService:
         self._decoder = decoder
         self._temp_root = Path(temp_root) if temp_root is not None else temp_dir() / "audio-analysis-v1"
         self._temp_root.mkdir(parents=True, exist_ok=True)
+        self.cache_maintenance_report = self.cache.maintenance()
         self._executor = ThreadPoolExecutor(max_workers=max(1, min(1, int(workers))), thread_name_prefix="fam-audio-analysis")
         self._lock = threading.RLock()
         self._token = 0
@@ -184,13 +186,32 @@ class AudioAnalysisService:
                 self._generation += 1
         return cancelled
 
-    def wait_for_idle(self, timeout: float = 10.0) -> bool:
+    def wait_for_idle(
+        self,
+        timeout: float = 10.0,
+        *,
+        cancel_event: threading.Event | None = None,
+        poll_interval: float = 0.05,
+    ) -> bool:
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        poll = max(0.01, float(poll_interval))
+        while True:
+            with self._lock:
+                pending = tuple(self._pending_by_asset.values())
+            if not pending:
+                return True
+            if cancel_event is not None and cancel_event.is_set():
+                self.cancel()
+                wait(pending, timeout=2.0)
+                raise AnalysisCancelled("analysis wait cancelled")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            wait(pending, timeout=min(poll, remaining))
+
+    def last_result(self, asset_id: str) -> AudioAnalysisResult | None:
         with self._lock:
-            pending = tuple(self._pending_by_asset.values())
-        if not pending:
-            return True
-        _, not_done = wait(pending, timeout=max(0.0, float(timeout)))
-        return not not_done
+            return self._last_result_by_asset.get(str(asset_id))
 
     def close(self) -> None:
         with self._lock:
@@ -276,7 +297,7 @@ class AudioAnalysisService:
                 _raise_if_cancelled(job.cancel_event)
                 self._emit_progress(job, "serialize", 0.88, "Menyiapkan cache analisis")
                 try:
-                    self.cache.publish(key, result)
+                    self.cache.publish(key, result, cancel_event=job.cancel_event)
                 except (OSError, ValueError) as exc:
                     raise _ServiceFailure("CACHE_WRITE_FAILED", str(exc), True) from exc
                 _raise_if_cancelled(job.cancel_event)
