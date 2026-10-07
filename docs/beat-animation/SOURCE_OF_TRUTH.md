@@ -19,5 +19,7 @@
 
 - `STEP07_VISUAL_PROPERTY_BINDING_CORE_BEAT_ANIMATIONS_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `f769377767af8d9efe79d548e81970833b101ce4925d772f9e4555993ab0b258`
 
+- `STEP08_PREVIEW_RENDER_INTEGRATION_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `c484c85cd8baa29a66bdc762f0f6103d9bed4c19c5ba1d9b99a69975e655147f`
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
