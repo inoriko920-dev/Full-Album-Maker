@@ -147,7 +147,11 @@ def apply_step08_spectrum_graph(
 
 
 class Step08FFmpegCompiler(V13FFmpegCompiler):
-    """V13 compiler with additive STEP08 Spectrum parameter mapping only."""
+    """V13 compiler with Spectrum mapping and optional Beat Animation runtime."""
+
+    def __init__(self, ffmpeg: str, beat_runtime=None) -> None:
+        super().__init__(ffmpeg)
+        self._beat_visual_runtime = beat_runtime
 
     def compile_video(
         self,
