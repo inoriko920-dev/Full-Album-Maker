@@ -10,7 +10,7 @@ MAX_COMMAND_OPS = 1_500_000
 MAX_COMMAND_FILE_BYTES = 64 * 1024 * 1024
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True)
 class CommandOp:
     target: str
     command: str
@@ -46,6 +46,22 @@ class CommandLimitError(ValueError):
     pass
 
 
+_COMMAND_RANK = {
+    "width": 0,
+    "height": 1,
+    "angle": 2,
+    "brightness": 3,
+    "saturation": 4,
+    "x": 5,
+    "y": 6,
+    "color": 7,
+}
+
+
+def _op_sort_key(op: CommandOp) -> tuple[int, str, str, str]:
+    return (_COMMAND_RANK.get(op.command, 100), op.target, op.command, op.argument)
+
+
 class CommandBatchWriter:
     def __init__(
         self,
@@ -71,7 +87,7 @@ class CommandBatchWriter:
     def batches(self) -> tuple[CommandBatch, ...]:
         result=[]
         for micros in sorted(self._ops):
-            ops=tuple(sorted(self._ops[micros]))
+            ops=tuple(sorted(self._ops[micros], key=_op_sort_key))
             batch=CommandBatch(micros/1_000_000.0,ops); batch.validate(); result.append(batch)
         return tuple(result)
 
