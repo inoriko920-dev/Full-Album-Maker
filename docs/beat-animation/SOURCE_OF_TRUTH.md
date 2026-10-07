@@ -13,5 +13,7 @@
 - `STEP03_CACHE_FINGERPRINT_SERVICE_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `21403a3b789fb2a75e5cabedda3bbebd795c1f96f62c2ade035cc93300131e4a`
 - `STEP04_AUDIO_ANALYSIS_SERVICE_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `072a2b2181ff56e86b8f03cb818d0a44ec2faa3133c0dff3b45c7338cf540707`
 
+- `STEP05_MUSIC_EVENT_TIMELINE_DERIVED_EVENT_ENGINE_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `f995c3821051a4b434d406eb04183f22f2003c9b56050a9503404faeda86b636`
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
