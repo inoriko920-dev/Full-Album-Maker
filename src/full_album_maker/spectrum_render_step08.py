@@ -187,7 +187,7 @@ def apply_step08_spectrum_graph(
                 continue
             rebuilt[part_index] = re.sub(
                 r"overlay=x='[^']*':y='[^']*':",
-                f"overlay=x='{control.overlay_x_expr}':y='{control.overlay_y_expr}':",
+                f"{control.overlay_filter}=x='{control.overlay_x_expr}':y='{control.overlay_y_expr}':",
                 part,
                 count=1,
             )
