@@ -453,6 +453,7 @@ class FFmpegV2Compiler:
                 static_rotate = rotate if beat_control is None or beat_control.rotate_filter is None else ""
                 overlay_x = beat_control.overlay_x_expr if beat_control is not None else _overlay_position_expr(layer, "x")
                 overlay_y = beat_control.overlay_y_expr if beat_control is not None else _overlay_position_expr(layer, "y")
+                overlay_filter = beat_control.overlay_filter if beat_control is not None else "overlay"
                 mode = str(
                     layer.properties.get(
                         "mode",
@@ -558,7 +559,7 @@ class FFmpegV2Compiler:
                         f"{static_rotate}[{source_label}]"
                     )
                 filters.append(
-                    f"[{current}][{source_label}]overlay=x='{overlay_x}':"
+                    f"[{current}][{source_label}]{overlay_filter}=x='{overlay_x}':"
                     f"y='{overlay_y}':shortest=0:"
                     f"eof_action=repeat:enable='{enable}'[{out}]"
                 )
@@ -640,8 +641,9 @@ class FFmpegV2Compiler:
                         )
                         overlay_x = _overlay_position_expr(layer, "x")
                         overlay_y = _overlay_position_expr(layer, "y")
+                    overlay_filter = beat_control.overlay_filter if beat_control is not None else "overlay"
                     filters.append(
-                        f"[{current}][{source_label}]overlay=x='{overlay_x}':"
+                        f"[{current}][{source_label}]{overlay_filter}=x='{overlay_x}':"
                         f"y='{overlay_y}':shortest=0:"
                         f"eof_action=repeat:enable='{_escape_enable(cover_intervals)}'[{out}]"
                     )
@@ -724,8 +726,9 @@ class FFmpegV2Compiler:
                 )
                 overlay_x = beat_control.overlay_x_expr if beat_control is not None else _overlay_position_expr(layer, "x")
                 overlay_y = beat_control.overlay_y_expr if beat_control is not None else _overlay_position_expr(layer, "y")
+                overlay_filter = beat_control.overlay_filter if beat_control is not None else "overlay"
                 filters.append(
-                    f"[{current}][{source_label}]overlay=x='{overlay_x}':"
+                    f"[{current}][{source_label}]{overlay_filter}=x='{overlay_x}':"
                     f"y='{overlay_y}':shortest=0:"
                     f"eof_action=pass:enable='{enable}'[{out}]"
                 )
