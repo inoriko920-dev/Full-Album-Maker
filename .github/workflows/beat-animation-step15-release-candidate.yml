@@ -115,6 +115,18 @@ jobs:
           python -m compileall -q src
           python -m pytest -q
 
+      - name: Source-level Beat V2 export smoke
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -c "from full_album_maker.release_beat_export_smoke import run_beat_export_smoke; raise SystemExit(run_beat_export_smoke())"
+          $report = Join-Path $PWD "temp\beat-export-smoke.json"
+          if (-not (Test-Path $report)) { throw "Source Beat export smoke report hilang." }
+          Get-Content $report
+          $beat = Get-Content $report -Raw | ConvertFrom-Json
+          if (-not $beat.ok) { throw "Source Beat V2 export smoke gagal." }
+
       - name: Prepare icon and build clean onedir EXE
         shell: pwsh
         env:
@@ -185,9 +197,19 @@ jobs:
             if (Get-Command python -ErrorAction SilentlyContinue) { throw "Global Python masih terlihat." }
             if (Get-Command ffmpeg -ErrorAction SilentlyContinue) { throw "Global FFmpeg masih terlihat." }
 
-            foreach ($flag in @("--portable-smoke","--beat-runtime-smoke","--beat-export-smoke")) {
+            foreach ($flag in @("--portable-smoke","--beat-runtime-smoke")) {
               $proc = Start-Process -FilePath $app.FullName -ArgumentList $flag -Wait -PassThru
               if ($proc.ExitCode -ne 0) { throw "$flag gagal dengan exit code $($proc.ExitCode)." }
+            }
+
+            $beatProc = Start-Process -FilePath $app.FullName -ArgumentList "--beat-export-smoke" -Wait -PassThru
+            if ($beatProc.ExitCode -ne 0) {
+              $failedBeatReport = Join-Path $app.DirectoryName "temp\beat-export-smoke.json"
+              if (Test-Path $failedBeatReport) {
+                Write-Host "Beat export failure report:"
+                Get-Content $failedBeatReport
+              }
+              throw "--beat-export-smoke gagal dengan exit code $($beatProc.ExitCode)."
             }
           }
           finally {
