@@ -76,7 +76,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add             src/full_album_maker/audio_analysis_contract.py             src/full_album_maker/audio_analysis_fingerprint.py             src/full_album_maker/audio_analysis_quality.py             src/full_album_maker/audio_analysis_decode.py             src/full_album_maker/audio_analysis_backend.py             src/full_album_maker/audio_analysis_cache.py             src/full_album_maker/audio_analysis_service.py             tests/test_step04_audio_analysis.py             build/requirements-audio-analysis-step04.lock             tools/beat_analysis_import_smoke.py
+          git add -f             src/full_album_maker/audio_analysis_contract.py             src/full_album_maker/audio_analysis_fingerprint.py             src/full_album_maker/audio_analysis_quality.py             src/full_album_maker/audio_analysis_decode.py             src/full_album_maker/audio_analysis_backend.py             src/full_album_maker/audio_analysis_cache.py             src/full_album_maker/audio_analysis_service.py             tests/test_step04_audio_analysis.py             build/requirements-audio-analysis-step04.lock             tools/beat_analysis_import_smoke.py
           if git diff --cached --quiet; then
             echo "STEP04 implementation already matches payload."
             exit 0
