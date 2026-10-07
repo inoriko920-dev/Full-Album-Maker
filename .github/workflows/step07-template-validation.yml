@@ -52,7 +52,8 @@ jobs:
             tests/test_step07_template_model.py \
             tests/test_step07_template_ui.py \
             tests/test_step07_template_thumbnail_cache.py \
-            tests/test_step07_template_acceptance.py
+            tests/test_step07_template_acceptance.py \
+            tests/test_ui06_template_remediation.py
       - name: Run recovered template regression
         run: |
           python -m pytest -q \
