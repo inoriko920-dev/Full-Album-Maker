@@ -1,0 +1,111 @@
+name: Publish Final Full-Album-Maker Backup
+
+on:
+  push:
+    branches:
+      - backup/full-album-maker-2026-10-07-2355-wib
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: "37655757791"
+      SOURCE_ARTIFACT: MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB
+      MASTER_FILE: MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB.zip
+      ROOT_NAME: MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB
+      BACKUP_TAG: backup-full-album-maker-2026-10-07-2355-wib
+    steps:
+      - name: Checkout backup metadata
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Download verified base backup
+        run: |
+          set -euo pipefail
+          mkdir inbound
+          gh run download "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" -n "$SOURCE_ARTIFACT" -D inbound
+          test -s "inbound/$MASTER_FILE"
+          (cd inbound && sha256sum -c "$MASTER_FILE.sha256")
+
+      - name: Inject original user backup rules and single-app override
+        run: |
+          set -euo pipefail
+          rm -rf final-work
+          mkdir final-work
+          unzip -q "inbound/$MASTER_FILE" -d final-work
+          ROOT="final-work/$ROOT_NAME"
+          mkdir -p "$ROOT/RECOVERY_SOURCE"
+          cp ".github/backup/Prompt MASTER BACKUP Semua App(1).md" \
+             "$ROOT/RECOVERY_SOURCE/Prompt MASTER BACKUP Semua App(1).md"
+          cat > "$ROOT/RECOVERY_SOURCE/00_SINGLE_APP_OVERRIDE.txt" <<'EOF'
+          CURRENT REQUEST OVERRIDE
+          ========================
+          The original uploaded MASTER BACKUP prompt describes an all-app backup.
+          For this backup run, the user explicitly instructed:
+          - back up ONLY Full-Album-Maker;
+          - do NOT back up other repositories/apps;
+          - include date and time in WIB.
+
+          Therefore this package intentionally contains exactly ONE application.
+          This override is deliberate and must not be treated as a missing-project error.
+          EOF
+
+          cat >> "$ROOT/00_BACKUP_INFO.txt" <<'EOF'
+          USER_PROMPT_INCLUDED=RECOVERY_SOURCE/Prompt MASTER BACKUP Semua App(1).md
+          CURRENT_REQUEST_OVERRIDE=SINGLE_APP_ONLY
+          POST_DOWNLOAD_ENRICHMENT=User backup-rules source added; core Git bundle/source/build bytes unchanged.
+          EOF
+
+          cat >> "$ROOT/00_MASTER_MANIFEST.txt" <<'EOF'
+          BACKUP RULES SOURCE=RECOVERY_SOURCE/Prompt MASTER BACKUP Semua App(1).md
+          CURRENT REQUEST OVERRIDE=SINGLE_APP_ONLY
+          EOF
+
+          (
+            cd "$ROOT"
+            find . -type f ! -name 00_SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > 00_SHA256SUMS.txt
+            sha256sum -c 00_SHA256SUMS.txt
+          )
+
+      - name: Reverify bundle, source snapshots and final structure
+        run: |
+          set -euo pipefail
+          ROOT="final-work/$ROOT_NAME"
+          APP="$ROOT/APP_001_FULL_ALBUM_MAKER"
+          unzip -t "$APP/SOURCE/Full-Album-Maker-SOURCE-MAIN.zip" >/dev/null
+          unzip -t "$APP/SOURCE/Full-Album-Maker-SOURCE-UI05-IN-PROGRESS.zip" >/dev/null
+          git init --bare -q bundle-verify.git
+          git -C bundle-verify.git bundle verify "$PWD/$APP/GIT/Full-Album-Maker-COMPLETE-GIT-HISTORY.bundle"
+          grep -q '^BACKUP_COMPLETE$' "$APP/STATUS_BACKUP.txt"
+          grep -q '^SECRET_SCAN_PASS$' "$APP/SECRET_SCAN.txt"
+          test -s "$ROOT/RECOVERY_SOURCE/Prompt MASTER BACKUP Semua App(1).md"
+          test "$(find "$ROOT" -maxdepth 1 -type d -name 'APP_*' | wc -l)" -eq 1
+
+      - name: Repack final single ZIP and checksum
+        run: |
+          set -euo pipefail
+          rm -f "$MASTER_FILE" "$MASTER_FILE.sha256"
+          (cd final-work && zip -r -9 "../$MASTER_FILE" "$ROOT_NAME" >/dev/null)
+          unzip -t "$MASTER_FILE" >/dev/null
+          sha256sum "$MASTER_FILE" | tee "$MASTER_FILE.sha256"
+          ls -lh "$MASTER_FILE"
+
+      - name: Publish persistent backup release asset
+        run: |
+          set -euo pipefail
+          NOTES="Single-app verified recovery backup for Full-Album-Maker. Timestamp: 2026-10-07 23:55 WIB. Includes complete verified Git Bundle, main source, UI05 in-progress source, docs/workflows, latest trusted Windows Portable build, checksums, restore scripts, secret-name inventory without credential values, and the original user backup-rules prompt. This is a backup/recovery asset, not a product release."
+          if gh release view "$BACKUP_TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$BACKUP_TAG" "$MASTER_FILE" "$MASTER_FILE.sha256" \
+              -R "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$BACKUP_TAG" "$MASTER_FILE" "$MASTER_FILE.sha256" \
+              -R "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Backup Full-Album-Maker — 2026-10-07 23:55 WIB" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
