@@ -13,7 +13,15 @@ from .animation_signal_engine import AnimationSignalEngine, build_animation_sign
 from .timeline_resolver import TimelineResolver
 from .visual_binding_contract import VisualBindingSet, VisualPropertyState
 from .visual_binding_engine import VisualPropertyBindingEngine, apply_visual_state
-from .beat_animation_assignment import assignment_for_layer, beat_enabled_layer_ids, document_has_beat_animation
+from .beat_animation_assignment import assignment_for_layer, beat_enabled_layer_ids
+from .vinyl_bpm_sync import (
+    TempoSegment,
+    build_tempo_segments,
+    document_needs_beat_runtime,
+    tempo_at_tick as select_tempo_at_tick,
+    vinyl_phase_cycles_at as tempo_phase_cycles_at,
+    vinyl_spin_seconds_at as tempo_spin_seconds_at,
+)
 
 
 class BeatRuntimeError(RuntimeError):
@@ -39,6 +47,7 @@ class BeatVisualRuntime:
         signal_engine: AnimationSignalEngine,
         bindings_by_layer_id: dict[str, VisualBindingSet],
         diagnostics: BeatRuntimeDiagnostics,
+        tempo_segments: tuple[TempoSegment, ...] = (),
     ) -> None:
         self.document_signature = document_signature
         self.duration_tick = int(duration_tick)
@@ -49,6 +58,42 @@ class BeatVisualRuntime:
             for layer_id, binding_set in bindings_by_layer_id.items()
         }
         self.diagnostics = diagnostics
+        self.tempo_segments = tuple(tempo_segments)
+
+    def tempo_at_tick(self, tick: int) -> TempoSegment | None:
+        return select_tempo_at_tick(self.tempo_segments, tick)
+
+    def vinyl_spin_seconds_at(
+        self,
+        tick: int,
+        *,
+        fallback_spin_seconds: float,
+        beats_per_rotation: float = 4.0,
+        min_confidence: float = 0.55,
+    ) -> float:
+        return tempo_spin_seconds_at(
+            self.tempo_segments,
+            tick,
+            fallback_spin_seconds=fallback_spin_seconds,
+            beats_per_rotation=beats_per_rotation,
+            min_confidence=min_confidence,
+        )
+
+    def vinyl_phase_cycles_at(
+        self,
+        tick: int,
+        *,
+        fallback_spin_seconds: float,
+        beats_per_rotation: float = 4.0,
+        min_confidence: float = 0.55,
+    ) -> float:
+        return tempo_phase_cycles_at(
+            self.tempo_segments,
+            tick,
+            fallback_spin_seconds=fallback_spin_seconds,
+            beats_per_rotation=beats_per_rotation,
+            min_confidence=min_confidence,
+        )
 
     def has_layer(self, layer_id: str) -> bool:
         return layer_id in self._engines
@@ -101,7 +146,7 @@ def ensure_beat_analysis(
     timeout: float = 900.0,
 ) -> dict[str, object]:
     document.validate()
-    if not document_has_beat_animation(document):
+    if not document_needs_beat_runtime(document):
         return {}
     cache_obj = cache or AudioAnalysisCache()
     service = AudioAnalysisService(cache=cache_obj, ffmpeg_executable=ffmpeg_executable)
@@ -146,7 +191,7 @@ def build_beat_visual_runtime(
     snapshot = document.clone()
     snapshot.validate()
     layer_ids = beat_enabled_layer_ids(snapshot)
-    if not layer_ids:
+    if not document_needs_beat_runtime(snapshot):
         return None
 
     if analysis_results is None:
@@ -177,6 +222,7 @@ def build_beat_visual_runtime(
     if resolved.errors:
         raise BeatRuntimeError("TIMELINE_INVALID", " | ".join(resolved.errors))
     projected = project_album_events(snapshot, timelines, resolved=resolved)
+    tempo_segments = build_tempo_segments(snapshot, analysis_results, resolved=resolved)
     program = build_animation_signal_program(projected, resolved.duration_tick)
     signal_engine = AnimationSignalEngine(program)
 
@@ -198,6 +244,7 @@ def build_beat_visual_runtime(
         signal_engine,
         bindings,
         diagnostics,
+        tempo_segments=tempo_segments,
     )
 
 
