@@ -7,6 +7,7 @@ import re
 from typing import Iterable
 
 from .album_visuals import format_duration_tick, normalize_visual_properties
+from .beat_render_control import BeatRenderControlError, build_beat_render_control, render_filter_suffix
 from .circular_spectrum import circular_spectrum_filter
 from .editor_models import Layer, ProjectDocument, TIMEBASE
 from .overlay_effects import effect_source_filter, normalize_effect_properties
@@ -93,6 +94,21 @@ def _rotation_chain(layer: Layer) -> str:
     if abs(value) < 0.0001:
         return ""
     return f",rotate={value:.8f}*PI/180:ow=rotw(iw):oh=roth(ih):c=none"
+
+
+def _beat_snapshot_glow_chain(layer: Layer) -> str:
+    raw = layer.properties.get("_beat_snapshot_glow", 0.0)
+    try:
+        glow = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise RenderCompileError("Beat snapshot glow tidak valid.") from exc
+    if not 0.0 <= glow <= 1.0:
+        raise RenderCompileError("Beat snapshot glow harus 0..1.")
+    if glow <= 1e-9:
+        return ""
+    brightness = 0.12 * glow
+    saturation = 1.0 + 0.15 * glow
+    return f",eq=brightness={brightness:.8f}:saturation={saturation:.8f}:eval=init"
 
 
 def _escape_enable(intervals: Iterable[tuple[int, int]]) -> str:
