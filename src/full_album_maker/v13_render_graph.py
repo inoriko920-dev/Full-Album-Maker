@@ -386,8 +386,14 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
                     start=start_seconds,
                     transition_seconds=transition,
                 )
+                overlay_filter = beat_control.overlay_filter if beat_control is not None else "overlay"
+                if beat_control is not None and props["transition"] != "slide":
+                    x_expr = beat_control.overlay_x_expr
+                    y_expr = beat_control.overlay_y_expr
+                else:
+                    y_expr = base_y
                 visual_filters.append(
-                    f"[{current}][{source}]overlay=x='{x_expr}':y='{base_y}':"
+                    f"[{current}][{source}]{overlay_filter}=x='{x_expr}':y='{y_expr}':"
                     f"shortest=0:eof_action=pass:enable='between(t,{start_seconds:.6f},{end_seconds:.6f})'"
                     f"[{output}]"
                 )
