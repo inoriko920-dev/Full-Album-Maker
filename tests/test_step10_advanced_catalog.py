@@ -158,3 +158,15 @@ def test_vinyl_inspector_exposes_bpm_sync_controls():
     assert inspector.vinyl_bpm_sync.isChecked()
     assert inspector.vinyl_beats_per_rotation.currentData()==2.0
     assert not inspector.vinyl_bpm_sync.isHidden()
+
+
+def test_two_hundred_percent_intensity_saturates_safely():
+    from full_album_maker.beat_animation_assignment import BeatAnimationAssignment
+    assignment=BeatAnimationAssignment(
+        True,
+        (CoreBeatPreset.STRONG_GLOW,),
+        2.0,
+    )
+    binding=assignment.binding_set().bindings[0]
+    assert binding.property==VisualProperty.GLOW_AMOUNT
+    assert binding.amount==pytest.approx(1.0)
