@@ -109,6 +109,33 @@ def interpret_beat_prompt(prompt: str, context: AgentContextSnapshot) -> BeatNLU
     if not text:
         return None
 
+    # Explicit preset aliases are more specific than broad genre aliases.
+    # Example: "Club Punch 120%" must not be reduced to Music Style "club".
+    preset_matches=[]
+    for alias,item in _aliases(beat.get("preset_catalog",[])):
+        if _contains_phrase(text,alias):
+            preset_matches.append((alias,item))
+    unique_presets={str(item.get("id","")):item for _alias,item in preset_matches if str(item.get("id",""))}
+    explicit_preset = len(unique_presets)==1 and any(
+        len(alias.split()) >= 2 for alias,_item in preset_matches
+    )
+    if len(unique_presets)==1 and (explicit_preset or _percent_intensity(raw) is not None):
+        item=next(iter(unique_presets.values()))
+        ids,clarification=_target_layers(
+            context,allow_all_explicit=True,prompt_norm=text
+        )
+        if clarification:
+            return BeatNLUDecision(clarification=clarification,message="Target preset Beat belum unik.")
+        intensity=_percent_intensity(raw)
+        if intensity is None:
+            intensity=1.0
+        action=AgentActionCall(
+            "set_beat_preset",
+            {"layer_ids":list(ids),"preset_id":str(item["id"]),"intensity":float(intensity)},
+        )
+        action.validate()
+        return BeatNLUDecision((action,),f"Preset Beat {item.get('label',item['id'])} siap dipreview.")
+
     # Project-wide music style intent.
     style_verbs=("pakai","gunakan","terapkan","gaya","cocok")
     style_matches=[]
@@ -149,12 +176,7 @@ def interpret_beat_prompt(prompt: str, context: AgentContextSnapshot) -> BeatNLU
         action.validate()
         return BeatNLUDecision((action,),"Beat Animation akan dinonaktifkan pada target.")
 
-    # Explicit preset alias, optionally with percentage.
-    preset_matches=[]
-    for alias,item in _aliases(beat.get("preset_catalog",[])):
-        if _contains_phrase(text,alias):
-            preset_matches.append(item)
-    unique_presets={str(item.get("id","")):item for item in preset_matches if str(item.get("id",""))}
+    # Remaining one-token/exact preset aliases, optionally with percentage.
     if len(unique_presets)==1:
         item=next(iter(unique_presets.values()))
         ids,clarification=_target_layers(
