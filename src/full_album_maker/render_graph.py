@@ -515,7 +515,7 @@ class FFmpegV2Compiler:
                         raise RenderCompileError(str(exc)) from exc
                     filters.append(
                         f"{effect_chain}"
-                        f"{beat_suffix if beat_control is not None else snapshot_glow}"
+                        f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
                         f"{static_rotate}[{source_label}]"
                     )
                 else:
@@ -583,7 +583,7 @@ class FFmpegV2Compiler:
                     filters.append(
                         f"[{index}:v]{geometry}{freeze}{motion_chain},format=rgba,"
                         f"colorchannelmixer=aa={alpha:.6f},setpts=PTS-STARTPTS"
-                        f"{beat_suffix if beat_control is not None else snapshot_glow}"
+                        f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
                         f"{static_rotate}[{source_label}]"
                     )
                 filters.append(
@@ -648,6 +648,7 @@ class FFmpegV2Compiler:
                     except BeatRenderControlError as exc:
                         raise RenderCompileError(str(exc)) from exc
                     snapshot_glow = _beat_snapshot_glow_chain(layer)
+                    snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
                     if beat_control is not None:
                         suffix = render_filter_suffix(
                             beat_control,
@@ -664,7 +665,7 @@ class FFmpegV2Compiler:
                     else:
                         filters.append(
                             f"[{index}:v]{geometry},format=rgba,"
-                            f"colorchannelmixer=aa={alpha:.6f}{snapshot_glow},"
+                            f"colorchannelmixer=aa={alpha:.6f}{snapshot_glow}{snapshot_particles},"
                             f"setpts=PTS-STARTPTS{rotate}[{source_label}]"
                         )
                         overlay_x = _overlay_position_expr(layer, "x")
@@ -734,6 +735,7 @@ class FFmpegV2Compiler:
                 except BeatRenderControlError as exc:
                     raise RenderCompileError(str(exc)) from exc
                 snapshot_glow = _beat_snapshot_glow_chain(layer)
+                snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
                 beat_suffix = (
                     render_filter_suffix(
                         beat_control,
@@ -749,7 +751,7 @@ class FFmpegV2Compiler:
                     f"g='{channel_exprs[1]}':b='{channel_exprs[2]}':"
                     f"a='if(lte({radius},min(W,H)/2),255,0)',"
                     f"colorchannelmixer=aa={alpha:.6f}"
-                    f"{beat_suffix if beat_control is not None else snapshot_glow}"
+                    f"{beat_suffix if beat_control is not None else snapshot_glow + snapshot_particles}"
                     f"{'' if beat_control is not None else rotate}[{source_label}]"
                 )
                 overlay_x = beat_control.overlay_x_expr if beat_control is not None else _overlay_position_expr(layer, "x")
