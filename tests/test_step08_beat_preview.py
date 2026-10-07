@@ -88,7 +88,7 @@ def test_fast_preview_selection_keeps_base_transform_geometry():
     canvas.set_playhead(TIMEBASE)
     canvas.set_beat_runtime(runtime)
     base=canvas._rect_for_transform(canvas._canvas_rect(),layer.transform)
-    geometry=canvas._selection_geometry()
+    geometry=canvas._selected_geometry()
     assert geometry is not None
     _selected,_track,rect,_handle=geometry
     assert rect == base
