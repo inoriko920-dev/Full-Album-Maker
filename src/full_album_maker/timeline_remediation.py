@@ -176,61 +176,6 @@ def _shell_sizes(self, route: str) -> None:
     self.vertical_splitter.setSizes([top_height, timeline_height])
 
 
-
-def _apply_window_route_geometry(window, route: str) -> None:
-    shell = window.foundation_shell
-    host = shell.timeline
-    _move_precision_panel_to_host(shell)
-    active = route == "timeline"
-
-    for widget in getattr(host, "_ui04_header_widgets", ()):
-        widget.setVisible(not active)
-
-    panel = getattr(window, "timeline_precision_s05", None)
-    if panel is not None:
-        panel.setVisible(active)
-
-    if not active:
-        host.body.setVisible(not host.collapsed)
-        return
-
-    # Apply this after the recovered STEP05 route finishes. Several historical
-    # presentation layers also touch splitter geometry, so post-route ownership
-    # keeps UI-04 deterministic without changing any editor/timing model.
-    compact = bool(getattr(shell, "_responsive_compact", False))
-    nav = TOKENS.nav_compact_width if compact else TOKENS.nav_width
-    context = 236 if compact else 329
-    right = 38 if shell.inspector.collapsed else (286 if compact else 348)
-    center = max(
-        420 if compact else 560,
-        max(1, shell.width()) - nav - context - right - TOKENS.splitter_handle * 3,
-    )
-
-    shell.navigation.setMinimumWidth(nav)
-    shell.navigation.setMaximumWidth(nav)
-    shell.context.setMinimumWidth(context)
-    shell.context.setMaximumWidth(context)
-    if not shell.inspector.collapsed:
-        shell.inspector.setMinimumWidth(right)
-        shell.inspector.setMaximumWidth(520)
-    shell.horizontal_splitter.setSizes([nav, context, center, right])
-
-    host.body.hide()
-    host._preferred_height = 345
-    host.setMinimumHeight(345)
-    host.setMaximumHeight(345)
-    top_height = max(
-        285 if compact else 360,
-        shell.height() - 345 - TOKENS.status_height - TOKENS.command_height,
-    )
-    shell.vertical_splitter.setSizes([top_height, 345])
-
-
-def _window_route(self, route: str) -> None:
-    _originals["window_route"](self, route)
-    _apply_window_route_geometry(self, route)
-
-
 def install_ui04_timeline_remediation() -> None:
     """Post-release UI-04 Timeline parity layer; model/engine contracts remain authoritative."""
     global _installed
@@ -238,7 +183,6 @@ def install_ui04_timeline_remediation() -> None:
         return
 
     from .foundation_shell import FoundationShellWidget
-    from .foundation_window import FoundationMainWindow
 
     _originals.update(
         context_init=TimelineContextWidget.__init__,
@@ -249,7 +193,6 @@ def install_ui04_timeline_remediation() -> None:
         panel_init=TimelinePrecisionPanel.__init__,
         shell_workspace=FoundationShellWidget._apply_workspace,
         shell_sizes=FoundationShellWidget._apply_shell_sizes,
-        window_route=FoundationMainWindow._s05_route,
     )
 
     # Golden Timeline uses a substantially wider lane header and taller ruler.
@@ -265,5 +208,4 @@ def install_ui04_timeline_remediation() -> None:
     TimelinePrecisionPanel.__init__ = _panel_init
     FoundationShellWidget._apply_workspace = _shell_workspace
     FoundationShellWidget._apply_shell_sizes = _shell_sizes
-    FoundationMainWindow._s05_route = _window_route
     _installed = True
