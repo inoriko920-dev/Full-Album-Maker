@@ -81,7 +81,7 @@ class SparkBurstEngine:
         if tick < 0:
             raise ValueError("tick must be non-negative")
         active=[
-            trigger for trigger in self.phase_engine.triggers(AnimationSignalChannel.STRONG_BEAT)
+            trigger for trigger in self.phase_engine.active_triggers(AnimationSignalChannel.STRONG_BEAT,tick)
             if trigger.event_tick <= tick <= trigger.event_tick+SPARK_LIFETIME_TICK
         ]
         if not active:
