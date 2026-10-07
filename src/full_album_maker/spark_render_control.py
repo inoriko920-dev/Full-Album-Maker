@@ -10,6 +10,7 @@ from .animation_signal_contract import AnimationSignalChannel
 from .beat_visual_runtime import BeatVisualRuntime
 from .editor_models import Layer, TIMEBASE
 from .spark_burst_engine import SPARK_LIFETIME_TICK, SPARK_PARTICLES_PER_BURST
+from .ffmpeg_command_batch import CommandBatchWriter, CommandLimitError
 
 SPARK_CONTROL_HZ=8.0
 MAX_SPARK_COMMAND_ROWS=220_000
@@ -20,6 +21,8 @@ class SparkRenderControl:
     command_file: Path
     filter_suffix: str
     command_rows: int
+    command_ops: int
+    command_bytes: int
 
 
 def _safe_token(value: str) -> str:
@@ -85,7 +88,7 @@ def build_spark_render_control(
 
     token=_safe_token(f"{layer.layer_id}_{stream_key}")
     names=[f"drawbox@beat_spark_{token}_{i}" for i in range(SPARK_PARTICLES_PER_BURST)]
-    rows=[]
+    writer=CommandBatchWriter(max_rows=MAX_SPARK_COMMAND_ROWS)
     last=[None]*SPARK_PARTICLES_PER_BURST
     min_dim=min(base_width,base_height)
     slot_sizes=[max(2,int(round(min_dim*v))) for v in (.006,.007,.008,.0065,.0075,.0085)]
@@ -108,22 +111,26 @@ def build_spark_render_control(
             if current==last[i]:
                 continue
             if last[i] is None or current[0]!=last[i][0]:
-                rows.append(f"{ts:.6f} {name} x {current[0]};")
+                writer.add(ts,name,"x",current[0])
             if last[i] is None or current[1]!=last[i][1]:
-                rows.append(f"{ts:.6f} {name} y {current[1]};")
+                writer.add(ts,name,"y",current[1])
             if last[i] is None or current[2]!=last[i][2]:
-                rows.append(f"{ts:.6f} {name} color white@{current[2]:.5f};")
+                writer.add(ts,name,"color",f"white@{current[2]:.5f}")
             last[i]=current
-            if len(rows)>MAX_SPARK_COMMAND_ROWS:
-                raise ValueError("Spark render command melebihi batas aman 220000 rows.")
 
-    if not rows:
+    if not writer.batches():
         return None
     work=Path(work_dir); work.mkdir(parents=True,exist_ok=True)
     command_file=work/f"spark-{token}.sendcmd"
-    command_file.write_text("\n".join(rows)+"\n",encoding="utf-8")
+    try:
+        metrics=writer.write(command_file)
+    except CommandLimitError as exc:
+        raise ValueError(f"Spark render command melebihi batas aman: {exc}") from exc
     pieces=[f"sendcmd=f='{_ffmpeg_path(command_file)}'"]
     for i,name in enumerate(names):
         size=slot_sizes[i]
         pieces.append(f"{name}=x=0:y=0:w={size}:h={size}:color=white@0:t=fill")
-    return SparkRenderControl(command_file,","+",".join(pieces),len(rows))
+    return SparkRenderControl(
+        command_file,","+",".join(pieces),
+        metrics.rows,metrics.ops,metrics.bytes,
+    )
