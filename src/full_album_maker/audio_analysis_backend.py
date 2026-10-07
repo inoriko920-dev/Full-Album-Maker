@@ -119,6 +119,7 @@ def analyze_pcm(
         units="frames",
         sparse=True,
     )
+    _check_cancel(cancel_event)
     tempo_raw, beat_frames_raw = beat_value
     tempo_array = np.asarray(tempo_raw).reshape(-1)
     tempo_bpm = float(tempo_array[0]) if tempo_array.size else 0.0
@@ -132,6 +133,7 @@ def analyze_pcm(
         backtrack=False,
         sparse=True,
     )
+    _check_cancel(cancel_event)
     onset_frames = tuple(int(x) for x in np.asarray(onset_frames_raw, dtype=np.int64).reshape(-1) if 0 <= int(x) < total_frames)
 
     if len(beat_frames) >= 3:
