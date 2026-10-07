@@ -23,8 +23,8 @@ def _context_init(self, *args, **kwargs) -> None:
     root = self.layout()
     root.setContentsMargins(8, 6, 8, 7)
     root.setSpacing(5)
-    self.layer_scroll.setMinimumHeight(156)
-    self.layer_scroll.setMaximumHeight(164)
+    self.layer_scroll.setMinimumHeight(176)
+    self.layer_scroll.setMaximumHeight(176)
     self.add_button.setText("＋  Tambah Spectrum")
     self.add_button.setMinimumWidth(138)
 
