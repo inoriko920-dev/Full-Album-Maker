@@ -18,7 +18,7 @@ def _two_hour_events():
     while tick<duration:
         events.append(ProjectedMusicEvent(
             tick,tick,f"song-{index//240}","asset",
-            MusicEventType.STRONG_BEAT,1.0,.95,
+            MusicEventType.STRONG_BEAT,1.0,.95,"step14-stress",
         ))
         tick+=step; index+=1
     return duration,tuple(events)
