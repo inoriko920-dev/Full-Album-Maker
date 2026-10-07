@@ -40,12 +40,22 @@ def normalize_visual_properties(layer_type: str, properties: dict[str, Any] | No
         center_ratio = float(source.get("center_ratio", 0.18))
         if not 0.05 <= center_ratio <= 0.45:
             raise ValueError("Ukuran label tengah vinyl harus 0.05..0.45.")
+        bpm_sync = bool(source.get("bpm_sync", False))
+        beats_per_rotation = float(source.get("beats_per_rotation", 4.0))
+        if beats_per_rotation not in {1.0, 2.0, 4.0, 8.0}:
+            raise ValueError("Beats per rotation harus 1, 2, 4, atau 8.")
+        bpm_sync_min_confidence = float(source.get("bpm_sync_min_confidence", 0.55))
+        if not 0.0 <= bpm_sync_min_confidence <= 1.0:
+            raise ValueError("Confidence BPM Sync harus 0..1.")
         return {
             "color": str(source.get("color", "#151515")),
             "groove_color": str(source.get("groove_color", "#2d2d2d")),
             "center_color": str(source.get("center_color", "#d9d9d9")),
             "spin_seconds": spin_seconds,
             "center_ratio": center_ratio,
+            "bpm_sync": bpm_sync,
+            "beats_per_rotation": beats_per_rotation,
+            "bpm_sync_min_confidence": bpm_sync_min_confidence,
         }
     if layer_type == "playlist_visual":
         max_items = int(source.get("max_items", 8))
