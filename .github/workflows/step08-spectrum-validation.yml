@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-08-spectrum
+      - ui/ui07-spectrum-remediation-v160
   workflow_dispatch:
 
 permissions:
