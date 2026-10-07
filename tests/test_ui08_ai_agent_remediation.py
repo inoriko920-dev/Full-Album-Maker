@@ -66,7 +66,8 @@ def test_ui08_ai_agent_remediation_route_contract() -> None:
         assert hasattr(window.ai_context_s09, "ui08_permission_toggle")
         assert all(check.isHidden() for check in window.ai_context_s09.permissions.values())
         assert window._ui08_timeline_panel.isHidden() is False
-        assert window.ai_timeline_s09.isHidden() is True
+        assert window.ai_timeline_s09.isHidden() is False
+        assert shell.timeline.body.isHidden() is True
         assert window._ui08_timeline_canvas.isHidden() is False
         assert window._inspector_router.currentWidget() is window.ai_context_s09
         for widget in getattr(window, "_s06_context_old", ()):
