@@ -4,7 +4,12 @@ from dataclasses import dataclass
 import math
 
 from .editor_models import Layer
-from .visual_binding_contract import CoreBeatPreset, VisualBinding, VisualBindingSet
+from .visual_binding_contract import (
+    CoreBeatPreset,
+    VisualBinding,
+    VisualBindingSet,
+    visual_property_amount_bounds,
+)
 from .visual_binding_engine import combine_binding_sets, core_binding_set
 
 BEAT_ASSIGNMENT_KEY = "beat_v1"
@@ -41,7 +46,13 @@ class BeatAnimationAssignment:
                 VisualBinding(
                     channel=binding.channel,
                     property=binding.property,
-                    amount=float(binding.amount) * float(self.intensity),
+                    amount=max(
+                        visual_property_amount_bounds(binding.property)[0],
+                        min(
+                            visual_property_amount_bounds(binding.property)[1],
+                            float(binding.amount) * float(self.intensity),
+                        ),
+                    ),
                     response_gamma=binding.response_gamma,
                     min_signal=binding.min_signal,
                 )
