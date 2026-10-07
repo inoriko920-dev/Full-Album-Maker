@@ -15,5 +15,7 @@
 
 - `STEP05_MUSIC_EVENT_TIMELINE_DERIVED_EVENT_ENGINE_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `f995c3821051a4b434d406eb04183f22f2003c9b56050a9503404faeda86b636`
 
+- `STEP06_ANIMATION_SIGNAL_ENVELOPE_ENGINE_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `5562f4c3be1bebcbe34d5d0acdd6ff45d01584e72355b113895718234a54ecba`
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
