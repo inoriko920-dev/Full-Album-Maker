@@ -370,6 +370,52 @@ STEP11_BEAT_GEMINI_TOOLS: tuple[dict[str, Any], ...] = (
 )
 
 
+STEP13_MOTION_GEMINI_TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "set_beat_motion",
+        "description": "Terapkan satu motion Beat yang terdaftar di beat_context tanpa mengganti visual Beat.",
+        "parameters": _obj(
+            {
+                "layer_ids": {"type": "array", "items": {"type": "string"}},
+                "motion_preset": {"type": "string"},
+                "motion_intensity": {"type": "number", "minimum": 0.0, "maximum": 2.0},
+            },
+            ("layer_ids", "motion_preset", "motion_intensity"),
+        ),
+    },
+    {
+        "name": "adjust_motion_intensity",
+        "description": "Ubah intensity motion relatif tanpa mengganti motion/visual preset.",
+        "parameters": _obj(
+            {
+                "layer_ids": {"type": "array", "items": {"type": "string"}},
+                "delta": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+            },
+            ("layer_ids", "delta"),
+        ),
+    },
+    {
+        "name": "clear_beat_motion",
+        "description": "Hapus motion Beat saja dan pertahankan visual Beat.",
+        "parameters": _obj(
+            {"layer_ids": {"type": "array", "items": {"type": "string"}}},
+            ("layer_ids",),
+        ),
+    },
+    {
+        "name": "apply_beat_combo",
+        "description": "Terapkan satu kombinasi visual+motion yang terdaftar pada beat_context.",
+        "parameters": _obj(
+            {
+                "layer_ids": {"type": "array", "items": {"type": "string"}},
+                "combo_id": {"type": "string"},
+            },
+            ("layer_ids", "combo_id"),
+        ),
+    },
+)
+
+
 STEP09_GEMINI_SYSTEM = """Kamu adalah intent planner untuk AI Agent Full Album Maker STEP11.
 Bahasa utama Indonesia. Tugasmu hanya menerjemahkan instruksi pengguna menjadi function call dari daftar tool yang diberikan.
 
@@ -390,6 +436,10 @@ Aturan keras:
 14. Sinkronisasi Vinyl ke BPM memakai set_vinyl_bpm_sync; default 4 beat per putaran bila user tidak menentukan.
 15. Untuk action layer-spesifik, prioritaskan selected Beat layer. Jika tidak ada target unik dan user tidak mengatakan semua/seluruh, tanyakan klarifikasi.
 16. Jangan pernah membuat BPM, beat timestamp, envelope, atau hasil analyzer; Agent hanya mengubah konfigurasi registry-backed.
+17. Motion eksplisit memakai set_beat_motion; perubahan hanya kuat/lembut memakai adjust_motion_intensity.
+18. Permintaan hapus/matikan motion memakai clear_beat_motion dan tidak boleh mematikan visual Beat.
+19. Kombinasi eksplisit dari combo_catalog harus memakai apply_beat_combo; jangan meniru recipe dengan beberapa function call.
+20. Motion/combo hanya boleh memakai ID dari beat_context dan target layer yang kompatibel.
 """
 
 
@@ -428,7 +478,7 @@ class GeminiStep09Provider:
                 ]
             },
             "contents": [{"role": "user", "parts": [{"text": str(prompt)[:4000]}]}],
-            "tools": [{"functionDeclarations": list(STEP09_GEMINI_TOOLS + STEP11_BEAT_GEMINI_TOOLS)}],
+            "tools": [{"functionDeclarations": list(STEP09_GEMINI_TOOLS + STEP11_BEAT_GEMINI_TOOLS + STEP13_MOTION_GEMINI_TOOLS)}],
         }
         response = self.pool.request_json(self._url(), payload)
         candidates = response.get("candidates") or []
