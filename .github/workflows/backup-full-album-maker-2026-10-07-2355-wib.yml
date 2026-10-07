@@ -1,0 +1,36 @@
+name: Backup Full-Album-Maker 2026-10-07 23-55 WIB
+
+on:
+  push:
+    branches:
+      - backup/full-album-maker-2026-10-07-2355-wib
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout backup branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+
+      - name: Generate verified single-app master backup
+        run: python .github/backup/full_album_maker_backup.py
+
+      - name: Upload verified master backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB
+          path: |
+            backup-work/MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB.zip
+            backup-work/MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
