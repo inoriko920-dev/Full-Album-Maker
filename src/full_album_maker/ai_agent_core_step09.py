@@ -277,6 +277,8 @@ def build_agent_context_snapshot(
         from .beat_layer_capabilities import beat_capability_for_layer
         from .beat_preset_catalog import BEAT_PRESET_CATALOG
         from .music_style_presets import MUSIC_STYLE_CATALOG
+        from .advanced_motion_contract import MOTION_PRESET_CATALOG, motion_supported_for_layer
+        from .beat_combo_catalog import BEAT_COMBO_CATALOG, supported_combos_for_layer
         beat_layers = []
         beat_capable_ids = []
         selected_beat_ids = []
@@ -297,6 +299,13 @@ def build_agent_context_snapshot(
                 "current_presets": [preset.value for preset in assignment.presets] if assignment else [],
                 "intensity": float(assignment.intensity) if assignment else 1.0,
                 "supported_presets": [preset.value for preset in capability.supported_presets],
+                "current_motion": assignment.motion_preset.value if assignment and assignment.motion_preset else None,
+                "motion_intensity": float(assignment.motion_intensity) if assignment else 1.0,
+                "supported_motion_presets": [
+                    motion.value for motion in MOTION_PRESET_CATALOG
+                    if motion_supported_for_layer(layer, motion)
+                ],
+                "supported_combos": [combo.combo_id for combo in supported_combos_for_layer(layer)],
             }
             if layer.type == "vinyl":
                 item["bpm_sync"] = bool(layer.properties.get("bpm_sync", False))
@@ -312,6 +321,22 @@ def build_agent_context_snapshot(
                     "aliases": list(definition.ai_aliases),
                 }
                 for preset, definition in BEAT_PRESET_CATALOG.items()
+            ],
+            "motion_catalog": [
+                {
+                    "id": motion.value,
+                    "label": definition.label,
+                    "aliases": [definition.label, motion.value.replace("_", " ")],
+                }
+                for motion, definition in MOTION_PRESET_CATALOG.items()
+            ],
+            "combo_catalog": [
+                {
+                    "id": combo_id,
+                    "label": definition.label,
+                    "aliases": list(definition.ai_aliases),
+                }
+                for combo_id, definition in BEAT_COMBO_CATALOG.items()
             ],
             "music_styles": [
                 {
