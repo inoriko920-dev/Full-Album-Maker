@@ -30,5 +30,7 @@
 
 - `STEP12_EVENT_PHASE_MODULATOR_ADVANCED_MOTION_EFFECTS_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `fbbc0c63c1a4ad9cb5d92e1d3e1e43d018d79b4c6c57e3cf942c9e56caff315f`
 
+- `STEP13_AI_MOTION_COMBINATION_PRESETS_PERFORMANCE_HARDENING_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `2f6b121a1828245965023327f1af14364485716cbb58a5d413b8037c3f09e578`
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
