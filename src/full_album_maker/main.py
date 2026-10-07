@@ -37,6 +37,7 @@ from full_album_maker.timeline_remediation import install_ui04_timeline_remediat
 from full_album_maker.visual_remediation import install_ui05_visual_remediation
 from full_album_maker.template_remediation import install_ui06_template_remediation
 from full_album_maker.spectrum_remediation import install_ui07_spectrum_remediation
+from full_album_maker.ai_remediation import install_ui08_ai_agent_remediation
 
 
 install_feature()
@@ -74,6 +75,7 @@ install_ui04_timeline_remediation()
 install_ui05_visual_remediation()
 install_ui06_template_remediation()
 install_ui07_spectrum_remediation()
+install_ui08_ai_agent_remediation()
 
 
 def main(argv: list[str] | None = None) -> int:
