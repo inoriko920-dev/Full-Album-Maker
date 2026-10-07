@@ -85,8 +85,6 @@ def build_beat_render_control(
         raise BeatRenderControlError("FPS Beat render tidak valid.")
 
     props = _properties(runtime, layer.layer_id)
-    if abs(float(layer.transform.rotation)) > 1e-6:
-        raise BeatRenderControlError("Beat render V1 membutuhkan base rotation 0°.")
     unsupported = props & {
         VisualProperty.OPACITY_MULTIPLIER,
         VisualProperty.X_OFFSET_NORMALIZED,
@@ -96,6 +94,8 @@ def build_beat_render_control(
         names=", ".join(sorted(p.value for p in unsupported))
         raise BeatRenderControlError(f"Properti Beat render V1 belum didukung: {names}")
     if VisualProperty.ROTATION_OFFSET_DEG in props:
+        if abs(float(layer.transform.rotation)) > 1e-6:
+            raise BeatRenderControlError("Rotation Nudge V1 membutuhkan base rotation 0°.")
         if abs(float(layer.transform.pivot_x)-0.5)>1e-6 or abs(float(layer.transform.pivot_y)-0.5)>1e-6:
             raise BeatRenderControlError("Rotation Nudge V1 membutuhkan center pivot.")
 
