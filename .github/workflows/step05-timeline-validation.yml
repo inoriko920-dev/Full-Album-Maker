@@ -104,7 +104,8 @@ jobs:
           assert main['crossfade_count'] == 1, main
           assert main['audio_errors'] == [], main
           assert main['route_preserved_content'] is True, main
-          assert main['selected_inspector'] == 'Lagu Utama', main\n          assert main['selected_subtitle'] == 'Senja di Kota Ini.mp3', main
+          assert main['selected_inspector'] == 'Lagu Utama', main
+          assert main['selected_subtitle'] == 'Senja di Kota Ini.mp3', main
           assert main['monitor_audio_available'] is False, main
 
           empty = geometry('timeline-empty-final')
@@ -115,7 +116,8 @@ jobs:
           compact = geometry('timeline-1366-final')
           assert compact['window'] == [1366, 768], compact
           assert compact['timeline_active'] is True and compact['precision_visible'] is True, compact
-          assert compact['context_width'] in range(228, 245), compact\n          assert compact['right_dock_width'] in range(278, 296), compact
+          assert compact['context_width'] in range(228, 245), compact
+          assert compact['right_dock_width'] in range(278, 296), compact
           assert compact['timeline_height'] in range(342, 349), compact
           assert compact['gap_count'] == 1 and compact['crossfade_count'] == 1, compact
           print('STEP05_TIMELINE_GEOMETRY_PASS')
