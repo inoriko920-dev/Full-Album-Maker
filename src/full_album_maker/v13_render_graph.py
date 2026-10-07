@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .beat_render_control import BeatRenderControlError, build_beat_render_control, render_filter_suffix
 from .editor_models import Layer, ProjectDocument, TIMEBASE
 from .render_graph import (
     CompiledFFmpeg,
+    _beat_snapshot_glow_chain,
     _layer_size,
     _rotation_chain,
     ticks_to_seconds,
@@ -314,6 +316,30 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
                 source = f"svsrc{sequence}"
                 output = f"sv{sequence}"
                 sequence += 1
+                try:
+                    beat_control = build_beat_render_control(
+                        getattr(self, "_beat_visual_runtime", None),
+                        layer,
+                        base_width=width,
+                        base_height=height,
+                        fps=fps,
+                        intervals=[(intersection_start, visual_end_tick)],
+                        work_dir=work_dir,
+                        stream_key=f"song_visual_{sequence}_{event.song_id[:8]}",
+                    )
+                except BeatRenderControlError as exc:
+                    raise ValueError(str(exc)) from exc
+                beat_suffix = (
+                    render_filter_suffix(
+                        beat_control,
+                        base_width=width,
+                        base_height=height,
+                    )
+                    if beat_control is not None
+                    else ""
+                )
+                snapshot_glow = _beat_snapshot_glow_chain(layer)
+                static_rotate = rotate if beat_control is None or beat_control.rotate_filter is None else ""
                 crop = _crop_chain(props)
                 geometry = _fit_chain(props["fit"], width, height)
                 chain = f"[{input_index}:v]{crop}{geometry}"
@@ -344,9 +370,13 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
                 )
                 if props["transition"] == "fade" and transition > 0:
                     chain += f",fade=t=in:st=0:d={transition:.6f}:alpha=1"
-                chain += f",colorchannelmixer=aa={opacity:.6f}{rotate}"
+                chain += f",colorchannelmixer=aa={opacity:.6f}"
                 if start_seconds > 0:
                     chain += f",setpts=PTS+{start_seconds:.6f}/TB"
+                if beat_control is not None:
+                    chain += beat_suffix + static_rotate
+                else:
+                    chain += snapshot_glow + static_rotate
                 chain += f"[{source}]"
                 visual_filters.append(chain)
 
