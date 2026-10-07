@@ -25,5 +25,7 @@
 
 - `STEP10_ADVANCED_BEAT_ANIMATION_CATALOG_MUSIC_PRESETS_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `4180a2f7dee2957b92400a6af424b393c832997ccb6e249e3a374b39d41a0c0a`
 
+- `STEP11_AI_AGENT_ACTION_REGISTRY_NATURAL_LANGUAGE_BEAT_CONTROL_FULL_ALBUM_MAKER_2026-10-07.docx` — SHA256 `4bc420567f4539f00b74df1be3052aac353b0934fb10d2ca982046282f0c2abb`
+
 ## Handoff rule
 Before changing Beat Animation Engine code, read the master plan and STEP documents in order. Do not skip gates, and keep production `main` unchanged until an explicit merge/release decision.
