@@ -691,6 +691,10 @@ def _apply_visual_geometry(window) -> None:
     shell.horizontal_splitter.setSizes([nav, context, center, right])
 
     host = shell.timeline
+    host.body.hide()
+    panel = getattr(window, "_ui05_timeline_panel", None)
+    if panel is not None:
+        panel.show()
     host._preferred_height = 220
     host.setMinimumHeight(220)
     host.setMaximumHeight(220)
