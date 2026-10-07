@@ -89,8 +89,14 @@ jobs:
       # Real audio analysis/capture comes after regression so installing Linux
       # FFmpeg cannot alter legacy tool-detection tests above.
       - name: Install FFmpeg for STEP08 real-audio evidence
+        timeout-minutes: 4
         run: |
-          sudo apt-get install -y ffmpeg
+          if command -v ffmpeg >/dev/null 2>&1; then
+            echo "Using runner FFmpeg: $(command -v ffmpeg)"
+          else
+            sudo apt-get update
+            timeout 180s sudo apt-get install -y ffmpeg
+          fi
           ffmpeg -version | head -n 1
       - name: Capture deterministic STEP08 Spectrum evidence
         run: |
