@@ -5,6 +5,7 @@ from typing import Iterable
 
 from .beat_animation_assignment import BEAT_ASSIGNMENT_KEY, assignment_for_layer
 from .beat_layer_capabilities import preset_supported_for_layer
+from .advanced_motion_contract import motion_supported_for_layer
 from .visual_binding_contract import CoreBeatPreset
 from .album_visuals import (
     make_playlist_visual_layer,
@@ -274,6 +275,8 @@ class EditorSession:
         for preset in assignment.presets:
             if not preset_supported_for_layer(probe, preset):
                 raise ValueError(f"Preset Beat tidak didukung untuk layer ini: {preset.value}")
+        if assignment.motion_preset is not None and not motion_supported_for_layer(probe, assignment.motion_preset):
+            raise ValueError(f"Motion Beat tidak didukung untuk layer ini: {assignment.motion_preset.value}")
         self.controller.dispatch(SetLayerAnimationValue(layer_id, BEAT_ASSIGNMENT_KEY, deepcopy(payload)))
         return self._after_mutation()
 
