@@ -100,7 +100,7 @@ def build():
     table(doc,["Layer","Motion V1"],[
         ("song_cover","Semua 6"),("vinyl","Semua 6"),("background","Semua 6"),
         ("song_visual","Semua 6"),("spectrum","Semua 6"),
-        ("text/song_title","Alternating Wobble, Beat Bounce, Spark Burst"),
+        ("text/song_title","Beat Bounce"),
     ])
     code(doc,'BEAT ANIMATION\n  Aktif [x]\n  Preset Beat [Club Punch]\n  Intensity [110%]\n  Motion [Camera Shake]\n  Motion Intensity [80%]')
     doc.add_heading("7. Render Integration",1)
