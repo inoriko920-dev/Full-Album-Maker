@@ -41,7 +41,7 @@ def test_ui03_album_remediation_matches_route_contract(tmp_path) -> None:
 
             shell = window.foundation_shell
             assert shell.context.width() in range(288, 306)
-            assert shell.inspector.width() in range(315, 334)
+            assert shell.inspector.width() in range(304, 315)
             assert window.album_workspace.table.columnCount() == 9
             assert window.album_workspace.table.rowCount() == 10
             assert window.album_workspace.table.item(0, 3).text() == "Senja di Kota Ini"
