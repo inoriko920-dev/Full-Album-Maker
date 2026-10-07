@@ -80,8 +80,11 @@ class SparkBurstEngine:
     def particles(self,tick:int) -> tuple[SparkParticleSample,...]:
         if tick < 0:
             raise ValueError("tick must be non-negative")
-        result=[]
-        for trigger in self.phase_engine.triggers(AnimationSignalChannel.STRONG_BEAT):
-            if trigger.event_tick <= tick <= trigger.event_tick+SPARK_LIFETIME_TICK:
-                result.extend(particles_for_trigger(trigger,tick,self.intensity))
-        return tuple(result)
+        active=[
+            trigger for trigger in self.phase_engine.triggers(AnimationSignalChannel.STRONG_BEAT)
+            if trigger.event_tick <= tick <= trigger.event_tick+SPARK_LIFETIME_TICK
+        ]
+        if not active:
+            return ()
+        trigger=max(active,key=lambda t:(t.event_tick,t.amplitude,-t.source_tick,t.song_id,t.asset_id))
+        return particles_for_trigger(trigger,tick,self.intensity)
