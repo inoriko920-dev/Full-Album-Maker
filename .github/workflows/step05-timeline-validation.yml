@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-05-timeline
+      - ui/ui04-timeline-remediation-v160
   workflow_dispatch:
 
 permissions:
