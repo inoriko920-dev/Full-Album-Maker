@@ -8,6 +8,7 @@ from typing import Iterable
 
 from .album_visuals import format_duration_tick, normalize_visual_properties
 from .beat_render_control import BeatRenderControlError, build_beat_render_control, render_filter_suffix
+from .beat_text_render_control import BeatTextRenderControlError, build_beat_text_render_control
 from .circular_spectrum import circular_spectrum_filter
 from .editor_models import Layer, ProjectDocument, TIMEBASE
 from .overlay_effects import effect_source_filter, normalize_effect_properties
@@ -109,6 +110,28 @@ def _beat_snapshot_glow_chain(layer: Layer) -> str:
     brightness = 0.12 * glow
     saturation = 1.0 + 0.15 * glow
     return f",eq=brightness={brightness:.8f}:saturation={saturation:.8f}:eval=init"
+
+
+def _beat_snapshot_font_scale(layer: Layer) -> float:
+    raw = layer.properties.get("_beat_snapshot_font_scale", 1.0)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise RenderCompileError("Beat snapshot font scale tidak valid.") from exc
+    if not 0.5 <= value <= 2.0:
+        raise RenderCompileError("Beat snapshot font scale harus 0.5..2.0.")
+    return value
+
+
+def _beat_snapshot_borderw(layer: Layer) -> int:
+    raw = layer.properties.get("_beat_snapshot_glow", 0.0)
+    try:
+        glow = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise RenderCompileError("Beat snapshot text glow tidak valid.") from exc
+    if not 0.0 <= glow <= 1.0:
+        raise RenderCompileError("Beat snapshot text glow harus 0..1.")
+    return max(0, min(16, int(round(4.0 * glow))))
 
 
 def _escape_enable(intervals: Iterable[tuple[int, int]]) -> str:
@@ -829,7 +852,12 @@ class FFmpegV2Compiler:
                 fontcolor = _color(
                     layer.properties.get("color", "#ffffff")
                 )
-                fontsize = _font_size(layer, document.canvas.height)
+                base_fontsize = _font_size(layer, document.canvas.height)
+                snapshot_fontsize = max(
+                    4,
+                    round(base_fontsize * _beat_snapshot_font_scale(layer)),
+                )
+                snapshot_borderw = _beat_snapshot_borderw(layer)
                 for event in plan.audio_events:
                     event_intervals = _intersect_intervals(
                         intervals,
@@ -851,13 +879,27 @@ class FFmpegV2Compiler:
                     text_files.append(text_path)
                     out = f"v{stage}"
                     stage += 1
+                    try:
+                        text_control = build_beat_text_render_control(
+                            getattr(self, "_beat_visual_runtime", None),
+                            layer,
+                            base_fontsize=base_fontsize,
+                            fps=fps,
+                            intervals=event_intervals,
+                            work_dir=work,
+                            stream_key=f"title_{stage}_{event.song_id[:8]}",
+                        )
+                    except BeatTextRenderControlError as exc:
+                        raise RenderCompileError(str(exc)) from exc
                     parts = [
                         f"textfile='{_filter_path(text_path)}'",
                         "reload=0",
                         f"x={_position_expr(layer, 'x')}",
                         f"y={_position_expr(layer, 'y')}",
-                        f"fontsize={fontsize}",
+                        f"fontsize={base_fontsize if text_control is not None else snapshot_fontsize}",
                         f"fontcolor={fontcolor}",
+                        f"bordercolor={fontcolor}",
+                        f"borderw={0 if text_control is not None else snapshot_borderw}",
                         f"alpha={layer.opacity:.6f}",
                         f"enable='{_escape_enable(event_intervals)}'",
                     ]
@@ -869,11 +911,19 @@ class FFmpegV2Compiler:
                             0,
                             f"fontfile='{_filter_path(Path(font_path))}'",
                         )
-                    filters.append(
-                        f"[{current}]drawtext="
-                        + ":".join(parts)
-                        + f"[{out}]"
-                    )
+                    if text_control is not None:
+                        filters.append(
+                            f"[{current}]{text_control.sendcmd_filter},"
+                            f"{text_control.drawtext_filter}="
+                            + ":".join(parts)
+                            + f"[{out}]"
+                        )
+                    else:
+                        filters.append(
+                            f"[{current}]drawtext="
+                            + ":".join(parts)
+                            + f"[{out}]"
+                        )
                     current = out
                 continue
 
@@ -882,16 +932,35 @@ class FFmpegV2Compiler:
             text_path.write_text(text, encoding="utf-8")
             text_files.append(text_path)
             fontcolor = _color(layer.properties.get("color", "#ffffff"))
-            fontsize = _font_size(layer, document.canvas.height)
+            base_fontsize = _font_size(layer, document.canvas.height)
+            snapshot_fontsize = max(
+                4,
+                round(base_fontsize * _beat_snapshot_font_scale(layer)),
+            )
+            snapshot_borderw = _beat_snapshot_borderw(layer)
             out = f"v{stage}"
             stage += 1
+            try:
+                text_control = build_beat_text_render_control(
+                    getattr(self, "_beat_visual_runtime", None),
+                    layer,
+                    base_fontsize=base_fontsize,
+                    fps=fps,
+                    intervals=intervals,
+                    work_dir=work,
+                    stream_key=f"text_{stage}",
+                )
+            except BeatTextRenderControlError as exc:
+                raise RenderCompileError(str(exc)) from exc
             parts = [
                 f"textfile='{_filter_path(text_path)}'",
                 "reload=0",
                 f"x={_position_expr(layer, 'x')}",
                 f"y={_position_expr(layer, 'y')}",
-                f"fontsize={fontsize}",
+                f"fontsize={base_fontsize if text_control is not None else snapshot_fontsize}",
                 f"fontcolor={fontcolor}",
+                f"bordercolor={fontcolor}",
+                f"borderw={0 if text_control is not None else snapshot_borderw}",
                 f"alpha={layer.opacity:.6f}",
                 f"enable='{enable}'",
             ]
@@ -903,9 +972,17 @@ class FFmpegV2Compiler:
                     0,
                     f"fontfile='{_filter_path(Path(font_path))}'",
                 )
-            filters.append(
-                f"[{current}]drawtext=" + ":".join(parts) + f"[{out}]"
-            )
+            if text_control is not None:
+                filters.append(
+                    f"[{current}]{text_control.sendcmd_filter},"
+                    f"{text_control.drawtext_filter}="
+                    + ":".join(parts)
+                    + f"[{out}]"
+                )
+            else:
+                filters.append(
+                    f"[{current}]drawtext=" + ":".join(parts) + f"[{out}]"
+                )
             current = out
 
         filters.append(f"[{current}]format=yuv420p[vout]")
