@@ -8,6 +8,7 @@ import re
 from .editor_models import Layer, TIMEBASE
 from .visual_binding_contract import VisualProperty
 from .beat_visual_runtime import BeatVisualRuntime
+from .spark_render_control import build_spark_render_control
 
 MAX_COMMAND_ROWS = 250_000
 MAX_BEAT_RENDER_LAYERS = 4
@@ -28,6 +29,7 @@ class BeatRenderControl:
     overlay_x_expr: str
     overlay_y_expr: str
     command_rows: int
+    spark_filter_suffix: str
 
 
 def _safe_token(value: str) -> str:
@@ -166,12 +168,21 @@ def build_beat_render_control(
             raise BeatRenderControlError("Beat render command melebihi batas aman 250000 rows.")
         last=current
 
-    if not rows:
+    spark_control = build_spark_render_control(
+        runtime,
+        layer,
+        base_width=base_width,
+        base_height=base_height,
+        intervals=intervals,
+        work_dir=work_dir,
+        stream_key=stream_key,
+    )
+    if not rows and spark_control is None:
         return None
     work=Path(work_dir); work.mkdir(parents=True,exist_ok=True)
     command_file=work/f"beat-{token}.sendcmd"
     command_file.write_text("\n".join(rows)+"\n",encoding="utf-8")
-    sendcmd=f"sendcmd=f='{_ffmpeg_path(command_file)}'"
+    sendcmd=f"sendcmd=f='{_ffmpeg_path(command_file)}'" if rows else ""
     return BeatRenderControl(
         command_file=command_file,
         sendcmd_filter=sendcmd,
@@ -181,7 +192,8 @@ def build_beat_render_control(
         overlay_filter=overlay_name,
         overlay_x_expr=x_expr,
         overlay_y_expr=y_expr,
-        command_rows=len(rows),
+        command_rows=len(rows) + (spark_control.command_rows if spark_control is not None else 0),
+        spark_filter_suffix=spark_control.filter_suffix if spark_control is not None else "",
     )
 
 
@@ -191,11 +203,12 @@ def render_filter_suffix(
     base_width: int,
     base_height: int,
 ) -> str:
-    pieces=[control.sendcmd_filter]
+    pieces=[control.sendcmd_filter] if control.sendcmd_filter else []
     if control.scale_filter:
         pieces.append(f"{control.scale_filter}=w={base_width}:h={base_height}:eval=init")
     if control.glow_filter:
         pieces.append(f"{control.glow_filter}=brightness=0:saturation=1:eval=init")
     if control.rotate_filter:
         pieces.append(f"{control.rotate_filter}=angle=0:ow=iw:oh=ih:c=none")
-    return ","+",".join(pieces) if pieces else ""
+    base = "," + ",".join(pieces) if pieces else ""
+    return base + control.spark_filter_suffix
