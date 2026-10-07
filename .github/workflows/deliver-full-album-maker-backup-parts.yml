@@ -1,0 +1,71 @@
+name: Deliver Full-Album-Maker Backup Parts
+
+on:
+  push:
+    branches:
+      - backup/full-album-maker-2026-10-07-2355-wib
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  split:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: "37655757791"
+      SOURCE_ARTIFACT: MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB
+      MASTER_FILE: MASTER-BACKUP-FULL-ALBUM-MAKER-2026-10-07_23-55-WIB.zip
+    steps:
+      - name: Download verified master artifact
+        run: |
+          set -euo pipefail
+          mkdir inbound parts
+          gh run download "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" -n "$SOURCE_ARTIFACT" -D inbound
+          test -s "inbound/$MASTER_FILE"
+          sha256sum -c "inbound/$MASTER_FILE.sha256"
+
+      - name: Split without modifying master bytes
+        run: |
+          set -euo pipefail
+          split -b 70M -d -a 2 "inbound/$MASTER_FILE" "parts/$MASTER_FILE.part-"
+          ls -lh parts/
+          test "$(find parts -type f | wc -l)" -eq 5
+          sha256sum parts/* > parts/PARTS_SHA256SUMS.txt
+          cp "inbound/$MASTER_FILE.sha256" parts/MASTER_SHA256.txt
+
+      - name: Upload part 00
+        uses: actions/upload-artifact@v4
+        with:
+          name: FAM-BACKUP-PART-00
+          path: |
+            parts/*.part-00
+            parts/PARTS_SHA256SUMS.txt
+            parts/MASTER_SHA256.txt
+          if-no-files-found: error
+      - name: Upload part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: FAM-BACKUP-PART-01
+          path: parts/*.part-01
+          if-no-files-found: error
+      - name: Upload part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: FAM-BACKUP-PART-02
+          path: parts/*.part-02
+          if-no-files-found: error
+      - name: Upload part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: FAM-BACKUP-PART-03
+          path: parts/*.part-03
+          if-no-files-found: error
+      - name: Upload part 04
+        uses: actions/upload-artifact@v4
+        with:
+          name: FAM-BACKUP-PART-04
+          path: parts/*.part-04
+          if-no-files-found: error
