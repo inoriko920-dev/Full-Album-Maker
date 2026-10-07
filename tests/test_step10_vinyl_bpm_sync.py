@@ -128,3 +128,18 @@ def test_runtime_can_exist_for_bpm_sync_without_visual_binding():
     )
     assert runtime.diagnostics.beat_layers==0
     assert runtime.vinyl_spin_seconds_at(TIMEBASE,fallback_spin_seconds=8)==pytest.approx(2)
+
+
+def test_invalid_latest_overlap_overrides_old_valid_tempo_with_fallback():
+    old=_segment(120,confidence=.95,quality=AnalysisQuality.HIGH,start=0,end=4*TIMEBASE,song="old")
+    new=_segment(140,confidence=.20,quality=AnalysisQuality.LOW,start=2*TIMEBASE,end=4*TIMEBASE,song="new")
+    tick=int(2.5*TIMEBASE)
+    assert vinyl_spin_seconds_at(
+        (old,new),tick,fallback_spin_seconds=8,beats_per_rotation=4,min_confidence=.55
+    )==8
+    expr=vinyl_phase_expression(
+        (old,new),fallback_spin_seconds=8,beats_per_rotation=4,min_confidence=.55
+    )
+    # The newer invalid segment must be represented explicitly with fallback,
+    # not skipped in a way that lets the older 120 BPM segment leak through.
+    assert "if(between(T,2.000000000,4.000000000),(T/8.000000000)" in expr
