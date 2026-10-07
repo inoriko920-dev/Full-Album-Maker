@@ -37,7 +37,7 @@ def _audio(path: Path, duration=1.0):
 def _image(path: Path):
     subprocess.run([
         _ffmpeg(),"-y","-hide_banner","-loglevel","error",
-        "-f","lavfi","-i","color=c=#c03030:s=320x240:d=0.1",
+        "-f","lavfi","-i","testsrc2=size=320x240:rate=1:duration=0.1",
         "-frames:v","1",str(path),
     ],check=True)
     return path
