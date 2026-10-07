@@ -15,6 +15,7 @@ from .overlay_effects import effect_source_filter, normalize_effect_properties
 from .render_plan import RenderPlan, compile_render_plan
 from .spectrum_feature import dynamic_song_text, normalize_spectrum_properties
 from .timeline_resolver import TimelineResolver
+from .vinyl_bpm_sync import vinyl_phase_expression
 
 
 class RenderCompileError(ValueError):
@@ -657,10 +658,19 @@ class FFmpegV2Compiler:
                 center_rgb = _rgb(props["center_color"])
                 spin = props["spin_seconds"]
                 center_ratio = props["center_ratio"]
+                runtime = getattr(self, "_beat_visual_runtime", None)
+                phase_expr = f"(T/{spin:.9f})"
+                if props.get("bpm_sync", False) and runtime is not None:
+                    phase_expr = vinyl_phase_expression(
+                        runtime.tempo_segments,
+                        fallback_spin_seconds=spin,
+                        beats_per_rotation=props["beats_per_rotation"],
+                        min_confidence=props["bpm_sync_min_confidence"],
+                    )
                 radius = "hypot(X-W/2,Y-H/2)"
                 dot = (
-                    f"lte(hypot(X-(W/2+cos(2*PI*T/{spin:.6f})*W*0.32),"
-                    f"Y-(H/2+sin(2*PI*T/{spin:.6f})*H*0.32)),"
+                    f"lte(hypot(X-(W/2+cos(2*PI*({phase_expr}))*W*0.32),"
+                    f"Y-(H/2+sin(2*PI*({phase_expr}))*H*0.32)),"
                     "min(W,H)*0.025)"
                 )
                 channel_exprs: list[str] = []
