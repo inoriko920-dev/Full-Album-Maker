@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 
 from .editor_models import Layer, TIMEBASE
+from .animation_signal_contract import AnimationSignalChannel
+from .advanced_motion_contract import AdvancedMotionPreset, MOTION_PRESET_CATALOG
 from .visual_binding_contract import VisualProperty
 from .beat_visual_runtime import BeatVisualRuntime
 from .spark_render_control import build_spark_render_control
@@ -66,7 +68,19 @@ def _intersections(a_values: list[tuple[int,int]], b_values: list[tuple[int,int]
 
 
 def _properties(runtime: BeatVisualRuntime, layer_id: str) -> set[VisualProperty]:
-    return {binding.property for binding in runtime.binding_set(layer_id).bindings}
+    props={binding.property for binding in runtime.binding_set(layer_id).bindings}
+    motion=runtime.motion_preset_for_layer(layer_id)
+    if motion == AdvancedMotionPreset.ALTERNATING_WOBBLE:
+        props.add(VisualProperty.ROTATION_OFFSET_DEG)
+    elif motion == AdvancedMotionPreset.BASS_SWAY:
+        props.add(VisualProperty.X_OFFSET_NORMALIZED)
+    elif motion == AdvancedMotionPreset.CAMERA_SHAKE:
+        props.update({VisualProperty.X_OFFSET_NORMALIZED,VisualProperty.Y_OFFSET_NORMALIZED,VisualProperty.ROTATION_OFFSET_DEG})
+    elif motion == AdvancedMotionPreset.BEAT_BOUNCE:
+        props.add(VisualProperty.Y_OFFSET_NORMALIZED)
+    elif motion == AdvancedMotionPreset.FOUR_WAY_KICK:
+        props.update({VisualProperty.X_OFFSET_NORMALIZED,VisualProperty.Y_OFFSET_NORMALIZED})
+    return props
 
 
 def build_beat_render_control(
@@ -101,6 +115,9 @@ def build_beat_render_control(
             raise BeatRenderControlError("Rotation Nudge V1 membutuhkan center pivot.")
 
     channels={binding.channel for binding in runtime.binding_set(layer.layer_id).bindings}
+    motion=runtime.motion_preset_for_layer(layer.layer_id)
+    if motion is not None:
+        channels.add(AnimationSignalChannel(MOTION_PRESET_CATALOG[motion].channel))
     trigger_windows=[
         (trigger.start_tick, trigger.end_tick)
         for trigger in runtime.signal_engine.program.triggers
