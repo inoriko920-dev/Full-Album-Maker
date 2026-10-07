@@ -319,6 +319,7 @@ def _workspace_init(self: AlbumWorkspace, parent=None) -> None:
     root.setSpacing(7)
 
     header = QWidget()
+    header.setMinimumHeight(76)
     header_row = QHBoxLayout(header)
     header_row.setContentsMargins(0, 0, 0, 0)
     header_row.setSpacing(10)
@@ -417,7 +418,7 @@ def _mass_init(self: AlbumMassToolsWidget, parent=None) -> None:
     self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     body = QWidget()
     root = QVBoxLayout(body)
-    root.setContentsMargins(9, 3, 9, 8)
+    root.setContentsMargins(9, 10, 9, 8)
     root.setSpacing(7)
 
     self.heading = QLabel("Alat Massal (0 lagu dipilih)")
@@ -626,7 +627,7 @@ def _shell_sizes(self, route: str) -> None:
     compact = bool(getattr(self, "_responsive_compact", False))
     nav = TOKENS.nav_compact_width if compact else 168
     context = 216 if compact else 297
-    right = 38 if self.inspector.collapsed else (286 if compact else 324)
+    right = 38 if self.inspector.collapsed else (286 if compact else 309)
     center = max(430 if compact else 600, total - nav - context - right - TOKENS.splitter_handle * 3)
 
     self.navigation.setMinimumWidth(nav)
