@@ -22,6 +22,7 @@ def test_ui07_spectrum_remediation_route_contract() -> None:
         from PySide6.QtWidgets import QApplication
         from full_album_maker.foundation_window import FoundationMainWindow
         from full_album_maker.spectrum_capture_step08 import _fixture_document
+        from full_album_maker.spectrum_workspace_step08 import SpectrumLayerRow
 
         app = QApplication.instance() or QApplication([])
         root = Path(tempfile.mkdtemp(prefix="fam-ui07-test-"))
@@ -53,6 +54,10 @@ def test_ui07_spectrum_remediation_route_contract() -> None:
         assert window.spectrum_timeline_s08.parentWidget() is window._ui07_timeline_panel
         assert window.spectrum_workspace_s08.preview_status.isHidden() is True
         assert window.spectrum_context_s08.isHidden() is False
+        layer_rows = window.spectrum_context_s08.layer_host.findChildren(SpectrumLayerRow)
+        assert len(layer_rows) == 4, len(layer_rows)
+        assert all(row.isHidden() is False for row in layer_rows)
+        assert window.spectrum_context_s08.layer_scroll.verticalScrollBar().maximum() == 0
         assert window._inspector_router.currentWidget() is window.spectrum_inspector_s08
         assert window.editor_workspace.document().content_signature() == signature
 
