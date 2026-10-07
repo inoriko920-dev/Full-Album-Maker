@@ -59,7 +59,8 @@ jobs:
           python -m pytest -q \
             tests/test_step08_spectrum_ui.py \
             tests/test_step08_spectrum_preview_async.py \
-            tests/test_step08_spectrum_failure.py
+            tests/test_step08_spectrum_failure.py \
+            tests/test_ui07_spectrum_remediation.py
       - name: Run recovered Spectrum regression
         run: |
           python -m pytest -q \
@@ -89,13 +90,12 @@ jobs:
       # Real audio analysis/capture comes after regression so installing Linux
       # FFmpeg cannot alter legacy tool-detection tests above.
       - name: Install FFmpeg for STEP08 real-audio evidence
-        timeout-minutes: 4
+        timeout-minutes: 12
         run: |
           if command -v ffmpeg >/dev/null 2>&1; then
             echo "Using runner FFmpeg: $(command -v ffmpeg)"
           else
-            sudo apt-get update
-            timeout 180s sudo apt-get install -y ffmpeg
+            sudo apt-get install -y -o Acquire::Retries=5 ffmpeg
           fi
           ffmpeg -version | head -n 1
       - name: Capture deterministic STEP08 Spectrum evidence
