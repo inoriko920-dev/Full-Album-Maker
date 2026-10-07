@@ -7,19 +7,24 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from .foundation_components import FAMButton
 from .foundation_tokens import TOKENS
-from .spectrum_workspace_step08 import SpectrumLayerContext, SpectrumWorkspace
+from .spectrum_workspace_step08 import SpectrumLayerContext, SpectrumLayerRow, SpectrumWorkspace
 
 _installed = False
 _originals: dict[str, Any] = {}
+
+
+def _layer_row_init(self, *args, **kwargs) -> None:
+    _originals["layer_row_init"](self, *args, **kwargs)
+    self.setFixedHeight(36)
 
 
 def _context_init(self, *args, **kwargs) -> None:
     _originals["context_init"](self, *args, **kwargs)
     root = self.layout()
     root.setContentsMargins(8, 6, 8, 7)
-    root.setSpacing(6)
-    self.layer_scroll.setMinimumHeight(150)
-    self.layer_scroll.setMaximumHeight(176)
+    root.setSpacing(5)
+    self.layer_scroll.setMinimumHeight(156)
+    self.layer_scroll.setMaximumHeight(164)
     self.add_button.setText("＋  Tambah Spectrum")
     self.add_button.setMinimumWidth(138)
 
@@ -197,6 +202,7 @@ def install_ui07_spectrum_remediation() -> None:
     from .foundation_window import FoundationMainWindow
 
     _originals.update(
+        layer_row_init=SpectrumLayerRow.__init__,
         context_init=SpectrumLayerContext.__init__,
         workspace_init=SpectrumWorkspace.__init__,
         window_route=FoundationMainWindow._s08_route,
@@ -205,6 +211,7 @@ def install_ui07_spectrum_remediation() -> None:
         shell_sizes=FoundationShellWidget._apply_shell_sizes,
     )
 
+    SpectrumLayerRow.__init__ = _layer_row_init
     SpectrumLayerContext.__init__ = _context_init
     SpectrumWorkspace.__init__ = _workspace_init
     FoundationMainWindow._s08_route = _window_route
