@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import hashlib
 import io
 import json
@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import time
+import threading
 from typing import Iterable
 
 import numpy as np
@@ -24,6 +25,7 @@ from .audio_analysis_contract import (
     TempoSummary,
 )
 from .atomic_io import atomic_write_text
+from .audio_analysis_fingerprint import AnalysisCancelled
 from .paths import data_dir
 
 CACHE_FORMAT = "full-album-maker-audio-analysis-cache-v1"
@@ -31,6 +33,39 @@ CACHE_FORMAT = "full-album-maker-audio-analysis-cache-v1"
 
 class CacheCorruptError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class CacheMaintenanceReport:
+    removed_partial_entries: int = 0
+    removed_temp_files: int = 0
+    removed_quarantine_entries: int = 0
+    reclaimed_bytes: int = 0
+
+
+def _tree_size(path: Path) -> int:
+    if path.is_file():
+        try:
+            return int(path.stat().st_size)
+        except OSError:
+            return 0
+    total = 0
+    try:
+        values = tuple(path.rglob("*"))
+    except OSError:
+        return 0
+    for item in values:
+        if item.is_file():
+            try:
+                total += int(item.stat().st_size)
+            except OSError:
+                pass
+    return total
+
+
+def _raise_if_cancelled(cancel_event: threading.Event | None) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise AnalysisCancelled("analysis cache publish cancelled")
 
 
 def _sha256_file(path: Path) -> str:
@@ -95,8 +130,15 @@ class AudioAnalysisCache:
             self.quarantine(key, reason=str(exc))
             return None
 
-    def publish(self, key: str, result: AudioAnalysisResult) -> Path:
+    def publish(
+        self,
+        key: str,
+        result: AudioAnalysisResult,
+        *,
+        cancel_event: threading.Event | None = None,
+    ) -> Path:
         result.validate()
+        _raise_if_cancelled(cancel_event)
         folder = self.entry_dir(key)
         folder.mkdir(parents=True, exist_ok=True)
         manifest_path = folder / "manifest.json"
@@ -105,8 +147,10 @@ class AudioAnalysisCache:
         # Stage compressed curve bytes completely before exposing them.
         arrays = {curve.name: np.asarray(curve.values, dtype=np.float32) for curve in result.curves}
         buffer = io.BytesIO()
+        _raise_if_cancelled(cancel_event)
         np.savez_compressed(buffer, **arrays)
         curve_bytes = buffer.getvalue()
+        _raise_if_cancelled(cancel_event)
         curve_sha = hashlib.sha256(curve_bytes).hexdigest()
 
         fd, temp_name = tempfile.mkstemp(prefix=".curves.", suffix=".npz.tmp", dir=str(folder))
@@ -116,6 +160,7 @@ class AudioAnalysisCache:
                 handle.write(curve_bytes)
                 handle.flush()
                 os.fsync(handle.fileno())
+            _raise_if_cancelled(cancel_event)
             os.replace(temp_path, curves_path)
         finally:
             temp_path.unlink(missing_ok=True)
@@ -164,6 +209,76 @@ class AudioAnalysisCache:
             except OSError:
                 pass
         return target
+
+    def maintenance(
+        self,
+        *,
+        stale_partial_seconds: float = 3600.0,
+        max_quarantine_entries: int = 32,
+        max_quarantine_bytes: int = 256 * 1024 * 1024,
+    ) -> CacheMaintenanceReport:
+        now = time.time()
+        stale = max(0.0, float(stale_partial_seconds))
+        removed_partial = 0
+        removed_temp = 0
+        removed_quarantine = 0
+        reclaimed = 0
+
+        for folder in tuple(self.root.iterdir()):
+            if not folder.is_dir() or folder.name == "_corrupt":
+                continue
+            manifest = folder / "manifest.json"
+            if not manifest.is_file():
+                try:
+                    age = now - folder.stat().st_mtime
+                except OSError:
+                    age = stale
+                if age >= stale:
+                    size = _tree_size(folder)
+                    shutil.rmtree(folder, ignore_errors=True)
+                    removed_partial += 1
+                    reclaimed += size
+                    continue
+            for temp_path in tuple(folder.glob(".curves.*.tmp")):
+                try:
+                    age = now - temp_path.stat().st_mtime
+                except OSError:
+                    age = stale
+                if age >= stale:
+                    size = _tree_size(temp_path)
+                    try:
+                        temp_path.unlink(missing_ok=True)
+                    except OSError:
+                        continue
+                    removed_temp += 1
+                    reclaimed += size
+
+        entries = []
+        if self.quarantine_root.is_dir():
+            for item in self.quarantine_root.iterdir():
+                if item.is_dir():
+                    try:
+                        mtime = item.stat().st_mtime
+                    except OSError:
+                        mtime = 0.0
+                    entries.append((mtime, item, _tree_size(item)))
+        entries.sort(key=lambda item: (item[0], item[1].name))
+        total_bytes = sum(item[2] for item in entries)
+        max_entries = max(0, int(max_quarantine_entries))
+        max_bytes = max(0, int(max_quarantine_bytes))
+        while entries and (len(entries) > max_entries or total_bytes > max_bytes):
+            _mtime, item, size = entries.pop(0)
+            shutil.rmtree(item, ignore_errors=True)
+            removed_quarantine += 1
+            reclaimed += size
+            total_bytes = max(0, total_bytes - size)
+
+        return CacheMaintenanceReport(
+            removed_partial_entries=removed_partial,
+            removed_temp_files=removed_temp,
+            removed_quarantine_entries=removed_quarantine,
+            reclaimed_bytes=reclaimed,
+        )
 
     @staticmethod
     def _manifest(result: AudioAnalysisResult, key: str, curve_sha: str) -> dict:
