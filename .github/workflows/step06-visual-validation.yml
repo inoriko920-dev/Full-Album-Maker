@@ -116,8 +116,10 @@ jobs:
           assert compact['context_visible'] is True and compact['inspector_active'] is True, compact
           assert compact['timeline_visible'] is True, compact
           assert compact['song_rows'] == 14 and compact['selected_count'] == 1, compact
-          assert compact['context_width'] in range(290, 311), compact\n          assert compact['right_dock_width'] in range(290, 311), compact
-          assert compact['timeline_height'] in range(215, 226), compact\n          assert compact['content_unchanged_by_route'] is True, compact
+          assert compact['context_width'] in range(290, 311), compact
+          assert compact['right_dock_width'] in range(290, 311), compact
+          assert compact['timeline_height'] in range(215, 226), compact
+          assert compact['content_unchanged_by_route'] is True, compact
           print('STEP06_VISUAL_GEOMETRY_PASS')
           PY
       - name: Verify immutable Visual golden and build overlay when available
