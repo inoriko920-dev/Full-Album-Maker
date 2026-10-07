@@ -16,6 +16,7 @@ from .render_plan import RenderPlan, compile_render_plan
 from .spectrum_feature import dynamic_song_text, normalize_spectrum_properties
 from .timeline_resolver import TimelineResolver
 from .vinyl_bpm_sync import vinyl_phase_expression
+from .ffmpeg_filter_path import escape_filter_option_path
 
 
 class RenderCompileError(ValueError):
@@ -34,9 +35,7 @@ def ticks_to_seconds(value: int) -> float:
 
 
 def _filter_path(path: Path) -> str:
-    value = path.resolve().as_posix()
-    value = value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
-    return value
+    return escape_filter_option_path(path)
 
 
 def _color(value: object, default: str = "#ffffff") -> str:
@@ -792,7 +791,7 @@ class FFmpegV2Compiler:
                     layer.properties.get("font_path", "") or ""
                 ).strip()
                 font_prefix = (
-                    f"fontfile='{_filter_path(Path(font_path))}':"
+                    f"fontfile={_filter_path(Path(font_path))}:"
                     if font_path
                     else ""
                 )
@@ -826,7 +825,7 @@ class FFmpegV2Compiler:
                         text_files.append(text_path)
                         y = row_index * row_height
                         common = (
-                            f"{font_prefix}textfile='{_filter_path(text_path)}':"
+                            f"{font_prefix}textfile={_filter_path(text_path)}:"
                             f"reload=0:x=10:y='{y:.3f}+({row_height:.3f}-text_h)/2':"
                             f"fontsize={fontsize}"
                         )
@@ -922,7 +921,7 @@ class FFmpegV2Compiler:
                     layer.properties.get("font_path", "") or ""
                 ).strip()
                 font_prefix = (
-                    f"fontfile='{_filter_path(Path(font_path))}':"
+                    f"fontfile={_filter_path(Path(font_path))}:"
                     if font_path
                     else ""
                 )
@@ -1093,7 +1092,7 @@ class FFmpegV2Compiler:
                     except BeatTextRenderControlError as exc:
                         raise RenderCompileError(str(exc)) from exc
                     parts = [
-                        f"textfile='{_filter_path(text_path)}'",
+                        f"textfile={_filter_path(text_path)}",
                         "reload=0",
                         f"x={_position_expr(layer, 'x')}",
                         f"y={_position_expr(layer, 'y')}",
@@ -1110,7 +1109,7 @@ class FFmpegV2Compiler:
                     if font_path:
                         parts.insert(
                             0,
-                            f"fontfile='{_filter_path(Path(font_path))}'",
+                            f"fontfile={_filter_path(Path(font_path))}",
                         )
                     if text_control is not None:
                         filters.append(
@@ -1156,7 +1155,7 @@ class FFmpegV2Compiler:
             except BeatTextRenderControlError as exc:
                 raise RenderCompileError(str(exc)) from exc
             parts = [
-                f"textfile='{_filter_path(text_path)}'",
+                f"textfile={_filter_path(text_path)}",
                 "reload=0",
                 f"x={_position_expr(layer, 'x')}",
                 f"y={_position_expr(layer, 'y')}",
@@ -1173,7 +1172,7 @@ class FFmpegV2Compiler:
             if font_path:
                 parts.insert(
                     0,
-                    f"fontfile='{_filter_path(Path(font_path))}'",
+                    f"fontfile={_filter_path(Path(font_path))}",
                 )
             if text_control is not None:
                 filters.append(

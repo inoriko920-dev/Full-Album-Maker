@@ -11,6 +11,7 @@ from .beat_visual_runtime import BeatVisualRuntime
 from .editor_models import Layer, TIMEBASE
 from .spark_burst_engine import SPARK_LIFETIME_TICK, SPARK_PARTICLES_PER_BURST
 from .ffmpeg_command_batch import CommandBatchWriter, CommandLimitError
+from .ffmpeg_filter_path import escape_filter_option_path
 
 SPARK_CONTROL_HZ=8.0
 MAX_SPARK_COMMAND_ROWS=220_000
@@ -28,11 +29,6 @@ class SparkRenderControl:
 def _safe_token(value: str) -> str:
     token=re.sub(r"[^A-Za-z0-9_]","_",value)
     return token[:72] or "spark"
-
-
-def _ffmpeg_path(value: Path) -> str:
-    text=value.resolve().as_posix()
-    return text.replace("\\","\\\\").replace(":","\\:").replace("'","\\'")
 
 
 def _merge(values):
@@ -126,7 +122,7 @@ def build_spark_render_control(
         metrics=writer.write(command_file)
     except CommandLimitError as exc:
         raise ValueError(f"Spark render command melebihi batas aman: {exc}") from exc
-    pieces=[f"sendcmd=f='{_ffmpeg_path(command_file)}'"]
+    pieces=[f"sendcmd=f={escape_filter_option_path(command_file)}"]
     for i,name in enumerate(names):
         size=slot_sizes[i]
         pieces.append(f"{name}=x=0:y=0:w={size}:h={size}:color=white@0:t=fill")

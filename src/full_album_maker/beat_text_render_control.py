@@ -11,6 +11,7 @@ from .advanced_motion_contract import MOTION_PRESET_CATALOG
 from .animation_signal_contract import AnimationSignalChannel
 from .editor_models import Layer, TIMEBASE
 from .visual_binding_contract import VisualProperty
+from .ffmpeg_filter_path import escape_filter_option_path
 
 
 class BeatTextRenderControlError(RuntimeError):
@@ -28,11 +29,6 @@ class BeatTextRenderControl:
 def _safe_token(value: str) -> str:
     token = re.sub(r"[^A-Za-z0-9_]", "_", value)
     return token[:80] or "beat_text"
-
-
-def _ffmpeg_path(value: Path) -> str:
-    text = value.resolve().as_posix()
-    return text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
 def _merge_intervals(values: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -162,7 +158,7 @@ def build_beat_text_render_control(
     command_file.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return BeatTextRenderControl(
         command_file=command_file,
-        sendcmd_filter=f"sendcmd=f='{_ffmpeg_path(command_file)}'",
+        sendcmd_filter=f"sendcmd=f={escape_filter_option_path(command_file)}",
         drawtext_filter=target,
         command_rows=len(rows),
     )

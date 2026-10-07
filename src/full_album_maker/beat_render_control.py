@@ -17,6 +17,7 @@ from .ffmpeg_command_batch import (
     MAX_COMMAND_FILE_BYTES,
     MAX_COMMAND_OPS,
 )
+from .ffmpeg_filter_path import escape_filter_option_path
 
 MAX_COMMAND_ROWS = 250_000
 MAX_BEAT_RENDER_LAYERS = 4
@@ -47,11 +48,6 @@ class BeatRenderControl:
 def _safe_token(value: str) -> str:
     token = re.sub(r"[^A-Za-z0-9_]", "_", value)
     return token[:80] or "beat"
-
-
-def _ffmpeg_path(value: Path) -> str:
-    text = value.resolve().as_posix()
-    return text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
 def _merge_intervals(values: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -230,7 +226,7 @@ def build_beat_render_control(
     if total_bytes>MAX_COMMAND_FILE_BYTES:
         raise BeatRenderControlError("Beat + Spark command melebihi batas aman 64 MiB.")
 
-    sendcmd=f"sendcmd=f='{_ffmpeg_path(command_file)}'" if has_beat_commands else ""
+    sendcmd=f"sendcmd=f={escape_filter_option_path(command_file)}" if has_beat_commands else ""
     return BeatRenderControl(
         command_file=command_file,
         sendcmd_filter=sendcmd,
