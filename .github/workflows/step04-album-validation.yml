@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-04-album
+      - ui/ui03-album-remediation-v150
   workflow_dispatch:
 
 permissions:
