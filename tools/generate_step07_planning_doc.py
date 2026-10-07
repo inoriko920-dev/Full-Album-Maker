@@ -24,8 +24,8 @@ def margins(cell, v=55, h=65):
     if tcMar is None:
         tcMar=OxmlElement('w:tcMar'); tcPr.append(tcMar)
     for name,val in [('top',v),('bottom',v),('start',h),('end',h)]:
-        n=tcMar.find(qn(`w:${name}`))
-        if n is None: n=OxmlElement(`w:${name}`); tcMar.append(n)
+        n=tcMar.find(qn(f'w:{name}'))
+        if n is None: n=OxmlElement(f'w:{name}'); tcMar.append(n)
         n.set(qn('w:w'),str(val)); n.set(qn('w:type'),'dxa')
 
 def nosplit(row):
