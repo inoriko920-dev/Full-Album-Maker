@@ -12,7 +12,7 @@ import full_album_maker.beat_visual_runtime as runtime_mod
 import full_album_maker.preview_service as preview_mod
 from full_album_maker.album_visuals import make_vinyl_layer
 from full_album_maker.audio_analysis_cache import AudioAnalysisCache
-from full_album_maker.audio_analysis_fingerprint import AnalysisCancelled
+from full_album_maker.audio_analysis_fingerprint import AnalysisCancelled, AnalyzerSettings
 from full_album_maker.audio_analysis_service import AudioAnalysisService
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
 
@@ -76,7 +76,7 @@ def test_backend_cancel_after_beat_track_skips_onset(monkeypatch,tmp_path):
     monkeypatch.setattr(librosa.beat,"beat_track",fake_beat_track)
     monkeypatch.setattr(librosa.onset,"onset_detect",fake_onset_detect)
     with pytest.raises(AnalysisCancelled):
-        backend.analyze_pcm(pcm,runtime_mod.AudioAnalysisService().settings,cancel_event=event,block_frames=32)
+        backend.analyze_pcm(pcm,AnalyzerSettings(),cancel_event=event,block_frames=32)
     assert not called["onset"]
 
 
