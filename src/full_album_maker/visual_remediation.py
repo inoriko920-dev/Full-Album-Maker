@@ -147,7 +147,16 @@ def _context_render(self) -> None:
             status = assignment_status(self._document, song_id)
             title = _song_title(self._document, song_id)
             artist = _song_artist(self._document, song_id)
-            duration = _duration_text(duration_by_song.get(song_id, 0))
+            duration_tick = duration_by_song.get(song_id)
+            if duration_tick is None:
+                song = self._document.song_map().get(song_id)
+                asset = self._document.asset_map().get(song.asset_id) if song is not None else None
+                if song is not None and asset is not None:
+                    source_out = song.source_out_tick if song.source_out_tick is not None else asset.source_duration_tick
+                    duration_tick = max(0, int(source_out) - int(song.source_in_tick))
+                else:
+                    duration_tick = 0
+            duration = _duration_text(duration_tick)
             detail = status.label if not artist else f"{artist}   •   {status.label}"
             item = QListWidgetItem(
                 _asset_icon(self._document, song_id),
