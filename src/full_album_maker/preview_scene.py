@@ -161,6 +161,7 @@ class PreviewCanvas(QWidget):
             transform = base_transform
             effective_opacity = float(layer.opacity)
             glow_amount = 0.0
+            beat_state = None
             if (
                 self._beat_runtime is not None
                 and self._beat_runtime.has_layer(layer.layer_id)
@@ -182,6 +183,7 @@ class PreviewCanvas(QWidget):
                 )
                 effective_opacity = effective.opacity
                 glow_amount = state.glow_amount
+                beat_state = state
             rect = self._rect_for_transform(canvas, transform)
             painter.save()
             painter.setOpacity(max(0.0, min(1.0, effective_opacity)))
@@ -191,6 +193,13 @@ class PreviewCanvas(QWidget):
                 painter.rotate(transform.rotation)
                 painter.translate(-center)
             if self._accurate_frame.isNull():
+                if beat_state is not None and layer.type in {"text", "song_title"}:
+                    font = painter.font()
+                    base_size = font.pointSizeF()
+                    if base_size <= 0:
+                        base_size = 10.0
+                    font.setPointSizeF(max(1.0, base_size * float(beat_state.scale_multiplier)))
+                    painter.setFont(font)
                 self._paint_approx_layer(painter, rect, layer)
                 if glow_amount > 0.001:
                     glow = QColor("#9fe8ff")
