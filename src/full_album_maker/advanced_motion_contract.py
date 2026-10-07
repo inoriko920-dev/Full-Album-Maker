@@ -66,8 +66,17 @@ def motion_supported_for_layer(layer, preset: AdvancedMotionPreset | str) -> boo
         return False
     if getattr(layer,"type","") not in {"song_cover","vinyl","background","song_visual","spectrum","text","song_title"}:
         return False
-    if getattr(layer,"type","") in {"text","song_title"} and not MOTION_PRESET_CATALOG[p].text_safe:
+    layer_type=getattr(layer,"type","")
+    if layer_type in {"text","song_title"} and not MOTION_PRESET_CATALOG[p].text_safe:
         return False
+    if layer_type=="song_visual" and str(getattr(layer,"properties",{}).get("transition","cut")) in {"slide","slide_left","slide_right"}:
+        if p in {
+            AdvancedMotionPreset.BASS_SWAY,
+            AdvancedMotionPreset.CAMERA_SHAKE,
+            AdvancedMotionPreset.BEAT_BOUNCE,
+            AdvancedMotionPreset.FOUR_WAY_KICK,
+        }:
+            return False
     if p in {AdvancedMotionPreset.ALTERNATING_WOBBLE,AdvancedMotionPreset.CAMERA_SHAKE}:
         tr=getattr(layer,"transform",None)
         if tr is not None and (abs(float(tr.pivot_x)-0.5)>1e-6 or abs(float(tr.pivot_y)-0.5)>1e-6):
