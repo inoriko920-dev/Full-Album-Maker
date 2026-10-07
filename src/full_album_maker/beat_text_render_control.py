@@ -7,6 +7,8 @@ import re
 
 from .beat_render_control import MAX_COMMAND_ROWS
 from .beat_visual_runtime import BeatVisualRuntime
+from .advanced_motion_contract import MOTION_PRESET_CATALOG
+from .animation_signal_contract import AnimationSignalChannel
 from .editor_models import Layer, TIMEBASE
 from .visual_binding_contract import VisualProperty
 
@@ -93,6 +95,9 @@ def build_beat_text_render_control(
         raise BeatTextRenderControlError(f"Properti Beat text belum didukung: {names}")
 
     channels = {binding.channel for binding in bindings}
+    motion = runtime.motion_preset_for_layer(layer.layer_id)
+    if motion is not None:
+        channels.add(AnimationSignalChannel(MOTION_PRESET_CATALOG[motion].channel))
     trigger_windows = [
         (trigger.start_tick, trigger.end_tick)
         for trigger in runtime.signal_engine.program.triggers
