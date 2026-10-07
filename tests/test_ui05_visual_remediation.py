@@ -43,23 +43,6 @@ def test_ui05_visual_remediation_route_contract() -> None:
         app.processEvents()
 
         shell = window.foundation_shell
-        print(
-            "UI05_DIAG",
-            {
-                "route": window.foundation_state.workspace,
-                "context_width": shell.context.width(),
-                "context_min": shell.context.minimumWidth(),
-                "context_max": shell.context.maximumWidth(),
-                "inspector_width": shell.inspector.width(),
-                "inspector_min": shell.inspector.minimumWidth(),
-                "inspector_max": shell.inspector.maximumWidth(),
-                "inspector_expanded": getattr(shell.inspector, "_expanded_width", None),
-                "splitter": shell.horizontal_splitter.sizes(),
-                "timeline_height": shell.timeline.height(),
-                "compact": getattr(shell, "_responsive_compact", None),
-            },
-            flush=True,
-        )
         assert shell.context.width() in range(374, 395), shell.context.width()
         assert shell.inspector.width() in range(358, 379), shell.inspector.width()
         assert shell.timeline.height() in range(215, 226), shell.timeline.height()
