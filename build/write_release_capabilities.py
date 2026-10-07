@@ -33,6 +33,10 @@ PYTHON_BUILD = {
     "PyInstaller": "6.22.3",
     "pytest": "8.4.2",
     "Pillow": "11.3.0",
+    "NumPy": "2.5.3",
+    "SciPy": "1.18.1",
+    "librosa": "1.0.0",
+    "Numba": "0.68.0",
 }
 
 FONT = {
@@ -73,6 +77,11 @@ def main() -> int:
             "free_timeline_gap_silence": "supported",
             "free_timeline_explicit_crossfade": "supported",
             "spectrum_mixed_audio_parity": "supported",
+            "beat_analysis": "supported; librosa 1.0.0 + NumPy/SciPy, Python 3.12 runtime",
+            "beat_animation_v2": "supported; 18 visual presets, 6 motion presets, 8 combos, 9 music styles",
+            "vinyl_bpm_sync": "supported; tempo-confidence gated with static-spin fallback",
+            "ai_beat_actions": "supported; beat.write permission + Preview Diff + one-transaction Undo",
+            "scientific_runtime_bundled": True,
             "circular_spectrum": "supported; showfreqs + bounded polar geq remap",
             "circular_spectrum_internal_side_max": 512,
             "ten_builtin_templates": "supported",
