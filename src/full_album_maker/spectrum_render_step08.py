@@ -3,10 +3,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .beat_render_control import BeatRenderControlError, build_beat_render_control, render_filter_suffix
 from .circular_spectrum import circular_spectrum_filter
 from .editor_models import Layer, ProjectDocument
 from .render_graph import (
     CompiledFFmpeg,
+    _beat_snapshot_glow_chain,
     _color,
     _ffmpeg_scale,
     _layer_size,
@@ -14,6 +16,7 @@ from .render_graph import (
 )
 from .s11_render_graph import _externalize_large_filter_graph
 from .spectrum_feature import normalize_spectrum_properties, smoothing_to_averaging
+from .timeline_resolver import TimelineResolver
 from .v13_render_graph import V13FFmpegCompiler, _filter_option
 
 
@@ -45,7 +48,16 @@ def _thickness_chain(thickness: float) -> str:
     return ",dilation" * iterations
 
 
-def _spectrum_source_chain(document: ProjectDocument, layer: Layer, audio_index: int, output_label: str) -> str:
+def _spectrum_source_chain(
+    document: ProjectDocument,
+    layer: Layer,
+    audio_index: int,
+    output_label: str,
+    *,
+    beat_runtime=None,
+    work_dir: str | Path,
+    intervals: list[tuple[int, int]],
+) -> str:
     props = normalize_spectrum_properties(layer.properties)
     width, height = _layer_size(layer, document)
     style = props["style"]
@@ -56,6 +68,32 @@ def _spectrum_source_chain(document: ProjectDocument, layer: Layer, audio_index:
     alpha = max(0.0, min(1.0, float(layer.opacity)))
     rotate = _rotation_chain(layer)
     mirror = ",vflip" if props["mirror"] else ""
+    fps = document.canvas.fps_num / document.canvas.fps_den
+
+    try:
+        beat_control = build_beat_render_control(
+            beat_runtime,
+            layer,
+            base_width=width,
+            base_height=height,
+            fps=fps,
+            intervals=intervals,
+            work_dir=work_dir,
+            stream_key=f"spectrum_{audio_index}",
+        )
+    except BeatRenderControlError as exc:
+        raise ValueError(str(exc)) from exc
+    beat_suffix = (
+        render_filter_suffix(
+            beat_control,
+            base_width=width,
+            base_height=height,
+        )
+        if beat_control is not None
+        else ""
+    )
+    snapshot_glow = _beat_snapshot_glow_chain(layer)
+    static_rotate = rotate if beat_control is None or beat_control.rotate_filter is None else ""
 
     if style == "circular_spectrum":
         visual = circular_spectrum_filter(
@@ -72,9 +110,6 @@ def _spectrum_source_chain(document: ProjectDocument, layer: Layer, audio_index:
     elif style in {"bars", "spectrum_line"}:
         mode = "bar" if style == "bars" else "line"
         averaging = smoothing_to_averaging(props["smoothing"])
-        # Frequency analysis really runs at band_count horizontal samples. It is
-        # then mapped to the persisted layer geometry, so changing band_count is
-        # not decorative and does not rebuild the source audio.
         visual = (
             f"showfreqs=s={props['band_count']}x{height}:mode={mode}:"
             f"fscale={fscale}:ascale={ascale}:averaging={averaging}:colors={color},"
@@ -92,14 +127,16 @@ def _spectrum_source_chain(document: ProjectDocument, layer: Layer, audio_index:
 
     return (
         f"[specaudio{audio_index}]volume={gain:.6f},{visual},"
-        f"colorchannelmixer=aa={alpha:.6f}{mirror}{rotate}{output_label}"
+        f"colorchannelmixer=aa={alpha:.6f}{mirror}"
+        f"{beat_suffix if beat_control is not None else snapshot_glow}"
+        f"{static_rotate}{output_label}"
     )
-
 
 def apply_step08_spectrum_graph(
     compiled: CompiledFFmpeg,
     document: ProjectDocument,
     work_dir: str | Path,
+    beat_runtime=None,
 ) -> CompiledFFmpeg:
     layers = _active_spectrum_layers(document)
     if not layers:
@@ -111,6 +148,11 @@ def apply_step08_spectrum_graph(
     except ValueError:
         return compiled
     parts = graph.split(";")
+    resolved = TimelineResolver().resolve(document)
+    intervals_by_layer = {
+        item.layer_id: [(span.start_tick, span.end_tick) for span in item.intervals]
+        for item in resolved.layers
+    }
     replaced: set[int] = set()
     rebuilt: list[str] = []
     for part in parts:
@@ -128,6 +170,9 @@ def apply_step08_spectrum_graph(
                 layers[index],
                 index,
                 match.group("output"),
+                beat_runtime=beat_runtime,
+                work_dir=work_dir,
+                intervals=intervals_by_layer.get(layers[index].layer_id, []),
             )
         )
         replaced.add(index)
@@ -167,4 +212,9 @@ class Step08FFmpegCompiler(V13FFmpegCompiler):
             work_dir,
             include_audio=include_audio,
         )
-        return apply_step08_spectrum_graph(compiled, document, work_dir)
+        return apply_step08_spectrum_graph(
+            compiled,
+            document,
+            work_dir,
+            beat_runtime=self._beat_visual_runtime,
+        )
