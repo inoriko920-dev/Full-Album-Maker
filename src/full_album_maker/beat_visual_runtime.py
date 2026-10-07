@@ -227,6 +227,8 @@ def apply_beat_snapshot(
         layer.opacity = effective.opacity
         layer.properties = dict(layer.properties)
         layer.properties["_beat_snapshot_glow"] = float(state.glow_amount)
+        if layer.type in {"text", "song_title"}:
+            layer.properties["_beat_snapshot_font_scale"] = float(state.scale_multiplier)
         layer.animation = dict(layer.animation)
         layer.animation.pop("beat_v1", None)
     snapshot.validate()
