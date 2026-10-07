@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ui/step-05-timeline
+      - ui/ui04-timeline-remediation-v160
   workflow_dispatch:
 
 permissions:
@@ -52,7 +53,8 @@ jobs:
             tests/test_step05_timeline_ui.py \
             tests/test_step05_timeline_integration.py \
             tests/test_step05_timeline_render_mix.py \
-            tests/test_step05_timeline_completion.py
+            tests/test_step05_timeline_completion.py \
+            tests/test_ui04_timeline_remediation.py
       - name: Run STEP04 regression gate
         run: |
           python -m pytest -q \
@@ -91,9 +93,9 @@ jobs:
           assert main['workspace'] == 'timeline' and main['timeline_active'] is True, main
           assert main['context_visible'] is True and main['inspector_active'] is True, main
           assert main['precision_visible'] is True, main
-          assert main['context_width'] in range(254, 275), main
+          assert main['context_width'] in range(320, 339), main
           assert main['right_dock_width'] in range(338, 359), main
-          assert main['timeline_height'] in range(350, 355), main
+          assert main['timeline_height'] in range(342, 349), main
           assert main['status_height'] in range(26, 31), main
           assert main['playlist_mode'] == 'free', main
           assert main['song_count'] == 3, main
@@ -103,6 +105,7 @@ jobs:
           assert main['audio_errors'] == [], main
           assert main['route_preserved_content'] is True, main
           assert main['selected_inspector'] == 'Lagu Utama', main
+          assert main['selected_subtitle'] == 'Senja di Kota Ini.mp3', main
           assert main['monitor_audio_available'] is False, main
 
           empty = geometry('timeline-empty-final')
@@ -113,8 +116,9 @@ jobs:
           compact = geometry('timeline-1366-final')
           assert compact['window'] == [1366, 768], compact
           assert compact['timeline_active'] is True and compact['precision_visible'] is True, compact
-          assert compact['right_dock_width'] in range(290, 311), compact
-          assert compact['timeline_height'] in range(350, 355), compact
+          assert compact['context_width'] in range(228, 245), compact
+          assert compact['right_dock_width'] in range(278, 296), compact
+          assert compact['timeline_height'] in range(342, 349), compact
           assert compact['gap_count'] == 1 and compact['crossfade_count'] == 1, compact
           print('STEP05_TIMELINE_GEOMETRY_PASS')
           PY

@@ -33,6 +33,7 @@ from full_album_maker.render_feature_step10 import install_step10_render
 from full_album_maker.integration_feature_step11 import install_step11_integration
 from full_album_maker.integration_completion_step11 import install_step11_integration_completion
 from full_album_maker.album_remediation import install_ui03_album_remediation
+from full_album_maker.timeline_remediation import install_ui04_timeline_remediation
 
 
 install_feature()
@@ -66,6 +67,7 @@ install_step10_render()
 install_step11_integration()
 install_step11_integration_completion()
 install_ui03_album_remediation()
+install_ui04_timeline_remediation()
 
 
 def main(argv: list[str] | None = None) -> int:
