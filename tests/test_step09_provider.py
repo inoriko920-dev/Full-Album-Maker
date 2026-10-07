@@ -19,6 +19,7 @@ from full_album_maker.ai_provider_step09 import (
     GeminiStep09Provider,
     MockStep09Provider,
     STEP09_GEMINI_TOOLS,
+    SAFE_GEMINI_TOOLS,
 )
 from full_album_maker.editor_controller import EditorController
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
@@ -132,8 +133,12 @@ def test_mock_does_not_silently_generalize_to_non_fixture_requests() -> None:
 
 
 def test_gemini_tool_declarations_are_exactly_safe_registry_subset() -> None:
-    declared = {str(tool["name"]) for tool in STEP09_GEMINI_TOOLS}
+    legacy_declared = {str(tool["name"]) for tool in STEP09_GEMINI_TOOLS}
+    declared_names = [str(tool["name"]) for tool in SAFE_GEMINI_TOOLS]
+    declared = set(declared_names)
     registered = set(registered_action_names())
+    assert len(declared_names) == len(declared)
+    assert legacy_declared.issubset(declared)
     assert declared == registered
     assert declared == set(ACTION_SPECS)
     for forbidden in (
