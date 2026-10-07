@@ -416,6 +416,12 @@ STEP13_MOTION_GEMINI_TOOLS: tuple[dict[str, Any], ...] = (
 )
 
 
+SAFE_GEMINI_TOOLS: tuple[dict[str, Any], ...] = (
+    STEP09_GEMINI_TOOLS
+    + STEP11_BEAT_GEMINI_TOOLS
+    + STEP13_MOTION_GEMINI_TOOLS
+)
+
 STEP09_GEMINI_SYSTEM = """Kamu adalah intent planner untuk AI Agent Full Album Maker STEP11.
 Bahasa utama Indonesia. Tugasmu hanya menerjemahkan instruksi pengguna menjadi function call dari daftar tool yang diberikan.
 
@@ -478,7 +484,7 @@ class GeminiStep09Provider:
                 ]
             },
             "contents": [{"role": "user", "parts": [{"text": str(prompt)[:4000]}]}],
-            "tools": [{"functionDeclarations": list(STEP09_GEMINI_TOOLS + STEP11_BEAT_GEMINI_TOOLS + STEP13_MOTION_GEMINI_TOOLS)}],
+            "tools": [{"functionDeclarations": list(SAFE_GEMINI_TOOLS)}],
         }
         response = self.pool.request_json(self._url(), payload)
         candidates = response.get("candidates") or []
