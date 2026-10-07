@@ -207,6 +207,20 @@ class PreviewCanvas(QWidget):
                     painter.setPen(QPen(glow, max(1.0, 1.0 + 5.0 * glow_amount)))
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.drawRoundedRect(rect, 6.0, 6.0)
+                if self._beat_runtime is not None and self._beat_runtime.has_layer(layer.layer_id):
+                    particles = self._beat_runtime.particles_for_layer(layer.layer_id, self._playhead_tick)
+                    if particles:
+                        painter.setPen(Qt.PenStyle.NoPen)
+                        minimum = max(2.0, min(rect.width(), rect.height()))
+                        center = rect.center()
+                        for particle in particles:
+                            color = QColor("#dff8ff")
+                            color.setAlphaF(max(0.0, min(1.0, float(particle.alpha))))
+                            painter.setBrush(color)
+                            px = center.x() + float(particle.x_offset_normalized) * rect.width()
+                            py = center.y() + float(particle.y_offset_normalized) * rect.height()
+                            radius = max(1.0, float(particle.size_normalized) * minimum)
+                            painter.drawEllipse(QPointF(px, py), radius, radius)
             painter.setOpacity(1.0)
             if layer.layer_id == self._selected_layer_id:
                 self._paint_selection(painter, base_rect, layer, track.locked)
