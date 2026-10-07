@@ -29,7 +29,7 @@ def _app():
 
 def _base_doc(duration=2*TIMEBASE):
     doc=ProjectDocument.new_empty("STEP09")
-    doc.canvas.width=320; doc.canvas.height=180
+    doc.canvas.width=320; doc.canvas.height=240
     audio=MediaAsset(kind="audio",locator="song.wav",original_name="song.wav",source_duration_tick=duration)
     image=MediaAsset(kind="image",locator="visual.png",original_name="visual.png")
     doc.media.extend([audio,image])
