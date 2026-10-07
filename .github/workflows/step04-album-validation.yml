@@ -95,7 +95,7 @@ jobs:
           assert main['context_visible'] is True and main['inspector_active'] is True, main
           assert main['timeline_visible'] is True, main
           assert main['context_width'] in range(292, 303), main
-          assert main['right_dock_width'] in range(319, 330), main
+          assert main['right_dock_width'] in range(304, 315), main
           assert main['timeline_height'] in range(184, 205), main
           assert main['status_height'] in range(26, 31), main
           assert main['table_rows'] == 10, main
