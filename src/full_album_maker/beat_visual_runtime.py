@@ -181,6 +181,7 @@ def ensure_beat_analysis(
     cache_obj = cache or AudioAnalysisCache()
     service = AudioAnalysisService(cache=cache_obj, ffmpeg_executable=ffmpeg_executable)
     errors: list[tuple[str, str]] = []
+    results: dict[str, object] = {}
     service.request_failed.connect(lambda ticket, error: errors.append((error.code, error.message)))
     try:
         assets = _active_audio_assets(document)
@@ -188,19 +189,31 @@ def ensure_beat_analysis(
             if cancel_event is not None and cancel_event.is_set():
                 raise BeatRuntimeError("CANCELLED", "Persiapan Beat Animation dibatalkan.")
             cached = service.peek_cached(asset)
-            if cached is None:
+            if cached is not None:
+                results[asset.asset_id] = cached
+            else:
                 service.request(asset)
-        if not service.wait_for_idle(timeout):
+        try:
+            ready = service.wait_for_idle(timeout, cancel_event=cancel_event)
+        except Exception as exc:
+            from .audio_analysis_fingerprint import AnalysisCancelled
+            if isinstance(exc, AnalysisCancelled):
+                raise BeatRuntimeError("CANCELLED", "Persiapan Beat Animation dibatalkan.") from exc
+            raise
+        if not ready:
             service.cancel()
             raise BeatRuntimeError("ANALYSIS_TIMEOUT", "Analisis Beat Animation melewati batas waktu.")
         if errors:
             code, message = errors[0]
             raise BeatRuntimeError(code, message)
-        results: dict[str, object] = {}
         for asset in assets:
             if cancel_event is not None and cancel_event.is_set():
                 raise BeatRuntimeError("CANCELLED", "Persiapan Beat Animation dibatalkan.")
-            result = service.peek_cached(asset)
+            if asset.asset_id in results:
+                continue
+            result = service.last_result(asset.asset_id)
+            if result is None:
+                result = service.peek_cached(asset)
             if result is None:
                 raise BeatRuntimeError("CACHE_MISS_AFTER_ANALYSIS", f"Cache analisis belum tersedia: {asset.original_name or Path(asset.locator).name}")
             results[asset.asset_id] = result
