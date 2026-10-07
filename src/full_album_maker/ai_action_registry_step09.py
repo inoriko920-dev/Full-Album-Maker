@@ -13,7 +13,13 @@ from .ai_agent_core_step09 import (
     PermissionGrant,
 )
 from .auto_arrange import AutoArrange, AutoArrangeRecipe
-from .editor_commands import EditorCommand, ReorderSongs
+from .editor_commands import (
+    EditorCommand,
+    ReorderSongs,
+    ReplaceDocument,
+    SetLayerAnimationValue,
+    SetLayerProperty,
+)
 from .editor_controller import EditorController, RevisionConflict
 from .editor_models import ProjectDocument
 from .free_timeline import SetPlaylistTimingMode, SetSongFreeTiming
@@ -21,6 +27,11 @@ from .playlist_commands import SetSongCover, SetSongVisual
 from .spectrum_step08 import build_preset_command
 from .template_studio_step07 import TemplateStudioDraft, build_template_apply_commands, builtin_descriptors
 from .visual_precision import SetSongVideoSpeed
+from .beat_animation_assignment import BEAT_ASSIGNMENT_KEY, assignment_for_layer
+from .beat_layer_capabilities import preset_supported_for_layer
+from .music_style_presets import MusicStylePreset, apply_music_style
+from .visual_binding_contract import CoreBeatPreset
+from .vinyl_bpm_sync import normalize_beats_per_rotation
 
 
 class Step09ActionError(ValueError):
@@ -236,6 +247,132 @@ def _resolve_spectrum_preset(document, action, plan, context):
     return (build_preset_command(document, layer_id, preset_id),)
 
 
+
+def _beat_writable_ids(context: AgentContextSnapshot) -> set[str]:
+    beat = context.payload.get("beat_context")
+    if not isinstance(beat, dict):
+        return set()
+    values = beat.get("writable_layer_ids")
+    if not isinstance(values, list):
+        return set()
+    return {str(value) for value in values if str(value)}
+
+
+def _resolve_beat_layer_ids(
+    document: ProjectDocument,
+    action: AgentActionCall,
+    context: AgentContextSnapshot,
+) -> tuple[str, ...]:
+    ids = _ids(action.args.get("layer_ids"), "layer_ids")
+    valid = document.layer_map()
+    allowed = _beat_writable_ids(context)
+    if not allowed:
+        raise Step09PermissionError("Beat Context tidak memberi layer target yang dapat ditulis.")
+    for layer_id in ids:
+        layer = valid.get(layer_id)
+        if layer is None:
+            raise Step09ActionError("Beat action memuat layer_id yang tidak ada.")
+        if layer_id not in allowed:
+            raise Step09PermissionError("Beat action mencoba layer di luar Beat Context yang diizinkan.")
+        if layer.locked:
+            raise Step09ActionError(f"Layer Beat terkunci: {layer.name}")
+    return ids
+
+
+def _resolve_set_beat_preset(document, action, plan, context):
+    layer_ids = _resolve_beat_layer_ids(document, action, context)
+    try:
+        preset = CoreBeatPreset(str(action.args.get("preset_id", "")))
+    except ValueError as exc:
+        raise Step09ActionError("preset_id Beat tidak terdaftar.") from exc
+    intensity = _float(action.args.get("intensity", 1.0), "intensity")
+    if not 0.0 <= intensity <= 2.0:
+        raise Step09ActionError("intensity Beat harus 0..2.")
+    commands: list[EditorCommand] = []
+    layer_map = document.layer_map()
+    for layer_id in layer_ids:
+        layer = layer_map[layer_id]
+        if not preset_supported_for_layer(layer, preset):
+            raise Step09ActionError(
+                f"Preset {preset.value} tidak kompatibel dengan layer {layer.name}."
+            )
+        commands.append(
+            SetLayerAnimationValue(
+                layer_id,
+                BEAT_ASSIGNMENT_KEY,
+                {"enabled": True, "presets": [preset.value], "intensity": intensity},
+            )
+        )
+    return tuple(commands)
+
+
+def _resolve_adjust_beat_intensity(document, action, plan, context):
+    layer_ids = _resolve_beat_layer_ids(document, action, context)
+    delta = _float(action.args.get("delta"), "delta")
+    if not -1.0 <= delta <= 1.0:
+        raise Step09ActionError("delta Beat intensity harus -1..1.")
+    commands: list[EditorCommand] = []
+    layer_map = document.layer_map()
+    for layer_id in layer_ids:
+        assignment = assignment_for_layer(layer_map[layer_id])
+        if assignment is None:
+            raise Step09ActionError("Beat intensity hanya dapat diubah jika Beat Animation sudah aktif.")
+        intensity = max(0.0, min(2.0, float(assignment.intensity) + delta))
+        commands.append(
+            SetLayerAnimationValue(
+                layer_id,
+                BEAT_ASSIGNMENT_KEY,
+                {
+                    "enabled": True,
+                    "presets": [preset.value for preset in assignment.presets],
+                    "intensity": intensity,
+                },
+            )
+        )
+    return tuple(commands)
+
+
+def _resolve_clear_beat_animation(document, action, plan, context):
+    layer_ids = _resolve_beat_layer_ids(document, action, context)
+    return tuple(
+        SetLayerAnimationValue(layer_id, BEAT_ASSIGNMENT_KEY, None, _missing=True)
+        for layer_id in layer_ids
+    )
+
+
+def _resolve_apply_music_style(document, action, plan, context):
+    try:
+        style = MusicStylePreset(str(action.args.get("style_id", "")))
+    except ValueError as exc:
+        raise Step09ActionError("style_id Music Style tidak terdaftar.") from exc
+    replacement, _report = apply_music_style(document, style)
+    if replacement.content_signature() == document.content_signature():
+        raise Step09ActionError("Music Style tidak menghasilkan perubahan pada project saat ini.")
+    return (ReplaceDocument(replacement),)
+
+
+def _resolve_set_vinyl_bpm_sync(document, action, plan, context):
+    layer_ids = _resolve_beat_layer_ids(document, action, context)
+    enabled = action.args.get("enabled")
+    if not isinstance(enabled, bool):
+        raise Step09ActionError("enabled BPM Sync harus boolean.")
+    try:
+        beats_per_rotation = normalize_beats_per_rotation(
+            float(action.args.get("beats_per_rotation", 4.0))
+        )
+    except (TypeError, ValueError) as exc:
+        raise Step09ActionError("beats_per_rotation harus 1, 2, 4, atau 8.") from exc
+    commands: list[EditorCommand] = []
+    layer_map = document.layer_map()
+    for layer_id in layer_ids:
+        layer = layer_map[layer_id]
+        if layer.type != "vinyl":
+            raise Step09ActionError("BPM Sync hanya dapat diterapkan ke layer Vinyl.")
+        commands.append(SetLayerProperty(layer_id, "bpm_sync", enabled))
+        commands.append(SetLayerProperty(layer_id, "beats_per_rotation", beats_per_rotation))
+    return tuple(commands)
+
+
 ACTION_SPECS: dict[str, ActionSpec] = {
     "set_song_visual": ActionSpec(
         "set_song_visual", AgentPermission.VISUAL_WRITE.value,
@@ -272,6 +409,26 @@ ACTION_SPECS: dict[str, ActionSpec] = {
     "set_spectrum_preset": ActionSpec(
         "set_spectrum_preset", AgentPermission.SPECTRUM_WRITE.value,
         "Terapkan preset Spectrum parity-safe pada layer context terpilih.", _resolve_spectrum_preset,
+    ),
+    "set_beat_preset": ActionSpec(
+        "set_beat_preset", AgentPermission.BEAT_WRITE.value,
+        "Terapkan satu preset Beat registry-backed ke layer Beat Context.", _resolve_set_beat_preset,
+    ),
+    "adjust_beat_intensity": ActionSpec(
+        "adjust_beat_intensity", AgentPermission.BEAT_WRITE.value,
+        "Ubah intensity Beat relatif tanpa mengganti preset.", _resolve_adjust_beat_intensity,
+    ),
+    "clear_beat_animation": ActionSpec(
+        "clear_beat_animation", AgentPermission.BEAT_WRITE.value,
+        "Nonaktifkan Beat Animation tanpa mengubah BPM Sync Vinyl.", _resolve_clear_beat_animation,
+    ),
+    "apply_music_style": ActionSpec(
+        "apply_music_style", AgentPermission.BEAT_WRITE.value,
+        "Terapkan Music Style STEP10 sebagai satu ReplaceDocument command.", _resolve_apply_music_style,
+    ),
+    "set_vinyl_bpm_sync": ActionSpec(
+        "set_vinyl_bpm_sync", AgentPermission.BEAT_WRITE.value,
+        "Aktif/nonaktifkan Vinyl BPM Sync dengan beat-per-rotation tervalidasi.", _resolve_set_vinyl_bpm_sync,
     ),
 }
 
