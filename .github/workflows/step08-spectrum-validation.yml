@@ -124,8 +124,8 @@ jobs:
           assert main['workspace'] == 'spectrum' and main['spectrum_active'] is True, main
           assert main['context_visible'] is True and main['inspector_active'] is True, main
           assert main['timeline_visible'] is True, main
-          assert main['context_width'] in range(254, 275), main
-          assert main['right_dock_width'] in range(338, 359), main
+          assert main['context_width'] in range(374, 395), main
+          assert main['right_dock_width'] in range(310, 331), main
           assert main['timeline_height'] in range(242, 263), main
           assert main['status_height'] in range(26, 31), main
           assert main['layer_count'] == 4 and main['spectrum_count'] == 1, main
