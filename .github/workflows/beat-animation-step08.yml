@@ -63,6 +63,8 @@ jobs:
       - name: STEP04 regression
         run: python -m pytest -q tests/test_step04_audio_analysis.py
       - name: Import smoke
+        env:
+          PYTHONPATH: src
         run: |
           python -c "from full_album_maker.beat_animation_assignment import BeatAnimationAssignment; from full_album_maker.beat_visual_runtime import BeatVisualRuntime; from full_album_maker.beat_render_control import BeatRenderControl; print('STEP08_IMPORT_PASS')"
 
