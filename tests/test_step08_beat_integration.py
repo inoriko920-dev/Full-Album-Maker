@@ -165,12 +165,27 @@ def test_rotation_nudge_requires_center_pivot(tmp_path):
         build_beat_render_control(runtime,layer,base_width=200,base_height=200,fps=30,intervals=[(0,3*TIMEBASE)],work_dir=tmp_path,stream_key="x")
 
 
-def test_render_control_rejects_nonzero_base_rotation(tmp_path):
+def test_render_control_allows_static_rotation_without_rotation_binding(tmp_path):
     doc,audio,image,song,layer=_document()
     layer.transform.rotation=10
     runtime=_runtime_for(doc,audio,layer)
+    control=build_beat_render_control(
+        runtime,layer,base_width=200,base_height=200,fps=30,
+        intervals=[(0,3*TIMEBASE)],work_dir=tmp_path,stream_key="x",
+    )
+    assert control is not None
+    assert control.rotate_filter is None
+
+
+def test_render_control_rejects_nonzero_base_rotation_with_rotation_binding(tmp_path):
+    doc,audio,image,song,layer=_document(presets=("rotation_nudge",))
+    layer.transform.rotation=10
+    runtime=_runtime_for(doc,audio,layer)
     with pytest.raises(BeatRenderControlError):
-        build_beat_render_control(runtime,layer,base_width=200,base_height=200,fps=30,intervals=[(0,3*TIMEBASE)],work_dir=tmp_path,stream_key="x")
+        build_beat_render_control(
+            runtime,layer,base_width=200,base_height=200,fps=30,
+            intervals=[(0,3*TIMEBASE)],work_dir=tmp_path,stream_key="x",
+        )
 
 
 def test_filter_suffix_names_runtime_filters(tmp_path):
