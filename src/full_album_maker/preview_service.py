@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 
 from .editor_models import ProjectDocument
+from .beat_visual_runtime import apply_beat_snapshot, build_beat_visual_runtime
 from .paths import ffmpeg_path, temp_dir
 from .render_service_v2 import FFmpegProcessRunner, RenderErrorV2
 from .spectrum_render_step08 import Step08FFmpegCompiler
@@ -19,9 +20,17 @@ class AccuratePreviewService:
     def render_frame(self, document: ProjectDocument, time_tick: int, destination: str | Path) -> str:
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True)
+        snapshot = document.clone()
+        runtime = build_beat_visual_runtime(
+            snapshot,
+            ffmpeg_executable=self.ffmpeg,
+            ensure_analysis=True,
+        )
+        if runtime is not None:
+            snapshot = apply_beat_snapshot(snapshot, runtime, time_tick)
         with tempfile.TemporaryDirectory(prefix="fam_preview_", dir=temp_dir()) as folder:
             compiled = Step08FFmpegCompiler(self.ffmpeg).compile_frame(
-                document.clone(),
+                snapshot,
                 time_tick,
                 target,
                 folder,
