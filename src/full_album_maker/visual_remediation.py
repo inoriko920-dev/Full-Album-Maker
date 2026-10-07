@@ -727,6 +727,18 @@ def _window_route(self, route: str) -> None:
         host.body.setVisible(not host.collapsed)
 
 
+def _shell_workspace(self, route: str) -> None:
+    _originals["shell_workspace"](self, route)
+    if route == "visual":
+        _apply_visual_geometry(self.window())
+
+
+def _shell_resize(self, event) -> None:
+    _originals["shell_resize"](self, event)
+    if getattr(getattr(self, "state", None), "workspace", "") == "visual":
+        _apply_visual_geometry(self.window())
+
+
 def _shell_sizes(self, route: str) -> None:
     _originals["shell_sizes"](self, route)
     if route != "visual":
@@ -775,6 +787,8 @@ def install_ui05_visual_remediation() -> None:
         inspector_init=VisualInspector.__init__,
         inspector_set_song=VisualInspector.set_song,
         window_route=FoundationMainWindow._s06_route,
+        shell_workspace=FoundationShellWidget._apply_workspace,
+        shell_resize=FoundationShellWidget.resizeEvent,
         shell_sizes=FoundationShellWidget._apply_shell_sizes,
     )
 
@@ -788,5 +802,7 @@ def install_ui05_visual_remediation() -> None:
     VisualInspector.set_song = _inspector_set_song
     timeline_completion.TransitionVisualAlignmentCanvas.paintEvent = _timeline_paint
     FoundationMainWindow._s06_route = _window_route
+    FoundationShellWidget._apply_workspace = _shell_workspace
+    FoundationShellWidget.resizeEvent = _shell_resize
     FoundationShellWidget._apply_shell_sizes = _shell_sizes
     _installed = True
