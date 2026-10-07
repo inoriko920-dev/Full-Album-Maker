@@ -208,7 +208,9 @@ def test_motion_combo_nlu(prompt,name,argkey,argvalue):
 
 def test_ambiguous_motion_target_clarifies():
     doc,cover,text=_doc()
-    # text has an active beat assignment too; no selected target makes camera shake ambiguous
+    text.animation["beat_v1"]["motion_preset"]="beat_bounce"
+    text.animation["beat_v1"]["motion_intensity"]=.7
+    doc.validate()
     d=interpret_beat_prompt("hapus motion",_ctx(doc,()))
     assert d is not None and not d.actions and d.clarification
 
