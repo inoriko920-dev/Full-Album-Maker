@@ -488,6 +488,29 @@ class PropertyInspector(QWidget):
             del blockers
             self._updating = False
 
+    def _apply_beat_combo_from_ui(self, *_args) -> None:
+        if self._updating or not self._layer_id:
+            return
+        combo_id = self.beat_combo.currentData()
+        if combo_id in {None, "", "__custom__"}:
+            return
+        from .beat_combo_catalog import combo_definition
+        combo = combo_definition(str(combo_id))
+        preset_index = self.beat_preset.findData(combo.visual_preset.value)
+        motion_index = self.beat_motion.findData(combo.motion_preset.value)
+        if preset_index < 0 or motion_index < 0:
+            return
+        self._updating = True
+        try:
+            self.beat_enabled.setChecked(True)
+            self.beat_preset.setCurrentIndex(preset_index)
+            self.beat_intensity.setValue(combo.visual_intensity * 100.0)
+            self.beat_motion.setCurrentIndex(motion_index)
+            self.beat_motion_intensity.setValue(combo.motion_intensity * 100.0)
+        finally:
+            self._updating = False
+        self._emit_beat_animation()
+
     def _emit_beat_animation(self, *_args) -> None:
         if self._updating or not self._layer_id:
             return
