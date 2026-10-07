@@ -659,8 +659,11 @@ class FFmpegV2Compiler:
                 spin = props["spin_seconds"]
                 center_ratio = props["center_ratio"]
                 runtime = getattr(self, "_beat_visual_runtime", None)
+                snapshot_phase = layer.properties.get("_beat_snapshot_vinyl_phase_cycles")
                 phase_expr = f"(T/{spin:.9f})"
-                if props.get("bpm_sync", False) and runtime is not None:
+                if snapshot_phase is not None:
+                    phase_expr = f"{float(snapshot_phase):.9f}"
+                elif props.get("bpm_sync", False) and runtime is not None:
                     phase_expr = vinyl_phase_expression(
                         runtime.tempo_segments,
                         fallback_spin_seconds=spin,
