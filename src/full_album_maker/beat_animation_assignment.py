@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import math
 
 from .editor_models import Layer
+from .advanced_motion_contract import AdvancedMotionPreset
 from .visual_binding_contract import (
     CoreBeatPreset,
     VisualBinding,
@@ -20,6 +21,8 @@ class BeatAnimationAssignment:
     enabled: bool
     presets: tuple[CoreBeatPreset, ...]
     intensity: float = 1.0
+    motion_preset: AdvancedMotionPreset | None = None
+    motion_intensity: float = 1.0
 
     def validate(self) -> None:
         if not isinstance(self.enabled, bool):
@@ -33,6 +36,11 @@ class BeatAnimationAssignment:
         value = float(self.intensity)
         if not math.isfinite(value) or not 0.0 <= value <= 2.0:
             raise ValueError("beat_v1.intensity must be in 0..2")
+        if self.motion_preset is not None and not isinstance(self.motion_preset, AdvancedMotionPreset):
+            raise ValueError("beat_v1.motion_preset invalid")
+        motion_value = float(self.motion_intensity)
+        if not math.isfinite(motion_value) or not 0.0 <= motion_value <= 2.0:
+            raise ValueError("beat_v1.motion_intensity must be in 0..2")
 
     def binding_set(self) -> VisualBindingSet:
         self.validate()
@@ -88,7 +96,18 @@ def assignment_for_layer(layer: Layer) -> BeatAnimationAssignment | None:
         intensity = float(raw.get("intensity", 1.0))
     except (TypeError, ValueError) as exc:
         raise ValueError("beat_v1.intensity must be numeric") from exc
-    result = BeatAnimationAssignment(True, tuple(presets), intensity)
+    raw_motion = raw.get("motion_preset")
+    motion_preset = None
+    if raw_motion not in {None, "", "none"}:
+        try:
+            motion_preset = raw_motion if isinstance(raw_motion, AdvancedMotionPreset) else AdvancedMotionPreset(str(raw_motion))
+        except ValueError as exc:
+            raise ValueError(f"unknown beat_v1 motion preset: {raw_motion}") from exc
+    try:
+        motion_intensity = float(raw.get("motion_intensity", 1.0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("beat_v1.motion_intensity must be numeric") from exc
+    result = BeatAnimationAssignment(True, tuple(presets), intensity, motion_preset, motion_intensity)
     result.validate()
     return result
 
