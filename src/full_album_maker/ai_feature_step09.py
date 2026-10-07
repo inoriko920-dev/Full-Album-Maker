@@ -185,7 +185,7 @@ def _build_context(self, prompt: str = ""):
         selected_song_ids=self._s09_selected_song_ids(),
         selected_layer_ids=self._s09_selected_layer_ids(),
         allowed_media_ids=self._s09_allowed_media_ids(),
-        enabled_contexts=("media", "timeline", "visual", "template", "spectrum"),
+        enabled_contexts=("media", "timeline", "visual", "template", "spectrum", "beat"),
         user_text=prompt,
         template_ids=(item.template_id for item in builtin_descriptors()),
     )
