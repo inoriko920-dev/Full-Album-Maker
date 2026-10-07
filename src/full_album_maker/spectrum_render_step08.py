@@ -57,7 +57,7 @@ def _spectrum_source_chain(
     beat_runtime=None,
     work_dir: str | Path,
     intervals: list[tuple[int, int]],
-) -> str:
+) -> tuple[str, object | None]:
     props = normalize_spectrum_properties(layer.properties)
     width, height = _layer_size(layer, document)
     style = props["style"]
@@ -125,12 +125,14 @@ def _spectrum_source_chain(
             + _thickness_chain(props["thickness"])
         )
 
-    return (
+    chain = (
         f"[specaudio{audio_index}]volume={gain:.6f},{visual},"
         f"colorchannelmixer=aa={alpha:.6f}{mirror}"
         f"{beat_suffix if beat_control is not None else snapshot_glow}"
         f"{static_rotate}{output_label}"
     )
+    return chain, beat_control
+
 
 def apply_step08_spectrum_graph(
     compiled: CompiledFFmpeg,
@@ -155,6 +157,7 @@ def apply_step08_spectrum_graph(
     }
     replaced: set[int] = set()
     rebuilt: list[str] = []
+    beat_controls_by_label: dict[str, object] = {}
     for part in parts:
         match = _SPECTRUM_SOURCE.match(part)
         if match is None:
@@ -164,18 +167,31 @@ def apply_step08_spectrum_graph(
         if not 0 <= index < len(layers):
             rebuilt.append(part)
             continue
-        rebuilt.append(
-            _spectrum_source_chain(
-                document,
-                layers[index],
-                index,
-                match.group("output"),
-                beat_runtime=beat_runtime,
-                work_dir=work_dir,
-                intervals=intervals_by_layer.get(layers[index].layer_id, []),
-            )
+        chain, beat_control = _spectrum_source_chain(
+            document,
+            layers[index],
+            index,
+            match.group("output"),
+            beat_runtime=beat_runtime,
+            work_dir=work_dir,
+            intervals=intervals_by_layer.get(layers[index].layer_id, []),
         )
+        rebuilt.append(chain)
+        if beat_control is not None:
+            beat_controls_by_label[match.group("output")[1:-1]] = beat_control
         replaced.add(index)
+
+    for part_index, part in enumerate(rebuilt):
+        for label, control in beat_controls_by_label.items():
+            if f"[{label}]overlay=" not in part:
+                continue
+            rebuilt[part_index] = re.sub(
+                r"overlay=x='[^']*':y='[^']*':",
+                f"overlay=x='{control.overlay_x_expr}':y='{control.overlay_y_expr}':",
+                part,
+                count=1,
+            )
+            break
 
     expected = set(range(len(layers)))
     if replaced != expected:
