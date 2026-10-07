@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
     QComboBox,
@@ -669,6 +669,32 @@ def _seek_from_slider(window, value: int) -> None:
     window.editor_workspace.set_playhead(target)
 
 
+def _apply_visual_geometry(window) -> None:
+    shell = window.foundation_shell
+    compact = bool(getattr(shell, "_responsive_compact", False))
+    total = max(1, shell.width())
+    nav = TOKENS.nav_compact_width if compact else TOKENS.nav_width
+    context = 300 if compact else 384
+    right = 38 if shell.inspector.collapsed else (300 if compact else 368)
+    center = max(430 if compact else 560, total - nav - context - right - TOKENS.splitter_handle * 3)
+
+    shell.navigation.setMinimumWidth(nav)
+    shell.navigation.setMaximumWidth(nav)
+    shell.context.setMinimumWidth(context)
+    shell.context.setMaximumWidth(context)
+    if not shell.inspector.collapsed:
+        shell.inspector.setMinimumWidth(right)
+        shell.inspector.setMaximumWidth(right)
+    shell.horizontal_splitter.setSizes([nav, context, center, right])
+
+    host = shell.timeline
+    host._preferred_height = 220
+    host.setMinimumHeight(220)
+    host.setMaximumHeight(220)
+    top_h = max(300 if compact else 360, shell.height() - 220 - TOKENS.status_height - TOKENS.command_height)
+    shell.vertical_splitter.setSizes([top_h, 220])
+
+
 def _window_route(self, route: str) -> None:
     _originals["window_route"](self, route)
     _ensure_timeline_panel(self)
@@ -686,6 +712,13 @@ def _window_route(self, route: str) -> None:
         host.setMinimumHeight(220)
         host.setMaximumHeight(220)
         self.foundation_shell._apply_shell_sizes("visual")
+        _apply_visual_geometry(self)
+        QTimer.singleShot(
+            0,
+            lambda: _apply_visual_geometry(self)
+            if getattr(self, "foundation_state", None) is not None and self.foundation_state.workspace == "visual"
+            else None,
+        )
         if not getattr(self, "_ui05_seek_connected", False):
             self.visual_workspace_s06.ui05_progress.sliderMoved.connect(lambda value: _seek_from_slider(self, value))
             self._ui05_seek_connected = True
