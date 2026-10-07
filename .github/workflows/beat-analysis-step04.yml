@@ -1,0 +1,85 @@
+name: STEP04 Audio Analysis Service
+
+on:
+  push:
+    branches:
+      - feature/beat-animation-engine-v2
+    paths:
+      - "docs/beat-animation/_step04_source_payload/**"
+      - "tools/apply_step04_audio_analysis_payload.py"
+      - ".github/workflows/beat-analysis-step04.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout development branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+
+      - name: Reconstruct STEP04 source
+        run: python tools/apply_step04_audio_analysis_payload.py
+
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip==26.2.1
+          python -m pip install --disable-pip-version-check -r build/requirements-audio-analysis-step04.lock
+
+      - name: Run STEP04 focused suite
+        env:
+          PYTHONPATH: src
+        run: python -m pytest -q tests/test_step04_audio_analysis.py
+
+      - name: PyInstaller backend smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --console --onedir --name "BeatAnalysisSmoke" --paths "$PWD\src" tools\beat_analysis_import_smoke.py
+          .\dist\BeatAnalysisSmoke\BeatAnalysisSmoke.exe
+
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout development branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/beat-animation-engine-v2
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12.10"
+
+      - name: Reconstruct STEP04 source
+        run: python tools/apply_step04_audio_analysis_payload.py
+
+      - name: Commit validated STEP04 implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add             src/full_album_maker/audio_analysis_contract.py             src/full_album_maker/audio_analysis_fingerprint.py             src/full_album_maker/audio_analysis_quality.py             src/full_album_maker/audio_analysis_decode.py             src/full_album_maker/audio_analysis_backend.py             src/full_album_maker/audio_analysis_cache.py             src/full_album_maker/audio_analysis_service.py             tests/test_step04_audio_analysis.py             build/requirements-audio-analysis-step04.lock             tools/beat_analysis_import_smoke.py
+          if git diff --cached --quiet; then
+            echo "STEP04 implementation already matches payload."
+            exit 0
+          fi
+          git commit -m "feat(step04): add cached audio analysis service"
+          git push origin HEAD:feature/beat-animation-engine-v2
