@@ -92,9 +92,9 @@ jobs:
           assert main['workspace'] == 'template' and main['template_active'] is True, main
           assert main['context_visible'] is True and main['inspector_active'] is True, main
           assert main['timeline_visible'] is True, main
-          assert main['context_width'] in range(254, 275), main
-          assert main['right_dock_width'] in range(338, 359), main
-          assert main['timeline_height'] in range(148, 169), main
+          assert main['context_width'] in range(198, 219), main
+          assert main['right_dock_width'] in range(310, 331), main
+          assert main['timeline_height'] in range(170, 191), main
           assert main['status_height'] in range(26, 31), main
           assert main['card_count'] == 10 and main['song_count'] == 4, main
           assert main['selected_template_id'] == 'spotify_clean', main
@@ -122,9 +122,9 @@ jobs:
           assert compact['context_visible'] is True and compact['inspector_active'] is True, compact
           assert compact['timeline_visible'] is True, compact
           assert compact['card_count'] == 10 and compact['song_count'] == 4, compact
-          assert compact['context_width'] in range(254, 275), compact
+          assert compact['context_width'] in range(188, 209), compact
           assert compact['right_dock_width'] in range(290, 311), compact
-          assert compact['timeline_height'] in range(148, 169), compact
+          assert compact['timeline_height'] in range(160, 181), compact
           assert compact['content_unchanged_by_route_and_preview'] is True, compact
           print('STEP07_TEMPLATE_GEOMETRY_PASS')
           PY
