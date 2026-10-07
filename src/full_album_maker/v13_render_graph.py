@@ -7,6 +7,7 @@ from .editor_models import Layer, ProjectDocument, TIMEBASE
 from .render_graph import (
     CompiledFFmpeg,
     _beat_snapshot_glow_chain,
+    _beat_snapshot_particle_chain,
     _layer_size,
     _rotation_chain,
     ticks_to_seconds,
@@ -339,6 +340,7 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
                     else ""
                 )
                 snapshot_glow = _beat_snapshot_glow_chain(layer)
+                snapshot_particles = _beat_snapshot_particle_chain(layer, width, height)
                 static_rotate = rotate if beat_control is None or beat_control.rotate_filter is None else ""
                 crop = _crop_chain(props)
                 geometry = _fit_chain(props["fit"], width, height)
@@ -376,7 +378,7 @@ class V13FFmpegCompiler(S11FFmpegCompiler):
                 if beat_control is not None:
                     chain += beat_suffix + static_rotate
                 else:
-                    chain += snapshot_glow + static_rotate
+                    chain += snapshot_glow + snapshot_particles + static_rotate
                 chain += f"[{source}]"
                 visual_filters.append(chain)
 
