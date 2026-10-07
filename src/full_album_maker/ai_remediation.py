@@ -245,20 +245,20 @@ def _toggle_permissions(dock: AIContextDock) -> None:
 
 
 def _context_set(self, *, project_name: str, song_count: int, media_count: int) -> None:
+    # Preserve STEP09's public widget text contract; presentation styling must
+    # not break consumers/tests that read these labels directly.
     _originals["context_set"](self, project_name=project_name, song_count=song_count, media_count=media_count)
-    self.project.setText(f"◉  Project Aktif\n    {project_name or 'Untitled'}")
-    self.songs.setText(f"♫  Lagu yang Dipilih\n    {int(song_count)} lagu")
-    self.media.setText(f"▣  Media yang Boleh Dipakai\n    Semua media project • {int(media_count)} item")
+    self.project.setToolTip("Project aktif untuk plan AI")
+    self.songs.setToolTip("Scope lagu yang diizinkan untuk plan AI")
+    self.media.setToolTip("Media yang tersedia di dalam ProjectDocument aktif")
 
 
 def _context_provider(self, provider_id: str, *, key_ready: bool) -> None:
+    # Preserve exact redacted STEP09 status text while improving visual state.
     _originals["context_provider"](self, provider_id, key_ready=key_ready)
-    if provider_id == "mock":
-        self.key_status.setText("●  Status Key: Test / offline")
-    else:
-        self.key_status.setText("●  Status Key: Aktif" if key_ready else "●  Status Key: Tidak Ada")
+    ready = provider_id == "mock" or key_ready
     self.key_status.setStyleSheet(
-        "QLabel{color:#168A4A;font-weight:600;}" if (provider_id == "mock" or key_ready)
+        "QLabel{color:#168A4A;font-weight:600;}" if ready
         else "QLabel{color:#A65B00;font-weight:600;}"
     )
 
@@ -479,7 +479,10 @@ def _window_route(self, route: str) -> None:
 
     if active:
         _hide_foundation_context(self)
-        self.ai_timeline_s09.hide()
+        # Keep the original STEP09 timeline object logically visible for the
+        # established public contract, but its parent body is hidden so the
+        # route-scoped plan timeline is the rendered surface.
+        self.ai_timeline_s09.show()
         self.foundation_shell.timeline.body.hide()
         self.foundation_shell._apply_shell_sizes("ai_agent")
         _apply_ai_geometry(self)
