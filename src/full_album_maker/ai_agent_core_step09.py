@@ -35,6 +35,7 @@ class AgentPermission(str, Enum):
     PLAYLIST_WRITE = "playlist.write"
     TEMPLATE_WRITE = "template.write"
     SPECTRUM_WRITE = "spectrum.write"
+    BEAT_WRITE = "beat.write"
 
 
 _ALLOWED_TRANSITIONS: dict[AgentState, set[AgentState]] = {
@@ -268,6 +269,64 @@ def build_agent_context_snapshot(
         "media_asset_ids": list(allowed_media),
         "song_ids": list(selected_songs),
     }
+
+    if "beat" in contexts:
+        # Import locally to keep the core context contract independent from
+        # optional Beat Animation implementation modules at import time.
+        from .beat_animation_assignment import assignment_for_layer
+        from .beat_layer_capabilities import beat_capability_for_layer
+        from .beat_preset_catalog import BEAT_PRESET_CATALOG
+        from .music_style_presets import MUSIC_STYLE_CATALOG
+        beat_layers = []
+        beat_capable_ids = []
+        selected_beat_ids = []
+        for layer in sorted(document.layers, key=lambda item: (item.order, item.layer_id)):
+            capability = beat_capability_for_layer(layer)
+            if not capability.supported:
+                continue
+            beat_capable_ids.append(layer.layer_id)
+            if layer.layer_id in selected_layers:
+                selected_beat_ids.append(layer.layer_id)
+            assignment = assignment_for_layer(layer)
+            item = {
+                "layer_id": layer.layer_id,
+                "name": layer.name,
+                "type": layer.type,
+                "selected": layer.layer_id in selected_layers,
+                "locked": bool(layer.locked),
+                "current_presets": [preset.value for preset in assignment.presets] if assignment else [],
+                "intensity": float(assignment.intensity) if assignment else 1.0,
+                "supported_presets": [preset.value for preset in capability.supported_presets],
+            }
+            if layer.type == "vinyl":
+                item["bpm_sync"] = bool(layer.properties.get("bpm_sync", False))
+                item["beats_per_rotation"] = float(layer.properties.get("beats_per_rotation", 4.0))
+            beat_layers.append(item)
+        writable = selected_beat_ids if selected_beat_ids else beat_capable_ids
+        payload["beat_context"] = {
+            "preset_catalog": [
+                {
+                    "id": preset.value,
+                    "label": definition.label,
+                    "category": definition.category,
+                    "aliases": list(definition.ai_aliases),
+                }
+                for preset, definition in BEAT_PRESET_CATALOG.items()
+            ],
+            "music_styles": [
+                {
+                    "id": style.value,
+                    "label": definition.label,
+                    "aliases": list(definition.ai_aliases),
+                }
+                for style, definition in MUSIC_STYLE_CATALOG.items()
+            ],
+            "layers": beat_layers[:64],
+            "writable_layer_ids": list(writable[:64]),
+            "selected_layer_ids": list(selected_beat_ids[:64]),
+        }
+        payload["permission_boundary"]["beat_layer_ids"] = list(writable[:64])
+
     payload["format"] = CONTEXT_FORMAT
 
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
