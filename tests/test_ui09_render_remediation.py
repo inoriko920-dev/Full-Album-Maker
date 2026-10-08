@@ -185,6 +185,8 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert cards[1].progress_detail.text() == "◷ Dalam antrean"
         assert cards[1].note.text() == "Menunggu antrean..."
         assert cards[1].progress_column.spacing() == 1
+        assert cards[1].progress_column.contentsMargins().bottom() == 7
+        assert cards[0].progress_column.contentsMargins().bottom() == 0
         assert cards[0].progress_column.spacing() == 7
         assert cards[2].progress_column.spacing() == 7
         assert cards[2].progress_detail.text() == "✓ File terverifikasi"
