@@ -5,6 +5,7 @@ on:
     branches:
       - ui/step-10-render
       - ui/ui09-render-remediation-v160
+      - ui/ui09-visual-queue-wave01
   workflow_dispatch:
 
 permissions:
