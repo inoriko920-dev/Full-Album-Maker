@@ -73,6 +73,30 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "FFmpeg Siap" in headings
         assert "Output Folder" in headings
         assert "Disk Space" in headings
+        # Preflight status drawing is platform-independent, but the raw
+        # source status text remains exactly STEP10's ✓/⚠/✕ semantic string.
+        from full_album_maker.render_remediation import _UI09PreflightStatusLabel
+        for key in ("media", "snapshot", "ffmpeg", "output", "disk"):
+            card = workspace.preflight_cards[key]
+            assert isinstance(card.state, _UI09PreflightStatusLabel), key
+            assert card.state.objectName() == "sectionHeading"
+        icon_check = _UI09PreflightStatusLabel("✓ PASS")
+        icon_check.resize(110, 28)
+        icon_check.show()
+        app.processEvents()
+        assert icon_check.text() == "✓ PASS"
+        color_check = icon_check.grab().toImage().pixelColor(8, 14)
+        assert color_check.green() > 110 and color_check.green() > color_check.red()
+        icon_check.setText("⚠ WARN")
+        app.processEvents()
+        assert icon_check.text() == "⚠ WARN"
+        color_warn = icon_check.grab().toImage().pixelColor(7, 17)
+        assert color_warn.red() > 160 and color_warn.red() > color_warn.blue()
+        icon_check.setText("✕ BLOCK")
+        app.processEvents()
+        assert icon_check.text() == "✕ BLOCK"
+        assert not icon_check.grab().isNull()
+
         # Five card illustrations are Qt-painted vectors, not font glyphs.
         # Only the golden desktop preflight is modified; state text and real
         # PreflightReport ownership stay on the original STEP10 cards.
