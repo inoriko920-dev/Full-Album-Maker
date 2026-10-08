@@ -71,7 +71,15 @@ def verify_capture_evidence(root: Path, *, require_windows: bool = True) -> dict
         }
         problems = [key for key, valid in invariants.items() if not valid]
         if problems:
-            raise AssertionError(f"{name} screenshot geometry rejected: {problems}")
+            debug = {
+                "viewport_height": geometry.get("ui09_queue_viewport_height"),
+                "widget_height": geometry.get("ui09_queue_widget_height"),
+                "item_rects": geometry.get("ui09_queue_item_rects"),
+                "item_size_hints": geometry.get("ui09_queue_item_size_hints"),
+            }
+            raise AssertionError(
+                f"{name} screenshot geometry rejected: {problems} / {debug}"
+            )
 
         cases[name] = {
             "size": [width, height],
