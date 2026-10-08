@@ -143,7 +143,7 @@ def _present_queue(workspace, jobs) -> None:
         item = workspace.queue_list.item(index)
         if item is None:
             break
-        item.setSizeHint(QSize(0, 78))
+        item.setSizeHint(QSize(0, 68 if getattr(workspace, 'ui09_compact', False) else 78))
         card = _QueueJobCard(job, index + 1, workspace.queue_list)
         workspace.queue_list.setItemWidget(item, card)
         widgets[(job.job_id, job.attempt_id)] = card
@@ -296,7 +296,7 @@ def _prepare_center(window) -> None:
                 continue
             grid.removeWidget(card)
             card.title.setText(titles[key])
-            card.setMinimumHeight(154)
+            card.setMinimumHeight(88 if window.width() < 1500 else 154)
             grid.addWidget(card, 0, column)
 
     active_card = workspace.progress.parentWidget()
@@ -329,7 +329,7 @@ def _prepare_center(window) -> None:
     preflight_heading = QLabel("Hasil Preflight")
     preflight_heading.setObjectName("sectionHeading")
     center_layout.insertWidget(1, preflight_heading)
-    center_layout.insertSpacing(1, 14)
+    center_layout.insertSpacing(1, 0 if window.width() < 1500 else 14)
 
     # Performance belongs below the queue in the golden visual hierarchy.
     graph = getattr(window, "render_performance_s10", None)
@@ -390,6 +390,7 @@ def _prepare_center(window) -> None:
     root.addWidget(host, 1)
     workspace.ui09_center = center
     workspace.ui09_host = host
+    workspace.ui09_compact = window.width() < 1500
     workspace._ui09_prepared = True
     # Initial STEP10 updates happen before the Render route is constructed.
     _present_queue(workspace, tuple(window._s10_queue.jobs))
