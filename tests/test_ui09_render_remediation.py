@@ -69,6 +69,19 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert inspector.preflight.isHidden() is True
         assert inspector.ui09_close_after.isEnabled() is False
 
+        # Inspector settings scroll independently while render controls remain
+        # pinned below; all widgets still belong to STEP10's settings owner.
+        from PySide6.QtWidgets import QScrollArea
+        scroll = inspector.ui09_scroll
+        assert isinstance(scroll, QScrollArea)
+        assert scroll.widget() is inspector.ui09_scroll_host
+        assert inspector.filename.parentWidget() is inspector.ui09_scroll_host
+        assert inspector.start.parentWidget() is inspector
+        assert scroll.horizontalScrollBar().maximum() == 0
+        assert scroll.geometry().bottom() < inspector.start.geometry().top()
+        assert inspector.start.isVisible() is True
+
+
         # Card widgets are pure views of STEP10 RenderJobs: no second queue,
         # no optimistic completion state, and no fake render lifecycle.
         from dataclasses import replace
