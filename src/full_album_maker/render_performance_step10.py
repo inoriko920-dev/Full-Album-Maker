@@ -118,12 +118,12 @@ class RenderPerformanceGraph(QWidget):
             summary_left = plot.right() + 12
             summary_width = max(20.0, (area.right() - summary_left - 8) / 3)
             observed = (
-                ("Kecepatan", "—" if latest.fps is None else f"{latest.fps:.0f} fps"),
-                ("Rata-rata", "—" if latest.average_fps is None
+                ("FPS", "—" if latest.fps is None else f"{latest.fps:.0f} fps"),
+                ("Rata FPS", "—" if latest.average_fps is None
                  else f"{latest.average_fps:.0f} fps"),
-                ("Sisa waktu", "—" if latest.eta_seconds is None
-                 else f"{max(0, round(latest.eta_seconds)) // 60} mnt "
-                      f"{max(0, round(latest.eta_seconds)) % 60} dtk"),
+                ("ETA", "—" if latest.eta_seconds is None
+                 else f"{max(0, round(latest.eta_seconds)) // 60:02d}:"
+                      f"{max(0, round(latest.eta_seconds)) % 60:02d}"),
             )
             for index, (label, value) in enumerate(observed):
                 cell = QRectF(
