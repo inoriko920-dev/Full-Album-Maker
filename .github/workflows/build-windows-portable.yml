@@ -137,11 +137,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Windows UI09 screenshot and geometry verification failed." }
 
       - name: Upload isolated Windows UI-09 screenshot evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: UI09-Windows-Qt-Offscreen-Evidence
           path: ui09-windows-evidence/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Prepare Windows icon
