@@ -18,6 +18,7 @@ on:
       - ui/ui09-wave11-preflight-status-icons
       - ui/ui09-wave12-preflight-action
       - ui/ui09-wave13-vector-music-placeholder
+      - fix/pyside6-6-11-2-qt-teardown
   workflow_dispatch:
 
 permissions:
@@ -32,6 +33,7 @@ jobs:
       PYTHONUNBUFFERED: '1'
       FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
       FAM_STEP09_PROVIDER: mock
+      PYTHONFAULTHANDLER: '1'
     steps:
       - name: Checkout STEP10 candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -53,6 +55,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
+      - name: Assert Qt native versions before testing
+        run: |
+          python - <<'PY'
+          import PySide6, shiboken6
+          assert PySide6.__version__ == "6.11.2", PySide6.__version__
+          assert shiboken6.__version__ == "6.11.2", shiboken6.__version__
+          print("Qt 6.11.2 version freeze verified")
+          PY
       - name: Compile source
         run: python -m compileall -q src
       - name: Run STEP10 focused render tests
