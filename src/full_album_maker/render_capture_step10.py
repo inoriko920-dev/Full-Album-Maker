@@ -349,6 +349,21 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "completed_verified": bool(completed.verified_output),
         "queue_row_count": len(queue_rows),
         "queue_rows": queue_rows,
+        "ui09_queue_card_count": sum(
+            1 for index in range(window.render_workspace_s10.queue_list.count())
+            if window.render_workspace_s10.queue_list.itemWidget(
+                window.render_workspace_s10.queue_list.item(index)
+            ) is not None
+        ),
+        "ui09_queue_progress": [
+            window.render_workspace_s10.queue_list.itemWidget(
+                window.render_workspace_s10.queue_list.item(index)
+            ).bar.value()
+            for index in range(window.render_workspace_s10.queue_list.count())
+            if window.render_workspace_s10.queue_list.itemWidget(
+                window.render_workspace_s10.queue_list.item(index)
+            ) is not None
+        ],
         "active_jobs_status_count": active_jobs,
         "performance_points": window.render_performance_s10.point_count,
         "pause_enabled": window.render_inspector_s10.pause.isEnabled(),
