@@ -195,6 +195,10 @@ class _UI09HistoryHeading(QLabel):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Thin separator belongs to the history section heading, not a
+        # fabricated history row or another Qt layout/spacer.
+        painter.setPen(QPen(QColor("#DCE5F5"), 1.0))
+        painter.drawLine(0, 0, max(0, self.width() - 1), 0)
         painter.setPen(QPen(QColor("#1C3168"), 2.0))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         middle = self.height() // 2
