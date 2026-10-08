@@ -22,7 +22,7 @@ def test_ui09_render_remediation_route_contract() -> None:
         from PySide6.QtCore import QEventLoop, QTimer
         from PySide6.QtWidgets import QApplication, QLabel
         from full_album_maker.foundation_window import FoundationMainWindow
-        from full_album_maker.render_capture_step10 import _fixture_document
+        from full_album_maker.render_capture_step10 import _fixture_document, _mock_jobs
 
         app = QApplication.instance() or QApplication([])
         root = Path(tempfile.mkdtemp(prefix="fam-ui09-test-"))
@@ -49,7 +49,7 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert shell.context.maximumWidth() == 0
         assert shell.timeline.collapsed is True
         assert workspace.ui09_sidebar.isHidden() is False
-        assert workspace.ui09_sidebar.width() in range(196, 215), workspace.ui09_sidebar.width()
+        assert workspace.ui09_sidebar.width() in range(274, 283), workspace.ui09_sidebar.width()
         assert set(workspace.ui09_preset_buttons) == {
             "youtube_1080p", "youtube_1440p", "youtube_4k", "custom"
         }
@@ -68,6 +68,34 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert inspector.preset.isHidden() is True
         assert inspector.preflight.isHidden() is True
         assert inspector.ui09_close_after.isEnabled() is False
+
+        # Card widgets are pure views of STEP10 RenderJobs: no second queue,
+        # no optimistic completion state, and no fake render lifecycle.
+        from dataclasses import replace
+        running, queued, completed = _mock_jobs(document, root)
+        workspace.apply_queue((running, queued, completed))
+        assert workspace.queue_list.count() == 3
+        cards = [
+            workspace.queue_list.itemWidget(workspace.queue_list.item(index))
+            for index in range(3)
+        ]
+        assert all(card is not None for card in cards)
+        assert [card.state.text() for card in cards] == [
+            "RUNNING", "ANTREAN", "SELESAI"
+        ]
+        assert [card.bar.value() for card in cards] == [630, 0, 1000]
+        assert "Output terverifikasi" in cards[2].note.text()
+        assert workspace.queue_list.item(2).text().find("COMPLETED VERIFIED") >= 0
+
+        # A real metrics update must reach the existing row, without queuing a
+        # new RenderJob, executing FFmpeg or mutating the ProjectDocument.
+        running.metrics = replace(running.metrics, percent=68.0, fps=101.0)
+        workspace.apply_job(running)
+        assert cards[0].bar.value() == 680
+        assert cards[0].percent.text() == "68%"
+        assert "101 fps" in cards[0].note.text()
+        assert window.editor_workspace.document().content_signature() == signature
+
 
         # Presentation preset cards drive the same STEP10 RenderSettings owner.
         workspace.ui09_preset_buttons["youtube_1440p"].click()
