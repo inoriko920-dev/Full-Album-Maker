@@ -287,9 +287,11 @@ class _UI09QueueProgressDetail(QLabel):
         icon = 10
         gap = 4
         text_width = painter.fontMetrics().horizontalAdvance(caption)
-        # The original queued status is left-anchored beside its clock.
-        # Keep verified output right-aligned and owned by the real engine.
-        left = (22 if marker == "queued"
+        # The owner's queued clock is farther left than the right-aligned
+        # completion text, but still inside the center-right status column.
+        # A fixed 135px offset matches that clock's original screen location
+        # at 1672px while keeping the string entirely within the label.
+        left = (135 if marker == "queued"
                 else self.width() - text_width - icon - gap)
         if left < 0 or left + text_width + icon + gap > self.width():
             painter.end()
