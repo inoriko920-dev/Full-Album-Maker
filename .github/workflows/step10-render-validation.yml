@@ -256,10 +256,36 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - name: Install targeted FFmpeg runtime
+      - name: Verify bounded Linux FFmpeg runtime dependencies
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          set -euo pipefail
+          # ubuntu-24.04 often includes FFmpeg and Qt system libraries.
+          # Avoid a redundant network-based apt-get invocation on healthy
+          # hosted runners; still fail closed if a required library is missing.
+          deps=(libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0)
+          missing=()
+          if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
+            missing+=(ffmpeg)
+          fi
+          for dep in "${deps[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "$dep" 2>/dev/null | grep -qx "install ok installed"; then
+              missing+=("$dep")
+            fi
+          done
+          if (("${#missing[@]}" > 0)); then
+            echo "Missing runtime dependencies: ${missing[*]}"
+            # A runner/package-mirror outage must fail explicitly, not hold
+            # the PR gate indefinitely while all other suites have passed.
+            sudo timeout --signal=TERM --kill-after=10s 150s apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=25 -o Acquire::https::Timeout=25 update
+            sudo DEBIAN_FRONTEND=noninteractive timeout --signal=TERM --kill-after=10s 120s apt-get install -y --no-install-recommends "${missing[@]}"
+          else
+            echo "System FFmpeg and all four Qt runtime libraries already present."
+          fi
+          command -v ffmpeg
+          command -v ffprobe
+          ffmpeg -hide_banner -version | head -n 1
+          ffprobe -hide_banner -version | head -n 1
       - name: Install project
         run: |
           python -m pip install --upgrade pip
