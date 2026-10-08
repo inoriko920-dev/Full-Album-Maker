@@ -392,7 +392,9 @@ class _QueueJobCard(QFrame):
         self.queued_clock.setAccessibleName("Menunggu giliran antrean")
         status_layout.addWidget(self.queued_clock)
         status_text = QVBoxLayout()
-        status_text.setContentsMargins(0, 0, 0, 0)
+        # Fine-align both captions vertically as one group to the frozen
+        # two-line status; no queue geometry or engine state is changed.
+        status_text.setContentsMargins(0, 8, 0, 0)
         status_text.setSpacing(1)
         status_text.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self.queued_caption = QLabel("Dalam antrean", status_view)
