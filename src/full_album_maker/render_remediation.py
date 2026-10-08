@@ -791,14 +791,14 @@ def _prepare_center(window) -> None:
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = QVBoxLayout(sidebar)
-    side.setContentsMargins(8, 34 if desktop else 8, 8, 8)
-    side.setSpacing(7 if desktop else 6)
+    side.setContentsMargins(8, 24 if desktop else 8, 8, 8)
+    side.setSpacing(10 if desktop else 6)
 
     title = QLabel("Preset Render")
     title.setObjectName("sectionHeading")
     side.addWidget(title)
     if desktop:
-        side.addSpacing(4)
+        side.addSpacing(9)
 
     workspace.ui09_preset_buttons = {}
     for preset_id, label in _PRESET_SURFACE:
@@ -810,7 +810,7 @@ def _prepare_center(window) -> None:
         button.setObjectName("ui09PresetCard")
         button.setCheckable(True)
         button.setAutoExclusive(True)
-        button.setMinimumHeight(65 if desktop else 55)
+        button.setMinimumHeight(81 if desktop else 55)
         button.setStyleSheet(
             "QPushButton{background:#FFFFFF;color:#24385A;border:1px solid #DDE8F5;"
             "border-radius:7px;text-align:left;padding:7px 10px;font-size:11px;}"
@@ -821,7 +821,7 @@ def _prepare_center(window) -> None:
         # Qt styles may reset minimum heights when the widget is polished.
         # Keep these desktop cards proportionate; compact remains untouched.
         if desktop:
-            button.setFixedHeight(65)
+            button.setFixedHeight(81)
         button.clicked.connect(
             lambda _checked=False, value=preset_id: _select_preset(window, value)
         )
@@ -933,11 +933,11 @@ def _apply_ui09_breakpoint(window) -> None:
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = workspace.ui09_sidebar_layout
-    side.setContentsMargins(8, 34 if desktop else 8, 8, 8)
-    side.setSpacing(7 if desktop else 6)
+    side.setContentsMargins(8, 24 if desktop else 8, 8, 8)
+    side.setSpacing(10 if desktop else 6)
     top_space, history_space = workspace.ui09_sidebar_extra_spacers
     if desktop and top_space is None:
-        side.insertSpacing(1, 4)
+        side.insertSpacing(1, 9)
         side.insertSpacing(side.indexOf(workspace.ui09_history_heading), 24)
         top_space = side.itemAt(1).spacerItem()
         history_space = side.itemAt(
@@ -945,14 +945,14 @@ def _apply_ui09_breakpoint(window) -> None:
         ).spacerItem()
         workspace.ui09_sidebar_extra_spacers = (top_space, history_space)
     elif top_space is not None:
-        top_space.changeSize(0, 4 if desktop else 0)
+        top_space.changeSize(0, 9 if desktop else 0)
         history_space.changeSize(0, 24 if desktop else 0)
 
     for button in workspace.ui09_preset_buttons.values():
         button.setMaximumHeight(16777215)
-        button.setMinimumHeight(65 if desktop else 55)
+        button.setMinimumHeight(81 if desktop else 55)
         if desktop:
-            button.setFixedHeight(65)
+            button.setFixedHeight(81)
 
     graph = getattr(window, "render_performance_s10", None)
     if graph is not None:
