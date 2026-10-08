@@ -177,6 +177,36 @@ class _JobCoverThumb(QLabel):
         painter.end()
 
 
+class _UI09HistoryHeading(QLabel):
+    """Paint a small history/clock emblem without introducing fake projects.
+
+    The text, object name and accessibility of the existing sidebar heading
+    stay unchanged. Only the heading's leading decorative artwork is added,
+    matching the owner UI-09 golden without using platform-specific glyphs.
+    """
+
+    def __init__(self, title: str, parent=None) -> None:
+        super().__init__(title, parent)
+        self.setContentsMargins(32, 0, 0, 0)
+        self.setMinimumHeight(28)
+        self.setAccessibleName(title)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor("#1C3168"), 2.0))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        middle = self.height() // 2
+        # Rewinding-clock motif drawn by Qt rather than an emoji/font glyph.
+        painter.drawArc(QRect(5, middle - 10, 21, 21), 35 * 16, 300 * 16)
+        painter.drawLine(5, middle - 9, 5, middle - 3)
+        painter.drawLine(5, middle - 3, 11, middle - 3)
+        painter.drawLine(16, middle - 6, 16, middle)
+        painter.drawLine(16, middle, 20, middle + 2)
+        painter.end()
+
+
 class _RenderHistoryCard(QFrame):
     """Read-only visual surface over the original clickable history item."""
 
@@ -1078,7 +1108,7 @@ def _prepare_center(window) -> None:
     if desktop:
         side.addSpacing(24)
 
-    history_title = QLabel("Proyek Sebelumnya")
+    history_title = _UI09HistoryHeading("Proyek Sebelumnya")
     history_title.setObjectName("sectionHeading")
     side.addWidget(history_title)
     workspace.ui09_sidebar = sidebar
