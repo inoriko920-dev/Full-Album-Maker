@@ -50,6 +50,21 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert shell.timeline.collapsed is True
         assert workspace.ui09_sidebar.isHidden() is False
         assert workspace.ui09_sidebar.width() in range(274, 283), workspace.ui09_sidebar.width()
+        # Wave21: paint a background inside the actual header area without
+        # moving the STEP10 header widgets or changing queue/project semantics.
+        from full_album_maker.render_remediation import _UI09CenterHeaderSurface
+        assert isinstance(workspace.ui09_center, _UI09CenterHeaderSurface)
+        assert workspace.ui09_center.ui09_desktop_header is True
+        header_rect = workspace.ui09_center.ui09_header_layout.geometry()
+        assert header_rect.width() > 500 and header_rect.height() >= 40
+        app.processEvents()
+        sample = workspace.ui09_center.grab().toImage().pixelColor(
+            header_rect.x() + header_rect.width() // 2,
+            header_rect.y() + 4,
+        )
+        assert sample.blue() - sample.red() >= 13, (
+            "Expected a pale-blue header backing, not plain canvas", sample.getRgb()
+        )
         # Wave20 paints only the desktop sidebar backing; history and preset
         # ownership/size remain in their original production widgets.
         assert workspace.ui09_sidebar.objectName() == "ui09RenderSidebar"
@@ -472,6 +487,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         assert workspace.ui09_compact is True
         assert workspace.ui09_sidebar.width() in range(196, 215)
         assert workspace.ui09_sidebar.styleSheet() == ""
+        assert workspace.ui09_center.ui09_desktop_header is False
         assert workspace.ui09_preset_buttons["youtube_1080p"].height() >= 40
         assert workspace.queue_list.count() == 3
         assert all(workspace.preflight_cards[k].minimumHeight() == 88
@@ -495,6 +511,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         assert workspace.ui09_compact is False
         assert workspace.ui09_sidebar.width() in range(274, 283)
         assert "background-color:#FFFFFF" in workspace.ui09_sidebar.styleSheet()
+        assert workspace.ui09_center.ui09_desktop_header is True
         assert workspace.ui09_preset_buttons["youtube_1080p"].height() >= 48
         assert all(workspace.preflight_cards[k].minimumHeight() == 154
                    and workspace.preflight_cards[k].maximumHeight() == 154
