@@ -662,8 +662,8 @@ class _UI09PreflightStatusLabel(QLabel):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         cy = self.height() // 2
-        radius = min(11, max(6, cy - 1))
-        cx = radius + 1
+        radius = min(12, max(6, cy - 1))
+        cx = radius + 1 + (25 if self.width() >= 130 else 0)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(color)
         if label == "WARN":
@@ -690,7 +690,7 @@ class _UI09PreflightStatusLabel(QLabel):
         font.setBold(True)
         painter.setFont(font)
         painter.setPen(color)
-        left = 2 * radius + 8
+        left = 2 * radius + 8 + (45 if self.width() >= 130 else 0)
         painter.drawText(
             QRect(left, 0, max(0, self.width() - left), self.height()),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -740,7 +740,7 @@ def _ui09_prepare_preflight_icon(card, kind: str) -> None:
     # Qt otherwise distributes unused card height among all three QLabel
     # rows, pushing PASS/WARN and detail captions too low versus the golden.
     # Keep the actual state/detail widgets as their sole source of truth.
-    content.insertSpacing(1, 14)
+    content.insertSpacing(1, 6)
     content.insertSpacing(3, 15)
     content.addStretch(1)
     card.ui09_icon = glyph
@@ -1018,7 +1018,7 @@ def _apply_ui09_breakpoint(window) -> None:
             glyph.setVisible(desktop)
             card.ui09_icon_row.setContentsMargins(5 if desktop else 0, 0, 0, 0)
             for item, height in zip(
-                card.ui09_icon_spacers, (14, 15) if desktop else (0, 0)
+                card.ui09_icon_spacers, (6, 15) if desktop else (0, 0)
             ):
                 item.changeSize(0, height)
             card.layout().invalidate()
