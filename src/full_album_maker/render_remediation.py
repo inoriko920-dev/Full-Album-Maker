@@ -335,13 +335,26 @@ class _QueueJobCard(QFrame):
                 )
 
 
+def _ui09_queue_row_height(*, compact: bool) -> int:
+    # Windows Qt has a slightly smaller queue viewport than Linux Qt.
+    # Keep the original 5px inter-row spacing to preserve golden alignment.
+    # The cover/icon and progress widgets fit inside these heights.
+    if sys.platform == "win32":
+        return 65 if compact else 76
+    return 68 if compact else 78
+
+
 def _present_queue(workspace, jobs) -> None:
     widgets = {}
     for index, job in enumerate(_visible_queue_jobs(jobs)):
         item = workspace.queue_list.item(index)
         if item is None:
             break
-        item.setSizeHint(QSize(0, 68 if getattr(workspace, 'ui09_compact', False) else 78))
+        item.setSizeHint(QSize(
+            0, _ui09_queue_row_height(
+                compact=bool(getattr(workspace, "ui09_compact", False))
+            ),
+        ))
         card = _QueueJobCard(
             job, index + 1,
             compact=bool(getattr(workspace, "ui09_compact", False)),
@@ -610,11 +623,9 @@ def _prepare_center(window) -> None:
     # remains visible while the preflight cards receive proper vertical space.
     if window.width() >= 1500:
         workspace.queue_list.setMaximumHeight(280)
-    # The Windows Qt offscreen font metrics leave 2px desktop and 5px compact
-    # of the third row below the viewport with spacing=5. Reducing Windows
-    # inter-row spacing by four pixels avoids cropping without shrinking
-    # thumbnails, progress controls, or the Linux golden presentation.
-    workspace.queue_list.setSpacing(1 if sys.platform == "win32" else 5)
+    # Preserve the original gaps and reduce only per-row height on Windows
+    # if its native Qt metrics would crop the final row by 2–5 pixels.
+    workspace.queue_list.setSpacing(5)
     workspace.queue_list.setStyleSheet(
         "QListWidget{border:0;background:#F7FAFF;padding:3px;}"
         "QListWidget::item{border:0;margin:0;padding:0;}"
