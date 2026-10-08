@@ -611,7 +611,8 @@ def _prepare_center(window) -> None:
     workspace.ui09_preset_buttons = {}
     for preset_id, label in _PRESET_SURFACE:
         button = QPushButton(label)
-        button.setObjectName("tabButton")
+        # Isolated from the global QSS tabButton min-height/padding rule.
+        button.setObjectName("ui09PresetCard")
         button.setCheckable(True)
         button.setAutoExclusive(True)
         button.setMinimumHeight(65 if desktop else 55)
