@@ -339,9 +339,14 @@ def _prepare_inspector(window) -> None:
     index = root.indexOf(inspector.overwrite)
     root.insertWidget(index + 1 if index >= 0 else max(0, root.count() - 1), close_after)
     inspector.ui09_close_after = close_after
-    inspector.overwrite.setToolTip(inspector.overwrite.text())
-    inspector.overwrite.setText("Izinkan timpa file final")
-    close_after.setText("Tutup aplikasi setelah render")
+    inspector.overwrite.setToolTip(
+        "Izinkan penggantian file output final yang sudah ada."
+    )
+    inspector.overwrite.setText("Timpa file final")
+    # Native Windows QCheckBox.minimumSizeHint is sensitive to font metrics.
+    # Keep the full semantics in an accessible tooltip and use a short label.
+    close_after.setText("Tutup otomatis")
+    close_after.setAccessibleName("Tutup aplikasi setelah render selesai")
     _prepare_inspector_scroll(inspector)
     inspector._ui09_prepared = True
 
