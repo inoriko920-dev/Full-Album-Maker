@@ -535,7 +535,7 @@ def _prepare_center(window) -> None:
                 continue
             grid.removeWidget(card)
             card.title.setText(titles[key])
-            card.setMinimumHeight(88 if window.width() < 1500 else 174)
+            card.setMinimumHeight(88 if window.width() < 1500 else 154)
             grid.addWidget(card, 0, column)
 
     active_card = workspace.progress.parentWidget()
