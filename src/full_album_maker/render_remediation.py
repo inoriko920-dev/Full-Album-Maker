@@ -225,7 +225,9 @@ class _RenderHistoryCard(QFrame):
         row.addWidget(self.cover)
         details = QVBoxLayout()
         details.setSpacing(2)
-        self.title = QLabel(Path(job.settings.final_output).stem)
+        # Use the same already-proven *display-only* title contract as queue
+        # rows. The original filename is preserved in settings and tooltip.
+        self.title = QLabel(_job_display_title(job.settings.final_output))
         self.title.setStyleSheet("font-size:11px;font-weight:700;color:#17294F;")
         self.title.setWordWrap(False)
         self.title.setToolTip(str(job.settings.final_output))
