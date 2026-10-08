@@ -63,6 +63,13 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "FFmpeg Siap" in headings
         assert "Output Folder" in headings
         assert "Disk Space" in headings
+        # Desktop-only proportion work: do not alter render settings, jobs,
+        # workers or the 1366px compact layout.
+        assert "Memeriksa kesiapan proyek untuk rendering." in headings
+        preset_card = workspace.ui09_preset_buttons["youtube_1080p"]
+        assert preset_card.objectName() == "ui09PresetCard"
+        assert preset_card.isVisible() and preset_card.height() >= 48
+        assert workspace.queue_list.maximumHeight() == 280
 
         assert inspector.start.text() == "Render Sekarang"
         assert inspector.preset.isHidden() is True

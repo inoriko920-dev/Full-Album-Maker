@@ -545,6 +545,10 @@ def _prepare_center(window) -> None:
     if log_card is not None:
         log_card.hide()
     workspace.queue_list.setMinimumHeight(225)
+    # On golden-sized displays, reduce unused queue padding so the graph
+    # remains visible while the preflight cards receive proper vertical space.
+    if window.width() >= 1500:
+        workspace.queue_list.setMaximumHeight(280)
     workspace.queue_list.setSpacing(5)
     workspace.queue_list.setStyleSheet(
         "QListWidget{border:0;background:#F7FAFF;padding:3px;}"
@@ -561,14 +565,22 @@ def _prepare_center(window) -> None:
 
     center = QWidget(workspace)
     center_layout = QVBoxLayout(center)
-    center_layout.setContentsMargins(10, 8, 10, 8)
+    center_layout.setContentsMargins(10, 17 if window.width() >= 1500 else 8, 10, 8)
     center_layout.setSpacing(7)
     for item in existing:
         _add_layout_item(center_layout, item)
     preflight_heading = QLabel("Hasil Preflight")
     preflight_heading.setObjectName("sectionHeading")
     center_layout.insertWidget(1, preflight_heading)
-    center_layout.insertSpacing(1, 0 if window.width() < 1500 else 14)
+    desktop_golden = window.width() >= 1500
+    center_layout.insertSpacing(1, 0 if not desktop_golden else 26)
+    if desktop_golden:
+        preflight_subtitle = QLabel("Memeriksa kesiapan proyek untuk rendering.")
+        preflight_subtitle.setObjectName("ui09PreflightSubtitle")
+        preflight_subtitle.setStyleSheet("font-size:11px;color:#6880A7;")
+        center_layout.insertWidget(3, preflight_subtitle)
+        center_layout.insertSpacing(4, 6)
+        center_layout.insertSpacing(6, 12)
 
     # Performance belongs below the queue in the golden visual hierarchy.
     graph = getattr(window, "render_performance_s10", None)
@@ -582,24 +594,28 @@ def _prepare_center(window) -> None:
     sidebar.setObjectName("ui09RenderSidebar")
     # Golden viewport reserves a substantial preset/history rail; compact
     # layouts keep the smaller rail to avoid squeezing preflight/queue cards.
-    desktop = window.width() >= 1500
+    # Freeze the breakpoint chosen for the entire route before Qt relayout.
+    desktop = desktop_golden
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = QVBoxLayout(sidebar)
-    side.setContentsMargins(8, 8, 8, 8)
-    side.setSpacing(6)
+    side.setContentsMargins(8, 34 if desktop else 8, 8, 8)
+    side.setSpacing(7 if desktop else 6)
 
     title = QLabel("Preset Render")
     title.setObjectName("sectionHeading")
     side.addWidget(title)
+    if desktop:
+        side.addSpacing(4)
 
     workspace.ui09_preset_buttons = {}
     for preset_id, label in _PRESET_SURFACE:
         button = QPushButton(label)
-        button.setObjectName("tabButton")
+        # Isolated from the global QSS tabButton min-height/padding rule.
+        button.setObjectName("ui09PresetCard")
         button.setCheckable(True)
         button.setAutoExclusive(True)
-        button.setMinimumHeight(55)
+        button.setMinimumHeight(65 if desktop else 55)
         button.setStyleSheet(
             "QPushButton{background:#FFFFFF;color:#24385A;border:1px solid #DDE8F5;"
             "border-radius:7px;text-align:left;padding:7px 10px;font-size:11px;}"
@@ -607,11 +623,18 @@ def _prepare_center(window) -> None:
             "border-left:3px solid #0870F6;font-weight:700;}"
             "QPushButton:hover{border-color:#86B8FC;}"
         )
+        # Qt styles may reset minimum heights when the widget is polished.
+        # Keep these desktop cards proportionate; compact remains untouched.
+        if desktop:
+            button.setFixedHeight(65)
         button.clicked.connect(
             lambda _checked=False, value=preset_id: _select_preset(window, value)
         )
         side.addWidget(button)
         workspace.ui09_preset_buttons[preset_id] = button
+
+    if desktop:
+        side.addSpacing(24)
 
     history_title = QLabel("Proyek Sebelumnya")
     history_title.setObjectName("sectionHeading")
