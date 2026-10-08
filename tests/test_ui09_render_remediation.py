@@ -85,7 +85,7 @@ def test_ui09_render_remediation_route_contract() -> None:
         icon_check.show()
         app.processEvents()
         assert icon_check.text() == "✓ PASS"
-        color_check = icon_check.grab().toImage().pixelColor(8, 14)
+        color_check = icon_check.grab().toImage().pixelColor(4, 12)
         assert color_check.green() > 110 and color_check.green() > color_check.red()
         icon_check.setText("⚠ WARN")
         app.processEvents()
