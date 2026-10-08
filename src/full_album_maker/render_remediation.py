@@ -143,8 +143,38 @@ class _JobCoverThumb(QLabel):
                 self.source_path = str(path)
                 self.setAccessibleName("Sampul proyek dari file media")
                 return
+        # Keep the semantic placeholder string for the existing STEP10
+        # consumer/tests, but draw the icon ourselves. Missing-glyph squares
+        # are otherwise visible on Windows hosts without musical-symbol fonts.
         self.setText("♫")
         self.setAccessibleName("Placeholder musik: tidak ada sampul proyek")
+
+    def paintEvent(self, event) -> None:
+        if self.source_path is not None:
+            # A verified file-backed image is never modified or substituted.
+            super().paintEvent(event)
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.scale(self.width() / 78.0, self.height() / 52.0)
+        painter.setPen(QPen(QColor("#CEE2FB"), 1))
+        painter.setBrush(QColor("#E7F1FF"))
+        painter.drawRoundedRect(0, 0, 77, 51, 6, 6)
+
+        # Two connected eighth notes, centered in the actual preview box.
+        # All geometry is Qt-painted, independent of emoji/font availability.
+        ink = QColor("#1665D8")
+        painter.setBrush(ink)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(27, 31, 11, 8)
+        painter.drawEllipse(42, 26, 11, 8)
+        painter.setPen(QPen(ink, 3, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap))
+        painter.drawLine(37, 34, 37, 15)
+        painter.drawLine(52, 29, 52, 11)
+        painter.drawLine(37, 15, 52, 11)
+        painter.end()
 
 
 class _RenderHistoryCard(QFrame):
