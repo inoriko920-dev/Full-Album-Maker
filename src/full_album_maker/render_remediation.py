@@ -4,8 +4,8 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
-from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QSize, QTimer
+from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
@@ -27,11 +28,46 @@ _originals: dict[str, Any] = {}
 
 
 _PRESET_SURFACE = (
-    ("youtube_1080p", "▶  YouTube 1080p\n1920 × 1080 • H.264 • MP4"),
-    ("youtube_1440p", "▶  YouTube 1440p\n2560 × 1440 • H.264 • MP4"),
-    ("youtube_4k", "▶  YouTube 4K\n3840 × 2160 • H.265 • MP4"),
-    ("custom", "⚙  Custom\nAtur pengaturan sendiri"),
+    ("youtube_1080p", "YouTube 1080p\n1920 × 1080 • H.264 • MP4"),
+    ("youtube_1440p", "YouTube 1440p\n2560 × 1440 • H.264 • MP4"),
+    ("youtube_4k", "YouTube 4K\n3840 × 2160 • H.265 • MP4"),
+    ("custom", "Custom\nAtur pengaturan sendiri"),
 )
+
+
+def _ui09_preset_icon(preset_id: str) -> QPixmap:
+    """Deterministic YouTube/gear symbols; never rely on font emoji glyphs.
+
+    The labels, preset ids and STEP10 settings owner remain unchanged.
+    Dimensions match the original desktop 9th golden's prominent red
+    YouTube branding without embedding that reference as an application asset.
+    """
+    pixmap = QPixmap(36, 32)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    if preset_id.startswith("youtube_"):
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#E91726"))
+        painter.drawRoundedRect(2, 5, 32, 22, 6, 6)
+        painter.setBrush(QColor("#FFFFFF"))
+        painter.drawPolygon(QPolygon([
+            QPoint(16, 11), QPoint(16, 21), QPoint(25, 16),
+        ]))
+    else:
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor("#173F9A"), 2.4))
+        painter.drawEllipse(10, 8, 16, 16)
+        painter.drawEllipse(15, 13, 6, 6)
+        for x1, y1, x2, y2 in (
+            (18, 2, 18, 8), (18, 24, 18, 30),
+            (4, 16, 10, 16), (26, 16, 32, 16),
+            (8, 6, 12, 10), (24, 22, 28, 26),
+            (8, 26, 12, 22), (24, 10, 28, 6),
+        ):
+            painter.drawLine(x1, y1, x2, y2)
+    painter.end()
+    return pixmap
 
 
 # UI-09 queue cards read state exclusively from STEP10 RenderJob/RenderQueue.
@@ -756,39 +792,63 @@ def _prepare_center(window) -> None:
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = QVBoxLayout(sidebar)
-    side.setContentsMargins(8, 34 if desktop else 8, 8, 8)
-    side.setSpacing(7 if desktop else 6)
+    side.setContentsMargins(8, 24 if desktop else 8, 8, 8)
+    side.setSpacing(10 if desktop else 6)
 
     title = QLabel("Preset Render")
     title.setObjectName("sectionHeading")
     side.addWidget(title)
     if desktop:
-        side.addSpacing(4)
+        side.addSpacing(9)
 
     workspace.ui09_preset_buttons = {}
+    preset_gap_items = []
     for preset_id, label in _PRESET_SURFACE:
         button = QPushButton(label)
+        button.setAccessibleName("Preset Render " + label.splitlines()[0])
         # Isolated from the global QSS tabButton min-height/padding rule.
         button.setObjectName("ui09PresetCard")
         button.setCheckable(True)
         button.setAutoExclusive(True)
-        button.setMinimumHeight(65 if desktop else 55)
+        button.setMinimumHeight(81 if desktop else 55)
         button.setStyleSheet(
             "QPushButton{background:#FFFFFF;color:#24385A;border:1px solid #DDE8F5;"
-            "border-radius:7px;text-align:left;padding:7px 10px;font-size:11px;}"
+            "border-radius:7px;text-align:left;padding:7px 10px 7px 51px;font-size:11px;}"
             "QPushButton:checked{background:#E8F2FF;color:#075CE3;"
             "border-left:3px solid #0870F6;font-weight:700;}"
             "QPushButton:hover{border-color:#86B8FC;}"
         )
+        # A child drawing surface fixes icon coordinates independently of the
+        # native Qt style's text/icon spacing. It never handles mouse events.
+        glyph = QLabel(button)
+        glyph.setObjectName("ui09PresetVectorGlyph")
+        glyph.setPixmap(_ui09_preset_icon(preset_id))
+        glyph.setFixedSize(36, 32)
+        glyph.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        glyph.move(5, 11)
+        glyph.show()
+        button.ui09_preset_glyph = glyph
         # Qt styles may reset minimum heights when the widget is polished.
         # Keep these desktop cards proportionate; compact remains untouched.
         if desktop:
-            button.setFixedHeight(65)
+            button.setFixedHeight(81)
         button.clicked.connect(
             lambda _checked=False, value=preset_id: _select_preset(window, value)
         )
         side.addWidget(button)
         workspace.ui09_preset_buttons[preset_id] = button
+        # The frozen golden has approximately 72px center-to-center preset
+        # spacing, while default Qt card layout yields about 60px. An explicit
+        # 12px spacer produces the target 72px on Windows-hosted Qt evidence,
+        # without changing the compact layout or non-preset controls.
+        # Keep an owned spacer for reversible compact/desktop transitions.
+        if preset_id != "custom":
+            spacer = QSpacerItem(0, 12, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Fixed)
+            preset_gap_items.append((preset_id, spacer))
+            if desktop:
+                side.addItem(spacer)
+    workspace.ui09_preset_gap_items = preset_gap_items
 
     if desktop:
         side.addSpacing(24)
@@ -895,11 +955,11 @@ def _apply_ui09_breakpoint(window) -> None:
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = workspace.ui09_sidebar_layout
-    side.setContentsMargins(8, 34 if desktop else 8, 8, 8)
-    side.setSpacing(7 if desktop else 6)
+    side.setContentsMargins(8, 24 if desktop else 8, 8, 8)
+    side.setSpacing(10 if desktop else 6)
     top_space, history_space = workspace.ui09_sidebar_extra_spacers
     if desktop and top_space is None:
-        side.insertSpacing(1, 4)
+        side.insertSpacing(1, 9)
         side.insertSpacing(side.indexOf(workspace.ui09_history_heading), 24)
         top_space = side.itemAt(1).spacerItem()
         history_space = side.itemAt(
@@ -907,14 +967,22 @@ def _apply_ui09_breakpoint(window) -> None:
         ).spacerItem()
         workspace.ui09_sidebar_extra_spacers = (top_space, history_space)
     elif top_space is not None:
-        top_space.changeSize(0, 4 if desktop else 0)
+        top_space.changeSize(0, 9 if desktop else 0)
         history_space.changeSize(0, 24 if desktop else 0)
 
     for button in workspace.ui09_preset_buttons.values():
         button.setMaximumHeight(16777215)
-        button.setMinimumHeight(65 if desktop else 55)
+        button.setMinimumHeight(81 if desktop else 55)
         if desktop:
-            button.setFixedHeight(65)
+            button.setFixedHeight(81)
+    # Remove the real QSpacerItem from the compact layout (hiding a 0px
+    # spacer would leave another native Qt layout gap). Reinsert on desktop.
+    for preset_id, spacer in workspace.ui09_preset_gap_items:
+        if desktop:
+            button = workspace.ui09_preset_buttons[preset_id]
+            side.insertItem(side.indexOf(button) + 1, spacer)
+        else:
+            side.removeItem(spacer)
 
     graph = getattr(window, "render_performance_s10", None)
     if graph is not None:
