@@ -535,7 +535,7 @@ def _prepare_center(window) -> None:
                 continue
             grid.removeWidget(card)
             card.title.setText(titles[key])
-            card.setMinimumHeight(88 if window.width() < 1500 else 154)
+            card.setMinimumHeight(88 if window.width() < 1500 else 174)
             grid.addWidget(card, 0, column)
 
     active_card = workspace.progress.parentWidget()
@@ -598,7 +598,7 @@ def _prepare_center(window) -> None:
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = QVBoxLayout(sidebar)
-    side.setContentsMargins(8, 25 if desktop else 8, 8, 8)
+    side.setContentsMargins(8, 34 if desktop else 8, 8, 8)
     side.setSpacing(7 if desktop else 6)
 
     title = QLabel("Preset Render")
@@ -613,7 +613,7 @@ def _prepare_center(window) -> None:
         button.setObjectName("tabButton")
         button.setCheckable(True)
         button.setAutoExclusive(True)
-        button.setMinimumHeight(74 if desktop else 55)
+        button.setMinimumHeight(65 if desktop else 55)
         button.setStyleSheet(
             "QPushButton{background:#FFFFFF;color:#24385A;border:1px solid #DDE8F5;"
             "border-radius:7px;text-align:left;padding:7px 10px;font-size:11px;}"
@@ -621,6 +621,10 @@ def _prepare_center(window) -> None:
             "border-left:3px solid #0870F6;font-weight:700;}"
             "QPushButton:hover{border-color:#86B8FC;}"
         )
+        # Qt styles may reset minimum heights when the widget is polished.
+        # Keep these desktop cards proportionate; compact remains untouched.
+        if desktop:
+            button.setFixedHeight(65)
         button.clicked.connect(
             lambda _checked=False, value=preset_id: _select_preset(window, value)
         )
@@ -628,7 +632,7 @@ def _prepare_center(window) -> None:
         workspace.ui09_preset_buttons[preset_id] = button
 
     if desktop:
-        side.addSpacing(5)
+        side.addSpacing(24)
 
     history_title = QLabel("Proyek Sebelumnya")
     history_title.setObjectName("sectionHeading")
