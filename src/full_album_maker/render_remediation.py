@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -217,6 +218,55 @@ def _prepare_history(window, sidebar_layout: QVBoxLayout) -> None:
     sidebar_layout.addWidget(history, 1)
 
 
+
+def _prepare_inspector_scroll(inspector) -> None:
+    """Keep action controls visible while making dense settings scrollable.
+
+    Moves only existing Qt layout items; all STEP10 widgets, signals, settings,
+    disabled safety controls and render action owners remain unchanged.
+    """
+    root = inspector.layout()
+    items = [root.takeAt(0) for _ in range(root.count())]
+    start_index = next(
+        (index for index, item in enumerate(items)
+         if item.widget() is inspector.start),
+        None,
+    )
+    if start_index is None or start_index < 2 or items[0].widget() is None:
+        raise RuntimeError("UI-09 inspector structure did not match STEP10")
+
+    settings_host = QWidget(inspector)
+    settings_host.setObjectName("ui09InspectorSettings")
+    settings_layout = QVBoxLayout(settings_host)
+    settings_layout.setContentsMargins(0, 7, 6, 7)
+    settings_layout.setSpacing(8)
+    for item in items[1:start_index]:
+        _add_layout_item(settings_layout, item)
+    settings_layout.addStretch(1)
+
+    scroll = QScrollArea(inspector)
+    scroll.setObjectName("ui09InspectorScroll")
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
+    scroll.setWidgetResizable(True)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll.setWidget(settings_host)
+
+    root.setContentsMargins(10, 10, 10, 10)
+    root.setSpacing(8)
+    _add_layout_item(root, items[0])
+    root.addWidget(scroll, 1)
+    # STEP10 render/cancel/pause widgets remain pinned to the bottom.
+    # The trailing old spacer is intentionally omitted.
+    for item in items[start_index:]:
+        if item.spacerItem() is not None:
+            continue
+        _add_layout_item(root, item)
+
+    inspector.ui09_scroll = scroll
+    inspector.ui09_scroll_host = settings_host
+
+
 def _prepare_inspector(window) -> None:
     inspector = window.render_inspector_s10
     if getattr(inspector, "_ui09_prepared", False):
@@ -250,6 +300,7 @@ def _prepare_inspector(window) -> None:
     index = root.indexOf(inspector.overwrite)
     root.insertWidget(index + 1 if index >= 0 else max(0, root.count() - 1), close_after)
     inspector.ui09_close_after = close_after
+    _prepare_inspector_scroll(inspector)
     inspector._ui09_prepared = True
 
 
@@ -334,6 +385,8 @@ def _prepare_center(window) -> None:
     # Performance belongs below the queue in the golden visual hierarchy.
     graph = getattr(window, "render_performance_s10", None)
     if graph is not None:
+        graph.setMinimumHeight(88 if window.width() < 1500 else 112)
+        graph.setMaximumHeight(100 if window.width() < 1500 else 132)
         center_layout.removeWidget(graph)
         center_layout.addWidget(graph)
 
