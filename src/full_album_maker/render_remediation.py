@@ -394,8 +394,10 @@ class _QueueJobCard(QFrame):
         status_text = QVBoxLayout()
         status_text.setContentsMargins(0, 0, 0, 0)
         status_text.setSpacing(1)
+        status_text.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self.queued_caption = QLabel("Dalam antrean", status_view)
         self.queued_caption.setObjectName("ui09QueuedCaption")
+        self.queued_caption.setFixedHeight(15)
         self.queued_caption.setStyleSheet("font-size:10px;color:#536C9A;")
         self.queued_subtext = QLabel(
             "Setelah proses ini selesai." if compact
@@ -403,6 +405,7 @@ class _QueueJobCard(QFrame):
             status_view,
         )
         self.queued_subtext.setObjectName("ui09QueuedSubtext")
+        self.queued_subtext.setFixedHeight(15)
         self.queued_subtext.setStyleSheet("font-size:8px;color:#7285A7;")
         status_text.addWidget(self.queued_caption)
         status_text.addWidget(self.queued_subtext)
