@@ -63,6 +63,17 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "FFmpeg Siap" in headings
         assert "Output Folder" in headings
         assert "Disk Space" in headings
+        # Five card illustrations are Qt-painted vectors, not font glyphs.
+        # Only the golden desktop preflight is modified; state text and real
+        # PreflightReport ownership stay on the original STEP10 cards.
+        for key in ("media", "snapshot", "ffmpeg", "output", "disk"):
+            card = workspace.preflight_cards[key]
+            assert card.ui09_icon.objectName() == "ui09PreflightVectorIcon"
+            pixmap = card.ui09_icon.pixmap()
+            assert pixmap is not None and not pixmap.isNull()
+            assert pixmap.width() == pixmap.height() == 32
+            assert card.minimumHeight() == card.maximumHeight() == 154
+        assert getattr(workspace.preflight_cards["encoder"], "ui09_icon", None) is None
         # Desktop-only proportion work: do not alter render settings, jobs,
         # workers or the 1366px compact layout.
         assert "Memeriksa kesiapan proyek untuk rendering." in headings
