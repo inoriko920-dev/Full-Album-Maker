@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from .foundation_components import FAMButton
+from .render_center_model_step10 import RenderJobState
 
 _installed = False
 _originals: dict[str, Any] = {}
@@ -25,6 +28,143 @@ _PRESET_SURFACE = (
     ("youtube_4k", "▶  YouTube 4K\n3840 × 2160 • H.265 • MP4"),
     ("custom", "⚙  Custom\nAtur pengaturan sendiri"),
 )
+
+
+# UI-09 queue cards read state exclusively from STEP10 RenderJob/RenderQueue.
+# They do not have their own job model or rendering lifecycle.
+_QUEUE_ACTIVE = frozenset({
+    RenderJobState.QUEUED,
+    RenderJobState.STARTING,
+    RenderJobState.RUNNING,
+    RenderJobState.FINALIZING,
+})
+
+
+def _visible_queue_jobs(jobs):
+    active = [job for job in jobs if job.state in _QUEUE_ACTIVE]
+    completed = [
+        job for job in jobs
+        if job.state == RenderJobState.COMPLETED and bool(job.verified_output)
+    ]
+    if completed:
+        active.append(completed[-1])
+    return active
+
+
+class _QueueJobCard(QFrame):
+    """Render-only card; progress updates come from the engine job."""
+
+    def __init__(self, job, position: int, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("ui09QueueJobCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setStyleSheet(
+            "QFrame#ui09QueueJobCard{background:#FFFFFF;border:1px solid #DCE8F7;"
+            "border-radius:8px;} "
+            "QProgressBar{background:#E8EEF7;border:0;border-radius:4px;}"
+            "QProgressBar::chunk{background:#1672ED;border-radius:4px;}"
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(11, 7, 11, 7)
+        layout.setSpacing(9)
+
+        number = QLabel(str(position))
+        number.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        number.setFixedSize(24, 24)
+        number.setStyleSheet(
+            "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
+        )
+        layout.addWidget(number)
+
+        content = QVBoxLayout()
+        content.setSpacing(3)
+        self.heading = QLabel()
+        self.heading.setStyleSheet("font-size:12px;font-weight:700;color:#15254B;")
+        self.details = QLabel()
+        self.details.setStyleSheet("font-size:10px;color:#677EA4;")
+        self.details.setToolTip(str(Path(job.settings.final_output)))
+        self.note = QLabel()
+        self.note.setStyleSheet("font-size:10px;color:#5077B3;")
+        content.addWidget(self.heading)
+        content.addWidget(self.details)
+        content.addWidget(self.note)
+        layout.addLayout(content, 3)
+
+        progress_column = QVBoxLayout()
+        progress_column.setSpacing(7)
+        value_line = QHBoxLayout()
+        self.percent = QLabel()
+        self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
+        self.state = QLabel()
+        self.state.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.state.setStyleSheet("font-size:10px;color:#52729A;")
+        value_line.addWidget(self.percent)
+        value_line.addWidget(self.state, 1)
+        progress_column.addLayout(value_line)
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 1000)
+        self.bar.setFixedHeight(8)
+        self.bar.setTextVisible(False)
+        progress_column.addWidget(self.bar)
+        layout.addLayout(progress_column, 2)
+        self.refresh(job)
+
+    def refresh(self, job) -> None:
+        name = Path(job.settings.final_output).stem
+        self.heading.setText(name)
+        self.setAccessibleName(f"Antrean render: {name}")
+        settings = job.settings
+        self.details.setText(
+            f"{settings.width} × {settings.height}  •  "
+            f"{settings.container.upper()}  •  {settings.video_codec.upper()}"
+        )
+        percent = max(0.0, min(100.0, float(job.metrics.percent)))
+        self.percent.setText(f"{percent:.0f}%")
+        self.bar.setValue(round(percent * 10))
+        if job.state == RenderJobState.COMPLETED:
+            self.state.setText("SELESAI")
+            self.note.setText("Output terverifikasi")
+            self.bar.setStyleSheet("QProgressBar::chunk{background:#16A34A;}")
+            self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#159447;")
+        elif job.state == RenderJobState.QUEUED:
+            self.state.setText("ANTREAN")
+            self.note.setText("Menunggu giliran render")
+        else:
+            self.state.setText(job.state.value)
+            fps = job.metrics.fps
+            self.note.setText(
+                "Sedang merender" if fps is None else f"Sedang merender  •  {fps:.0f} fps"
+            )
+
+
+def _present_queue(workspace, jobs) -> None:
+    widgets = {}
+    for index, job in enumerate(_visible_queue_jobs(jobs)):
+        item = workspace.queue_list.item(index)
+        if item is None:
+            break
+        item.setSizeHint(QSize(0, 78))
+        card = _QueueJobCard(job, index + 1, workspace.queue_list)
+        workspace.queue_list.setItemWidget(item, card)
+        widgets[(job.job_id, job.attempt_id)] = card
+    workspace.ui09_queue_widgets = widgets
+
+
+def _apply_queue_presentation(self, jobs) -> None:
+    jobs = tuple(jobs)
+    _originals["apply_queue"](self, jobs)
+    if getattr(self, "_ui09_prepared", False):
+        _present_queue(self, jobs)
+
+
+def _apply_job_presentation(self, job) -> None:
+    _originals["apply_job"](self, job)
+    if job is not None and getattr(self, "_ui09_prepared", False):
+        card = getattr(self, "ui09_queue_widgets", {}).get(
+            (job.job_id, job.attempt_id)
+        )
+        if card is not None:
+            card.refresh(job)
 
 
 def _add_layout_item(destination: QVBoxLayout, item) -> None:
@@ -156,7 +296,7 @@ def _prepare_center(window) -> None:
                 continue
             grid.removeWidget(card)
             card.title.setText(titles[key])
-            card.setMinimumHeight(82)
+            card.setMinimumHeight(108)
             grid.addWidget(card, 0, column)
 
     active_card = workspace.progress.parentWidget()
@@ -165,7 +305,13 @@ def _prepare_center(window) -> None:
     log_card = workspace.log_list.parentWidget()
     if log_card is not None:
         log_card.hide()
-    workspace.queue_list.setMinimumHeight(190)
+    workspace.queue_list.setMinimumHeight(225)
+    workspace.queue_list.setSpacing(5)
+    workspace.queue_list.setStyleSheet(
+        "QListWidget{border:0;background:#F7FAFF;padding:3px;}"
+        "QListWidget::item{border:0;margin:0;padding:0;}"
+        "QListWidget::item:selected{background:transparent;}"
+    )
 
     # Move the already-complete STEP10 workspace into a presentation row and
     # add the golden-style preset/history surface without changing shell context
@@ -180,6 +326,9 @@ def _prepare_center(window) -> None:
     center_layout.setSpacing(7)
     for item in existing:
         _add_layout_item(center_layout, item)
+    preflight_heading = QLabel("Hasil Preflight")
+    preflight_heading.setObjectName("sectionHeading")
+    center_layout.insertWidget(1, preflight_heading)
 
     # Performance belongs below the queue in the golden visual hierarchy.
     graph = getattr(window, "render_performance_s10", None)
@@ -205,7 +354,14 @@ def _prepare_center(window) -> None:
         button.setObjectName("tabButton")
         button.setCheckable(True)
         button.setAutoExclusive(True)
-        button.setMinimumHeight(48)
+        button.setMinimumHeight(55)
+        button.setStyleSheet(
+            "QPushButton{background:#FFFFFF;color:#24385A;border:1px solid #DDE8F5;"
+            "border-radius:7px;text-align:left;padding:7px 10px;font-size:11px;}"
+            "QPushButton:checked{background:#E8F2FF;color:#075CE3;"
+            "border-left:3px solid #0870F6;font-weight:700;}"
+            "QPushButton:hover{border-color:#86B8FC;}"
+        )
         button.clicked.connect(
             lambda _checked=False, value=preset_id: _select_preset(window, value)
         )
@@ -231,6 +387,8 @@ def _prepare_center(window) -> None:
     workspace.ui09_center = center
     workspace.ui09_host = host
     workspace._ui09_prepared = True
+    # Initial STEP10 updates happen before the Render route is constructed.
+    _present_queue(workspace, tuple(window._s10_queue.jobs))
 
     inspector = window.render_inspector_s10
     inspector.preset.currentIndexChanged.connect(lambda *_: _sync_preset_surface(window))
@@ -270,7 +428,12 @@ def install_ui09_render_remediation() -> None:
         return
 
     from .foundation_window import FoundationMainWindow
+    from .render_workspace_step10 import RenderCenterWorkspace
 
+    _originals["apply_queue"] = RenderCenterWorkspace.apply_queue
+    _originals["apply_job"] = RenderCenterWorkspace.apply_job
+    RenderCenterWorkspace.apply_queue = _apply_queue_presentation
+    RenderCenterWorkspace.apply_job = _apply_job_presentation
     _originals["window_route"] = FoundationMainWindow._s10_route
     FoundationMainWindow._s10_route = _window_route
     _installed = True
