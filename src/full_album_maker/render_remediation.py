@@ -434,7 +434,7 @@ class _QueueJobCard(QFrame):
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#159447;")
         elif job.state == RenderJobState.QUEUED:
             self.state.setText("ANTREAN")
-            self.note.setText("Menunggu giliran render")
+            self.note.setText("Menunggu antrean...")
             self.progress_detail.setText("◷ Dalam antrean")
             self.bar.setStyleSheet("QProgressBar::chunk{background:#BAC8DC;}")
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
