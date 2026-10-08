@@ -19,7 +19,7 @@ def test_ui09_render_remediation_route_contract() -> None:
         os.environ.setdefault("FAM_STEP09_PROVIDER", "mock")
 
         import full_album_maker.main
-        from PySide6.QtCore import QEventLoop, QSize, QTimer
+        from PySide6.QtCore import QEventLoop, QSize, Qt, QTimer
         from PySide6.QtWidgets import QApplication, QLabel
         from full_album_maker.foundation_window import FoundationMainWindow
         from full_album_maker.render_capture_step10 import _fixture_document, _mock_jobs
@@ -60,7 +60,7 @@ def test_ui09_render_remediation_route_contract() -> None:
             assert glyph is not None and glyph.objectName() == "ui09PresetVectorGlyph"
             assert not glyph.pixmap().isNull(), preset_id
             assert glyph.pixmap().size() == QSize(36, 32), preset_id
-            assert glyph.testAttribute(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            assert glyph.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             assert not button.text().startswith(("▶", "⚙")), preset_id
             assert button.accessibleName().startswith("Preset Render "), preset_id
         assert workspace.ui09_preflight.text().endswith("Jalankan Preflight")
@@ -272,7 +272,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         os.environ.setdefault("FAM_STEP09_PROVIDER", "mock")
 
         import full_album_maker.main
-        from PySide6.QtCore import QEventLoop, QSize, QTimer
+        from PySide6.QtCore import QEventLoop, QSize, Qt, QTimer
         from PySide6.QtWidgets import QApplication
         from full_album_maker.foundation_window import FoundationMainWindow
         from full_album_maker.render_capture_step10 import _fixture_document, _mock_jobs
