@@ -594,7 +594,8 @@ def _prepare_center(window) -> None:
     sidebar.setObjectName("ui09RenderSidebar")
     # Golden viewport reserves a substantial preset/history rail; compact
     # layouts keep the smaller rail to avoid squeezing preflight/queue cards.
-    desktop = window.width() >= 1500
+    # Freeze the breakpoint chosen for the entire route before Qt relayout.
+    desktop = desktop_golden
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = QVBoxLayout(sidebar)
