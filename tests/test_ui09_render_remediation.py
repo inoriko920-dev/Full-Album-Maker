@@ -184,6 +184,26 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert cards[0].progress_detail.text() == "Estimasi sisa 00:36"
         assert cards[1].progress_detail.text() == "◷ Dalam antrean"
         assert cards[2].progress_detail.text() == "✓ File terverifikasi"
+
+        # W14R: real QUEUED state uses a Qt-owned two-column presentation.
+        # RUNNING and verified/other states keep the unchanged legacy column.
+        assert cards[1].queued_view.objectName() == "ui09QueuedStatusView"
+        assert cards[1].queued_view.isVisible()
+        assert not cards[1].normal_progress_view.isVisible()
+        assert cards[0].normal_progress_view.isVisible()
+        assert not cards[0].queued_view.isVisible()
+        assert cards[2].normal_progress_view.isVisible()
+        assert not cards[2].queued_view.isVisible()
+        assert cards[1].queued_caption.text() == "Dalam antrean"
+        assert cards[1].queued_subtext.text() == "Setelah proses saat ini selesai."
+        assert cards[1].note.text() == "Menunggu antrean..."
+        assert cards[1].queued_percent.text() == cards[1].percent.text()
+        assert cards[1].queued_bar.value() == cards[1].bar.value()
+        assert cards[1].queued_bar.objectName() == "ui09QueuedProgress"
+        assert not cards[1].queued_clock.pixmap().isNull()
+        assert cards[1].queued_clock.accessibleName() == "Menunggu giliran antrean"
+        assert window.editor_workspace.document().content_signature() == signature
+
         # Without real image media, show an honest music placeholder.
         assert all(card.cover.source_path is None for card in cards)
         assert all(card.cover.text() == "♫" for card in cards)
