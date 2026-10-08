@@ -921,6 +921,10 @@ def _apply_ui09_breakpoint(window) -> None:
         graph.setMinimumHeight(112 if desktop else 88)
         graph.setMaximumHeight(132 if desktop else 100)
     workspace.queue_list.setMaximumHeight(280 if desktop else 16777215)
+    # Windows/Linux native Qt give the resized compact queue less height than
+    # a compact-first route. Remove only the two 5px gaps after a breakpoint
+    # transition, keeping three observed STEP10 jobs fully visible.
+    workspace.queue_list.setSpacing(5 if desktop else 0)
     workspace.ui09_compact = compact
     _present_queue(workspace, getattr(workspace, "_ui09_last_jobs", ()))
     center.invalidate()
