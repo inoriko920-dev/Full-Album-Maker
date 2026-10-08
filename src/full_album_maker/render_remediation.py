@@ -262,6 +262,21 @@ def _job_display_title(final_output: Path) -> str:
     return stem
 
 
+def _ui09_queued_clock_pixmap() -> QPixmap:
+    """A genuine Qt-drawn clock; no dependency on Unicode font coverage."""
+    pixmap = QPixmap(22, 22)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pixmap)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(QPen(QColor("#506B9B"), 1.7))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawEllipse(2, 2, 18, 18)
+    p.drawLine(11, 5, 11, 11)
+    p.drawLine(11, 11, 15, 14)
+    p.end()
+    return pixmap
+
+
 class _QueueJobCard(QFrame):
     """Render-only card; progress updates come from the engine job."""
 
@@ -304,7 +319,11 @@ class _QueueJobCard(QFrame):
         content.addWidget(self.note)
         layout.addLayout(content, 3)
 
-        progress_column = QVBoxLayout()
+        # The original STEP10 progress column stays unmodified for RUNNING,
+        # COMPLETED and all unverified/failed output states.
+        self.normal_progress_view = QWidget(self)
+        progress_column = QVBoxLayout(self.normal_progress_view)
+        progress_column.setContentsMargins(0, 0, 0, 0)
         progress_column.setSpacing(7)
         value_line = QHBoxLayout()
         self.percent = QLabel()
@@ -327,7 +346,69 @@ class _QueueJobCard(QFrame):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         progress_column.addWidget(self.progress_detail)
-        layout.addLayout(progress_column, 2)
+        layout.addWidget(self.normal_progress_view, 2)
+
+        # QUEUED has its own two-column *presentation*, fed from exactly the
+        # same RenderJob snapshot. It is not a second job model or queue.
+        # Keep widgets in their original Qt parent layouts for their lifetime.
+        self.queued_view = QWidget(self)
+        self.queued_view.setObjectName("ui09QueuedStatusView")
+        queued_row = QHBoxLayout(self.queued_view)
+        queued_row.setContentsMargins(0, 0, 0, 0)
+        queued_row.setSpacing(13)
+
+        progress_line = QWidget(self.queued_view)
+        progress_layout = QHBoxLayout(progress_line)
+        progress_layout.setContentsMargins(0, 0, 0, 0)
+        progress_layout.setSpacing(7)
+        self.queued_percent = QLabel("0%", progress_line)
+        self.queued_percent.setObjectName("ui09QueuedPercent")
+        self.queued_percent.setStyleSheet(
+            "font-size:12px;font-weight:700;color:#43629B;"
+        )
+        self.queued_bar = QProgressBar(progress_line)
+        self.queued_bar.setObjectName("ui09QueuedProgress")
+        self.queued_bar.setRange(0, 1000)
+        self.queued_bar.setValue(0)
+        self.queued_bar.setTextVisible(False)
+        self.queued_bar.setFixedHeight(8)
+        self.queued_bar.setMinimumWidth(42)
+        self.queued_bar.setStyleSheet(
+            "QProgressBar{background:#E8EEF7;border:0;border-radius:4px;}"
+            "QProgressBar::chunk{background:#BAC8DC;border-radius:4px;}"
+        )
+        progress_layout.addWidget(self.queued_percent)
+        progress_layout.addWidget(self.queued_bar, 1)
+        queued_row.addWidget(progress_line, 3)
+
+        status_view = QWidget(self.queued_view)
+        status_layout = QHBoxLayout(status_view)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(8)
+        self.queued_clock = QLabel(status_view)
+        self.queued_clock.setObjectName("ui09QueuedClock")
+        self.queued_clock.setPixmap(_ui09_queued_clock_pixmap())
+        self.queued_clock.setFixedSize(22, 22)
+        self.queued_clock.setAccessibleName("Menunggu giliran antrean")
+        status_layout.addWidget(self.queued_clock)
+        status_text = QVBoxLayout()
+        status_text.setContentsMargins(0, 0, 0, 0)
+        status_text.setSpacing(1)
+        self.queued_caption = QLabel("Dalam antrean", status_view)
+        self.queued_caption.setObjectName("ui09QueuedCaption")
+        self.queued_caption.setStyleSheet("font-size:10px;color:#536C9A;")
+        self.queued_subtext = QLabel(
+            "Setelah proses ini selesai." if compact
+            else "Setelah proses saat ini selesai.",
+            status_view,
+        )
+        self.queued_subtext.setObjectName("ui09QueuedSubtext")
+        self.queued_subtext.setStyleSheet("font-size:8px;color:#7285A7;")
+        status_text.addWidget(self.queued_caption)
+        status_text.addWidget(self.queued_subtext)
+        status_layout.addLayout(status_text, 1)
+        queued_row.addWidget(status_view, 3)
+        layout.addWidget(self.queued_view, 4)
         self.refresh(job)
 
     def refresh(self, job) -> None:
@@ -344,6 +425,11 @@ class _QueueJobCard(QFrame):
         percent = max(0.0, min(100.0, float(job.metrics.percent)))
         self.percent.setText(f"{percent:.0f}%")
         self.bar.setValue(round(percent * 10))
+        self.queued_percent.setText(self.percent.text())
+        self.queued_bar.setValue(self.bar.value())
+        queued = job.state == RenderJobState.QUEUED
+        self.normal_progress_view.setVisible(not queued)
+        self.queued_view.setVisible(queued)
         running = job.state in {
             RenderJobState.RUNNING, RenderJobState.STARTING,
             RenderJobState.FINALIZING,
@@ -374,7 +460,7 @@ class _QueueJobCard(QFrame):
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#159447;")
         elif job.state == RenderJobState.QUEUED:
             self.state.setText("ANTREAN")
-            self.note.setText("Menunggu giliran render")
+            self.note.setText("Menunggu antrean...")
             self.progress_detail.setText("◷ Dalam antrean")
             self.bar.setStyleSheet("QProgressBar::chunk{background:#BAC8DC;}")
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
