@@ -19,7 +19,7 @@ def test_ui09_render_remediation_route_contract() -> None:
         os.environ.setdefault("FAM_STEP09_PROVIDER", "mock")
 
         import full_album_maker.main
-        from PySide6.QtCore import QEventLoop, QTimer
+        from PySide6.QtCore import QEventLoop, QSize, QTimer
         from PySide6.QtWidgets import QApplication, QLabel
         from full_album_maker.foundation_window import FoundationMainWindow
         from full_album_maker.render_capture_step10 import _fixture_document, _mock_jobs
@@ -53,6 +53,14 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert set(workspace.ui09_preset_buttons) == {
             "youtube_1080p", "youtube_1440p", "youtube_4k", "custom"
         }
+        # Emoji font fallback used to show tiny missing-glyph boxes on Windows.
+        # Each preset now uses a deterministic Qt-painted icon.
+        for preset_id, button in workspace.ui09_preset_buttons.items():
+            assert not button.icon().isNull(), preset_id
+            assert button.iconSize() == QSize(36, 32), preset_id
+            assert not button.icon().pixmap(36, 32).isNull(), preset_id
+            assert not button.text().startswith(("▶", "⚙")), preset_id
+            assert button.accessibleName().startswith("Preset Render "), preset_id
         assert workspace.ui09_preflight.text().endswith("Jalankan Preflight")
         assert window.render_history_s10.parentWidget() is workspace.ui09_sidebar
 
@@ -261,7 +269,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         os.environ.setdefault("FAM_STEP09_PROVIDER", "mock")
 
         import full_album_maker.main
-        from PySide6.QtCore import QEventLoop, QTimer
+        from PySide6.QtCore import QEventLoop, QSize, QTimer
         from PySide6.QtWidgets import QApplication
         from full_album_maker.foundation_window import FoundationMainWindow
         from full_album_maker.render_capture_step10 import _fixture_document, _mock_jobs
