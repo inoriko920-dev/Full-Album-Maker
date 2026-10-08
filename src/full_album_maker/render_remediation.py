@@ -240,6 +240,14 @@ def _prepare_inspector_scroll(inspector) -> None:
         field.setSizePolicy(
             QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
         )
+    for combo in (
+        inspector.preset, inspector.fps, inspector.video_codec,
+        inspector.audio_bitrate, inspector.sample_rate, inspector.hardware,
+    ):
+        combo.setMinimumContentsLength(8)
+        combo.setSizeAdjustPolicy(
+            combo.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
     # Native Windows QSpinBox minimumSizeHint can otherwise force the
     # two-column resolution row wider than the inspector's visible viewport.
     inspector.width.setMaximumWidth(118)
@@ -311,6 +319,16 @@ def _prepare_inspector(window) -> None:
     inspector.preset.hide()
     inspector.preflight.hide()
     inspector.start.setText("Render Sekarang")
+    # Preserve 'auto' data/verified HW -> SW fallback behavior. Qt/Windows
+    # otherwise derives an oversized minimum width from the longest text.
+    auto_encoder = inspector.hardware.findData("auto")
+    if auto_encoder >= 0:
+        inspector.hardware.setItemText(auto_encoder, "Auto (HW → Software)")
+        inspector.hardware.setItemData(
+            auto_encoder,
+            "Auto: gunakan hardware hanya jika terverifikasi, fallback ke software.",
+            Qt.ItemDataRole.ToolTipRole,
+        )
 
     root = inspector.layout()
     close_after = QCheckBox("Tutup aplikasi setelah render selesai")
