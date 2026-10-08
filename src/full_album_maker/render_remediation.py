@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtGui import QImageReader, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -42,6 +43,138 @@ _QUEUE_ACTIVE = frozenset({
 })
 
 
+
+_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp"})
+
+
+def _job_cover_path(job) -> Path | None:
+    """Use a real, local cover from the frozen project; never invent artwork."""
+    try:
+        document = job.snapshot.document()
+        assets = document.asset_map()
+        songs = [song for song in document.playlist.entries if song.enabled]
+        name = job.settings.filename.casefold()
+        matching = [
+            song for song in songs
+            if song.display_title and song.display_title.casefold() in name
+        ]
+        for song in matching + [song for song in songs if song not in matching]:
+            for asset_id in (song.cover_asset_id, song.visual_asset_id):
+                asset = assets.get(asset_id) if asset_id else None
+                if asset is None or asset.kind != "image":
+                    continue
+                path = Path(asset.locator)
+                if (path.suffix.casefold() in _IMAGE_SUFFIXES
+                    and path.is_file()
+                    and 0 < path.stat().st_size <= 16 * 1024 * 1024):
+                    return path
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+    return None
+
+
+class _JobCoverThumb(QLabel):
+    """Small, safe image preview; an audio icon when no source cover exists."""
+
+    def __init__(self, job, *, compact: bool = False, parent=None):
+        super().__init__(parent)
+        size = QSize(60, 44) if compact else QSize(78, 52)
+        self.setObjectName("ui09JobCoverThumb")
+        self.setFixedSize(size)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet(
+            "QLabel#ui09JobCoverThumb{background:#E7F1FF;color:#1665D8;"
+            "border:1px solid #CEE2FB;border-radius:6px;"
+            "font-size:23px;font-weight:700;}"
+        )
+        self.source_path = None
+        path = _job_cover_path(job)
+        if path is not None:
+            reader = QImageReader(str(path))
+            reader.setAutoTransform(True)
+            reader.setScaledSize(QSize(size.width() * 2, size.height() * 2))
+            image = reader.read()
+            if not image.isNull():
+                cover = QPixmap.fromImage(image).scaled(
+                    size,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                left = max(0, (cover.width() - size.width()) // 2)
+                top = max(0, (cover.height() - size.height()) // 2)
+                self.setPixmap(cover.copy(left, top, size.width(), size.height()))
+                self.source_path = str(path)
+                self.setAccessibleName("Sampul proyek dari file media")
+                return
+        self.setText("♫")
+        self.setAccessibleName("Placeholder musik: tidak ada sampul proyek")
+
+
+class _RenderHistoryCard(QFrame):
+    """Read-only visual surface over the original clickable history item."""
+
+    def __init__(self, job, *, compact=False, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("ui09HistoryCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setStyleSheet(
+            "QFrame#ui09HistoryCard{background:#FFFFFF;border:1px solid #E1EBF7;"
+            "border-radius:7px;}"
+        )
+        row = QHBoxLayout(self)
+        row.setContentsMargins(6, 4, 6, 4)
+        row.setSpacing(8)
+        self.cover = _JobCoverThumb(job, compact=compact, parent=self)
+        row.addWidget(self.cover)
+        details = QVBoxLayout()
+        details.setSpacing(2)
+        self.title = QLabel(Path(job.settings.final_output).stem)
+        self.title.setStyleSheet("font-size:11px;font-weight:700;color:#17294F;")
+        self.title.setWordWrap(False)
+        self.title.setToolTip(str(job.settings.final_output))
+        self.format = QLabel(
+            f"{job.settings.width} × {job.settings.height}  · "
+            f"{job.settings.container.upper()}"
+        )
+        self.format.setStyleSheet("font-size:10px;color:#58739B;")
+        done = job.state == RenderJobState.COMPLETED and bool(job.verified_output)
+        self.status = QLabel(
+            "Selesai · Terverifikasi" if done else job.state.value
+        )
+        self.status.setStyleSheet(
+            "font-size:10px;color:#19985A;" if done
+            else "font-size:10px;color:#6A7C96;"
+        )
+        details.addWidget(self.title)
+        details.addWidget(self.format)
+        details.addWidget(self.status)
+        row.addLayout(details, 1)
+
+
+def _present_history_cards(history) -> None:
+    jobs = {
+        (job.job_id, job.attempt_id): job
+        for job in history._last_jobs
+    }
+    listing = history.listing
+    for index in range(listing.count()):
+        item = listing.item(index)
+        job = jobs.get(item.data(Qt.ItemDataRole.UserRole))
+        if job is None:
+            continue
+        item.setSizeHint(QSize(0, 64))
+        card = _RenderHistoryCard(
+            job, compact=listing.viewport().width() < 250, parent=listing
+        )
+        listing.setItemWidget(item, card)
+
+
+def _apply_history_presentation(self, jobs) -> None:
+    _originals["history_apply_jobs"](self, jobs)
+    if getattr(self, "_ui09_history_prepared", False):
+        _present_history_cards(self)
+
+
 def _visible_queue_jobs(jobs):
     active = [job for job in jobs if job.state in _QUEUE_ACTIVE]
     completed = [
@@ -56,7 +189,7 @@ def _visible_queue_jobs(jobs):
 class _QueueJobCard(QFrame):
     """Render-only card; progress updates come from the engine job."""
 
-    def __init__(self, job, position: int, parent=None) -> None:
+    def __init__(self, job, position: int, *, compact=False, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("ui09QueueJobCard")
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -77,6 +210,8 @@ class _QueueJobCard(QFrame):
             "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
         )
         layout.addWidget(number)
+        self.cover = _JobCoverThumb(job, compact=compact, parent=self)
+        layout.addWidget(self.cover)
 
         content = QVBoxLayout()
         content.setSpacing(3)
@@ -146,7 +281,11 @@ def _present_queue(workspace, jobs) -> None:
         if item is None:
             break
         item.setSizeHint(QSize(0, 68 if getattr(workspace, 'ui09_compact', False) else 78))
-        card = _QueueJobCard(job, index + 1, workspace.queue_list)
+        card = _QueueJobCard(
+            job, index + 1,
+            compact=bool(getattr(workspace, "ui09_compact", False)),
+            parent=workspace.queue_list,
+        )
         workspace.queue_list.setItemWidget(item, card)
         widgets[(job.job_id, job.attempt_id)] = card
     workspace.ui09_queue_widgets = widgets
@@ -216,6 +355,8 @@ def _prepare_history(window, sidebar_layout: QVBoxLayout) -> None:
         history_button.setChecked(True)
     history.setStyleSheet("QListWidget{border:0;background:#FFFFFF;}")
     history.apply_jobs(window._s10_queue.jobs)
+    history._ui09_history_prepared = True
+    _present_history_cards(history)
     sidebar_layout.addWidget(history, 1)
 
 
@@ -533,8 +674,10 @@ def install_ui09_render_remediation() -> None:
         return
 
     from .foundation_window import FoundationMainWindow
-    from .render_workspace_step10 import RenderCenterWorkspace
+    from .render_workspace_step10 import RenderCenterWorkspace, RenderHistoryContext
 
+    _originals["history_apply_jobs"] = RenderHistoryContext.apply_jobs
+    RenderHistoryContext.apply_jobs = _apply_history_presentation
     _originals["apply_queue"] = RenderCenterWorkspace.apply_queue
     _originals["apply_job"] = RenderCenterWorkspace.apply_job
     RenderCenterWorkspace.apply_queue = _apply_queue_presentation

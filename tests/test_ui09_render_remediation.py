@@ -105,6 +105,16 @@ def test_ui09_render_remediation_route_contract() -> None:
             for index in range(3)
         ]
         assert all(card is not None for card in cards)
+        # Without real image media, show an honest music placeholder.
+        assert all(card.cover.source_path is None for card in cards)
+        assert all(card.cover.text() == "♫" for card in cards)
+        history = window.render_history_s10
+        history.apply_jobs((running, queued, completed))
+        assert history.listing.count() == 1
+        history_card = history.listing.itemWidget(history.listing.item(0))
+        assert history_card is not None
+        assert history_card.cover.source_path is None
+        assert "Terverifikasi" in history_card.status.text()
         assert [card.state.text() for card in cards] == [
             "RUNNING", "ANTREAN", "SELESAI"
         ]
@@ -121,6 +131,28 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "101 fps" in cards[0].note.text()
         assert window.editor_workspace.document().content_signature() == signature
 
+        # A real local cover must be used as-is rather than a fabricated
+        # preview. This fixture never changes the active editor document.
+        from PySide6.QtGui import QImage, QColor
+        from PySide6.QtCore import QSize
+        from full_album_maker.editor_models import MediaAsset
+        from full_album_maker.render_remediation import _JobCoverThumb
+        cover_path = root / "genuine-cover.png"
+        cover_img = QImage(32, 32, QImage.Format.Format_RGB32)
+        cover_img.fill(QColor("#3263B4"))
+        assert cover_img.save(str(cover_path))
+        copy_doc = document.clone()
+        image_asset = MediaAsset(
+            kind="image", locator=str(cover_path), original_name=cover_path.name,
+        )
+        copy_doc.media.append(image_asset)
+        copy_doc.playlist.entries[0].cover_asset_id = image_asset.asset_id
+        copy_doc.validate()
+        with_cover = _mock_jobs(copy_doc, root)[0]
+        thumb = _JobCoverThumb(with_cover, compact=True)
+        assert thumb.source_path == str(cover_path)
+        assert thumb.pixmap() is not None and not thumb.pixmap().isNull()
+        assert window.editor_workspace.document().content_signature() == signature
 
         # Presentation preset cards drive the same STEP10 RenderSettings owner.
         workspace.ui09_preset_buttons["youtube_1440p"].click()
