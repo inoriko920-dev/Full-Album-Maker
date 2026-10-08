@@ -82,14 +82,12 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert getattr(window, "_ui08_timeline_panel").isHidden() is False
         assert window.editor_workspace.document().content_signature() == signature
 
+        # This subprocess tests UI route ownership and zero project mutation,
+        # not QObject/worker shutdown.  Windows Qt occasionally aborts with
+        # 0xC0000409 while tearing down the offscreen widget graph after all
+        # route assertions have passed.  Exit immediately and leave lifecycle
+        # teardown to the dedicated close/async regression tests.
         print("UI09_RENDER_REMEDIATION_PASS", flush=True)
-        if getattr(window, "_s10_async", None) is not None:
-            window._s10_async.close()
-        if getattr(window, "_s09_async", None) is not None:
-            window._s09_async.close()
-        window.hide()
-        window.deleteLater()
-        app.processEvents()
         os._exit(0)
         """
     )
