@@ -63,7 +63,15 @@ def test_ui09_render_remediation_route_contract() -> None:
             assert glyph.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             assert not button.text().startswith(("▶", "⚙")), preset_id
             assert button.accessibleName().startswith("Preset Render "), preset_id
-        assert workspace.ui09_preflight.text().endswith("Jalankan Preflight")
+        assert workspace.ui09_preflight.text() == "Jalankan Preflight"
+        assert workspace.ui09_preflight.accessibleName() == "Jalankan Preflight"
+        assert workspace.ui09_preflight.iconSize() == QSize(24, 24)
+        assert not workspace.ui09_preflight.icon().pixmap(24, 24).isNull()
+        assert workspace.ui09_preflight.minimumWidth() >= 172
+        assert workspace.ui09_preflight.minimumHeight() >= 46
+        assert "#BFDCFE" in workspace.ui09_preflight.styleSheet()
+        assert "background:#FEFEFE" in workspace.ui09_preflight.styleSheet()
+        assert "margin-top:6px" in workspace.ui09_preflight.styleSheet()
         assert window.render_history_s10.parentWidget() is workspace.ui09_sidebar
 
         headings = [label.text() for label in workspace.findChildren(QLabel)]

@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRect, Qt, QSize, QTimer
-from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap, QPolygon
+from PySide6.QtGui import QColor, QIcon, QImageReader, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -752,6 +752,25 @@ def _ui09_prepare_preflight_icon(card, kind: str) -> None:
     )
 
 
+def _ui09_preflight_action_icon() -> QIcon:
+    """Draw the exact action affordance independent of Windows emoji fonts."""
+    pixmap = QPixmap(24, 24)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(QPen(QColor("#0968EA"), 1.9))
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawPolygon(QPolygon([
+        QPoint(12, 2), QPoint(20, 5), QPoint(19, 13),
+        QPoint(16, 18), QPoint(12, 21), QPoint(8, 18),
+        QPoint(5, 13), QPoint(4, 5),
+    ]))
+    painter.drawLine(8, 11, 11, 14)
+    painter.drawLine(11, 14, 16, 9)
+    painter.end()
+    return QIcon(pixmap)
+
+
 def _prepare_center(window) -> None:
     workspace = window.render_workspace_s10
     if getattr(workspace, "_ui09_prepared", False):
@@ -772,7 +791,19 @@ def _prepare_center(window) -> None:
     workspace.snapshot_label.hide()
 
     if header is not None:
-        preflight = FAMButton("🛡  Jalankan Preflight", kind="ghost")
+        preflight = FAMButton("Jalankan Preflight", kind="ghost")
+        preflight.setIcon(_ui09_preflight_action_icon())
+        preflight.setIconSize(QSize(24, 24))
+        preflight.setAccessibleName("Jalankan Preflight")
+        preflight.setMinimumSize(QSize(172, 46))
+        preflight.setStyleSheet(
+            "QPushButton{background:#FEFEFE;color:#1656EC;"
+            "border:1px solid #BFDCFE;border-radius:6px;"
+            "font-size:12px;font-weight:700;padding:6px 10px;"
+            "margin-top:6px;}"
+            "QPushButton:hover{background:#F1F7FF;border-color:#0864DC;}"
+            "QPushButton:pressed{background:#E1EFFF;}"
+        )
         preflight.clicked.connect(window.render_inspector_s10.preflight.click)
         header.addWidget(preflight)
         workspace.ui09_preflight = preflight
