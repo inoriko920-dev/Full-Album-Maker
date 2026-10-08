@@ -8,6 +8,7 @@ on:
       - ui/ui09-visual-queue-wave01
       - ui/ui09-wave02-inspector-graph
       - ui/ui09-wave03-real-artwork-cards
+      - ui/ui09-wave04-golden-layout-proportions
   workflow_dispatch:
 
 permissions:
