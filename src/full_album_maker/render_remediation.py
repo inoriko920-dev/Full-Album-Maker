@@ -240,6 +240,10 @@ def _prepare_inspector_scroll(inspector) -> None:
         field.setSizePolicy(
             QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
         )
+    # Native Windows QSpinBox minimumSizeHint can otherwise force the
+    # two-column resolution row wider than the inspector's visible viewport.
+    inspector.width.setMaximumWidth(118)
+    inspector.height.setMaximumWidth(118)
     items = [root.takeAt(0) for _ in range(root.count())]
     start_index = next(
         (index for index, item in enumerate(items)
@@ -317,10 +321,9 @@ def _prepare_inspector(window) -> None:
     index = root.indexOf(inspector.overwrite)
     root.insertWidget(index + 1 if index >= 0 else max(0, root.count() - 1), close_after)
     inspector.ui09_close_after = close_after
-    if window.width() < 1500:
-        inspector.overwrite.setToolTip(inspector.overwrite.text())
-        inspector.overwrite.setText("Izinkan timpa file final")
-        close_after.setText("Tutup aplikasi setelah render")
+    inspector.overwrite.setToolTip(inspector.overwrite.text())
+    inspector.overwrite.setText("Izinkan timpa file final")
+    close_after.setText("Tutup aplikasi setelah render")
     _prepare_inspector_scroll(inspector)
     inspector._ui09_prepared = True
 
