@@ -72,6 +72,7 @@ def test_ui09_render_remediation_route_contract() -> None:
             pixmap = card.ui09_icon.pixmap()
             assert pixmap is not None and not pixmap.isNull()
             assert pixmap.width() == pixmap.height() == 32
+            assert card.minimumHeight() == card.maximumHeight() == 154
         assert getattr(workspace.preflight_cards["encoder"], "ui09_icon", None) is None
         # Desktop-only proportion work: do not alter render settings, jobs,
         # workers or the 1366px compact layout.
