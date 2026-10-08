@@ -4,8 +4,8 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
-from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QSize, QTimer
+from PySide6.QtGui import QColor, QIcon, QImageReader, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -27,11 +27,46 @@ _originals: dict[str, Any] = {}
 
 
 _PRESET_SURFACE = (
-    ("youtube_1080p", "▶  YouTube 1080p\n1920 × 1080 • H.264 • MP4"),
-    ("youtube_1440p", "▶  YouTube 1440p\n2560 × 1440 • H.264 • MP4"),
-    ("youtube_4k", "▶  YouTube 4K\n3840 × 2160 • H.265 • MP4"),
-    ("custom", "⚙  Custom\nAtur pengaturan sendiri"),
+    ("youtube_1080p", "YouTube 1080p\n1920 × 1080 • H.264 • MP4"),
+    ("youtube_1440p", "YouTube 1440p\n2560 × 1440 • H.264 • MP4"),
+    ("youtube_4k", "YouTube 4K\n3840 × 2160 • H.265 • MP4"),
+    ("custom", "Custom\nAtur pengaturan sendiri"),
 )
+
+
+def _ui09_preset_icon(preset_id: str) -> QIcon:
+    """Deterministic YouTube/gear symbols; never rely on font emoji glyphs.
+
+    The labels, preset ids and STEP10 settings owner remain unchanged.
+    Dimensions match the original desktop 9th golden's prominent red
+    YouTube branding without embedding that reference as an application asset.
+    """
+    pixmap = QPixmap(36, 32)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    if preset_id.startswith("youtube_"):
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#E91726"))
+        painter.drawRoundedRect(2, 5, 32, 22, 6, 6)
+        painter.setBrush(QColor("#FFFFFF"))
+        painter.drawPolygon(QPolygon([
+            QPoint(16, 11), QPoint(16, 21), QPoint(25, 16),
+        ]))
+    else:
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor("#173F9A"), 2.4))
+        painter.drawEllipse(10, 8, 16, 16)
+        painter.drawEllipse(15, 13, 6, 6)
+        for x1, y1, x2, y2 in (
+            (18, 2, 18, 8), (18, 24, 18, 30),
+            (4, 16, 10, 16), (26, 16, 32, 16),
+            (8, 6, 12, 10), (24, 22, 28, 26),
+            (8, 26, 12, 22), (24, 10, 28, 6),
+        ):
+            painter.drawLine(x1, y1, x2, y2)
+    painter.end()
+    return QIcon(pixmap)
 
 
 # UI-09 queue cards read state exclusively from STEP10 RenderJob/RenderQueue.
@@ -768,6 +803,9 @@ def _prepare_center(window) -> None:
     workspace.ui09_preset_buttons = {}
     for preset_id, label in _PRESET_SURFACE:
         button = QPushButton(label)
+        button.setIcon(_ui09_preset_icon(preset_id))
+        button.setIconSize(QSize(36, 32))
+        button.setAccessibleName("Preset Render " + label.splitlines()[0])
         # Isolated from the global QSS tabButton min-height/padding rule.
         button.setObjectName("ui09PresetCard")
         button.setCheckable(True)
