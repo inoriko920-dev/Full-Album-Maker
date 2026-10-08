@@ -23,6 +23,7 @@ on:
       - ui/ui09-wave17-history-status-contrast
       - ui/ui09-wave18-honest-history-states
       - ui/ui09-wave19-truthful-attempt-metadata
+      - ui/ui09-wave20-sidebar-surface
       - ui/ui09-wave15-history-heading
       - ui/ui09-wave16-history-title-parity
   workflow_dispatch:
