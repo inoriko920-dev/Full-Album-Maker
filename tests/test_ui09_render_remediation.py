@@ -69,7 +69,9 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert not workspace.ui09_preflight.icon().pixmap(24, 24).isNull()
         assert workspace.ui09_preflight.minimumWidth() >= 172
         assert workspace.ui09_preflight.minimumHeight() >= 46
-        assert "#98BCFF" in workspace.ui09_preflight.styleSheet()
+        assert "#BFDCFE" in workspace.ui09_preflight.styleSheet()
+        assert "background:#FEFEFE" in workspace.ui09_preflight.styleSheet()
+        assert "margin-top:6px" in workspace.ui09_preflight.styleSheet()
         assert window.render_history_s10.parentWidget() is workspace.ui09_sidebar
 
         headings = [label.text() for label in workspace.findChildren(QLabel)]
