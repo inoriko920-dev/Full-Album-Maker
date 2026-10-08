@@ -621,6 +621,13 @@ def _ui09_prepare_preflight_icon(card, kind: str) -> None:
     row.addWidget(card.title)
     row.addStretch(1)
     content.insertLayout(0, row)
+    # The preflight illustration needs to stay near the top of each card;
+    # Qt otherwise distributes unused card height among all three QLabel
+    # rows, pushing PASS/WARN and detail captions too low versus the golden.
+    # Keep the actual state/detail widgets as their sole source of truth.
+    content.insertSpacing(1, 14)
+    content.insertSpacing(3, 15)
+    content.addStretch(1)
     card.ui09_icon = glyph
 
 
