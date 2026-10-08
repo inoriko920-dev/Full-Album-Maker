@@ -54,7 +54,7 @@ class RenderPerformanceGraph(QWidget):
         painter.drawText(
             title,
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
-            "Grafik Performa Render",
+            "Performa Render (Saat Ini)",
         )
         if len(self._points) < 2:
             painter.setPen(QColor(TOKENS.text_muted))
@@ -70,14 +70,23 @@ class RenderPerformanceGraph(QWidget):
         summary = f"Progres {latest.percent:.0f}%"
         if latest.fps is not None:
             summary += f"  •  {latest.fps:.0f} FPS"
-        painter.setPen(QColor("#5B7598"))
-        painter.drawText(
-            title,
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
-            summary,
-        )
+        show_summary = area.width() >= 650
+        if not show_summary:
+            painter.setPen(QColor("#5B7598"))
+            painter.drawText(
+                title,
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+                summary,
+            )
 
-        plot = area.adjusted(12, 23, -12, -18)
+        # Desktop golden uses a chart plus three real telemetry columns.
+        # Compact view remains a full-width chart; no extrapolated metrics.
+        plot = QRectF(
+            area.left() + 12,
+            area.top() + 25,
+            max(1.0, area.width() - (246 if show_summary else 24)),
+            max(1.0, area.height() - 47),
+        )
         for fraction in (0.25, 0.50, 0.75):
             y = plot.bottom() - fraction * plot.height()
             painter.setPen(QPen(QColor("#E7EEF7"), 1, Qt.PenStyle.DashLine))
@@ -105,7 +114,43 @@ class RenderPerformanceGraph(QWidget):
         if observed_fps:
             draw_metrics(fps, max(1.0, max(observed_fps)), "#14A88A")
 
-        legend = area.adjusted(11, 0, -11, -3)
+        if show_summary:
+            summary_left = plot.right() + 12
+            summary_width = max(20.0, (area.right() - summary_left - 8) / 3)
+            observed = (
+                ("Kecepatan", "—" if latest.fps is None else f"{latest.fps:.0f} fps"),
+                ("Rata-rata", "—" if latest.average_fps is None
+                 else f"{latest.average_fps:.0f} fps"),
+                ("Sisa waktu", "—" if latest.eta_seconds is None
+                 else f"{max(0, round(latest.eta_seconds)) // 60} mnt "
+                      f"{max(0, round(latest.eta_seconds)) % 60} dtk"),
+            )
+            for index, (label, value) in enumerate(observed):
+                cell = QRectF(
+                    summary_left + index * summary_width,
+                    area.top() + 31,
+                    summary_width - 5,
+                    max(24.0, area.height() - 43),
+                )
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor("#F4F8FD"))
+                painter.drawRoundedRect(cell, 4, 4)
+                painter.setPen(QColor("#647D9E"))
+                painter.drawText(
+                    cell.adjusted(4, 5, -3, -24),
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+                    label,
+                )
+                painter.setPen(QColor("#152954"))
+                painter.drawText(
+                    cell.adjusted(4, 25, -2, -4),
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                    value,
+                )
+
+        legend = QRectF(
+            plot.left(), area.bottom() - 16, plot.width(), 13
+        )
         painter.setPen(QColor("#146CE5"))
         painter.drawText(
             legend,
