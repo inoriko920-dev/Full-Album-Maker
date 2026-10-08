@@ -102,7 +102,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     args = parser.parse_args()
-    print(json.dumps(verify_capture_evidence(args.root), indent=2), flush=True)
+    print(json.dumps(verify_capture_evidence(args.root), ensure_ascii=True, indent=2), flush=True)
     return 0
 
 
