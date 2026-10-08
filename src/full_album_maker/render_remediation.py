@@ -287,8 +287,11 @@ class _UI09QueueProgressDetail(QLabel):
         icon = 10
         gap = 4
         text_width = painter.fontMetrics().horizontalAdvance(caption)
-        left = self.width() - text_width - icon - gap
-        if left < 0:
+        # The original queued status is left-anchored beside its clock.
+        # Keep verified output right-aligned and owned by the real engine.
+        left = (22 if marker == "queued"
+                else self.width() - text_width - icon - gap)
+        if left < 0 or left + text_width + icon + gap > self.width():
             painter.end()
             super().paintEvent(event)
             return
@@ -311,7 +314,8 @@ class _UI09QueueProgressDetail(QLabel):
         painter.drawText(
             QRect(left + icon + gap, 0, self.width() - (left + icon + gap),
                   self.height()),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+            (Qt.AlignmentFlag.AlignLeft if marker == "queued"
+             else Qt.AlignmentFlag.AlignRight) | Qt.AlignmentFlag.AlignVCenter,
             caption,
         )
         painter.end()
