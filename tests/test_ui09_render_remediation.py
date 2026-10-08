@@ -236,6 +236,10 @@ def test_ui09_render_remediation_route_contract() -> None:
             assert cover_image.pixelColor(10, 22).red() - cover_image.pixelColor(37, 22).red() > 110
             assert cover_image.pixelColor(37, 22).blue() > cover_image.pixelColor(37, 22).red()
         history = window.render_history_s10
+        # Wave19 test uses explicit saved timestamps; no inferred render date.
+        completed.created_at = "2026-10-08T10:00:00+00:00"
+        completed.started_at = "2026-10-08T10:01:02+00:00"
+        completed.finished_at = "2026-10-08T10:05:06+00:00"
         history.apply_jobs((running, queued, completed))
         assert history.listing.count() == 1
         history_card = history.listing.itemWidget(history.listing.item(0))
@@ -253,6 +257,29 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "#58739B" in history_card.status.styleSheet()
         assert history_card.title.toolTip() == str(completed.settings.final_output)
         assert history.listing.count() == 1
+        # Actual item hover must expose only dates saved for THIS attempt.
+        # The history item owns hover because the card is mouse-transparent.
+        tooltip = history.listing.item(0).toolTip()
+        assert completed.verified_output in tooltip
+        assert f"ID percobaan: {completed.attempt_id}" in tooltip
+        assert "Dibuat: 08/10/2026 10:00:00 UTC" in tooltip
+        assert "Mulai: 08/10/2026 10:01:02 UTC" in tooltip
+        assert "Selesai: 08/10/2026 10:05:06 UTC" in tooltip
+        assert history_card.format.toolTip().startswith(f"ID percobaan: {completed.attempt_id}")
+        from full_album_maker.render_remediation import _ui09_history_timestamp
+        assert _ui09_history_timestamp("2026-10-08T10:00:00") == ""
+        assert _ui09_history_timestamp("not-a-date") == ""
+        old_start, old_finish = completed.started_at, completed.finished_at
+        completed.started_at = "invalid"
+        completed.finished_at = ""
+        history.apply_jobs((running, queued, completed))
+        missing_tooltip = history.listing.item(0).toolTip()
+        assert "Dibuat: 08/10/2026 10:00:00 UTC" in missing_tooltip
+        assert "Mulai:" not in missing_tooltip
+        assert "Selesai:" not in missing_tooltip
+        assert history.listing.count() == 1
+        completed.started_at, completed.finished_at = old_start, old_finish
+        history.apply_jobs((running, queued, completed))
         # A falsely completed-but-unverified output must not receive the
         # visual verified badge or a made-up output history record.
         original_verified = completed.verified_output
