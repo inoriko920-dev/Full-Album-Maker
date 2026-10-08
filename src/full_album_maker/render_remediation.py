@@ -241,7 +241,9 @@ class _RenderHistoryCard(QFrame):
             "Selesai · Terverifikasi" if done else job.state.value
         )
         self.status.setStyleSheet(
-            "font-size:10px;color:#19985A;" if done
+            # Owner-golden metadata uses readable muted blue; whether
+            # output was verified still belongs exclusively to RenderJob.
+            "font-size:10px;color:#58739B;" if done
             else "font-size:10px;color:#6A7C96;"
         )
         details.addWidget(self.title)
