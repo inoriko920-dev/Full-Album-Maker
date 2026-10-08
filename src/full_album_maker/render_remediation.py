@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from PySide6.QtCore import Qt, QSize, QTimer
-from PySide6.QtGui import QImageReader, QPixmap
+from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -566,6 +566,63 @@ def _prepare_inspector(window) -> None:
     inspector._ui09_prepared = True
 
 
+def _ui09_preflight_icon(kind: str) -> QPixmap:
+    """Draw decorative vector icons, independent of platform emoji fonts."""
+    image = QPixmap(32, 32)
+    image.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(QPen(QColor("#0967EB"), 2.2))
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    if kind == "media":
+        painter.drawRoundedRect(9, 3, 17, 25, 2, 2)
+        painter.drawLine(13, 11, 22, 11)
+        painter.drawLine(13, 16, 22, 16)
+        painter.drawLine(13, 21, 20, 21)
+    elif kind == "snapshot":
+        for y in (8, 16, 24):
+            painter.drawEllipse(5, y - 2, 3, 3)
+            painter.drawLine(12, y, 28, y)
+    elif kind == "ffmpeg":
+        painter.drawRoundedRect(9, 9, 15, 15, 2, 2)
+        for pos in (12, 20):
+            painter.drawLine(pos, 4, pos, 9)
+            painter.drawLine(pos, 24, pos, 29)
+            painter.drawLine(4, pos, 9, pos)
+            painter.drawLine(24, pos, 29, pos)
+    elif kind == "output":
+        painter.drawLine(4, 10, 13, 10)
+        painter.drawLine(13, 10, 16, 13)
+        painter.drawRoundedRect(4, 12, 25, 15, 2, 2)
+    elif kind == "disk":
+        painter.drawRoundedRect(5, 8, 22, 17, 3, 3)
+        painter.drawLine(9, 19, 23, 19)
+        painter.drawEllipse(20, 12, 3, 3)
+    painter.end()
+    return image
+
+
+def _ui09_prepare_preflight_icon(card, kind: str) -> None:
+    """Decorate the existing status card; keep its state/detail ownership."""
+    if getattr(card, "ui09_icon", None) is not None:
+        return
+    content = card.layout()
+    content.removeWidget(card.title)
+    row = QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(5)
+    glyph = QLabel(card)
+    glyph.setObjectName("ui09PreflightVectorIcon")
+    glyph.setPixmap(_ui09_preflight_icon(kind))
+    glyph.setFixedSize(32, 32)
+    glyph.setAccessibleName(f"Ikon {card.title.text()}")
+    row.addWidget(glyph)
+    row.addWidget(card.title)
+    row.addStretch(1)
+    content.insertLayout(0, row)
+    card.ui09_icon = glyph
+
+
 def _prepare_center(window) -> None:
     workspace = window.render_workspace_s10
     if getattr(workspace, "_ui09_prepared", False):
@@ -609,6 +666,8 @@ def _prepare_center(window) -> None:
                 continue
             grid.removeWidget(card)
             card.title.setText(titles[key])
+            if window.width() >= 1500:
+                _ui09_prepare_preflight_icon(card, key)
             card.setMinimumHeight(88 if window.width() < 1500 else 154)
             grid.addWidget(card, 0, column)
 
