@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 from typing import Any
@@ -224,6 +225,33 @@ def _ui09_history_status_text(job) -> str:
     return _HISTORY_TERMINAL_STATUS.get(job.state, job.state.value)
 
 
+def _ui09_history_timestamp(raw: str) -> str:
+    """Display only timestamps with explicit timezone; never guess a missing date."""
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    try:
+        moment = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        return ""
+    return moment.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M:%S UTC")
+
+
+def _ui09_history_metadata_tooltip(job) -> str:
+    """Only facts persisted on this exact RenderJob attempt, not media guesses."""
+    lines = [f"ID percobaan: {job.attempt_id}"]
+    for label, attribute in (
+        ("Dibuat", "created_at"),
+        ("Mulai", "started_at"),
+        ("Selesai", "finished_at"),
+    ):
+        timestamp = _ui09_history_timestamp(getattr(job, attribute, ""))
+        if timestamp:
+            lines.append(f"{label}: {timestamp}")
+    return "\n".join(lines)
+
+
 class _RenderHistoryCard(QFrame):
     """Read-only visual surface over the original clickable history item."""
 
@@ -253,6 +281,7 @@ class _RenderHistoryCard(QFrame):
             f"{job.settings.container.upper()}"
         )
         self.format.setStyleSheet("font-size:10px;color:#58739B;")
+        self.format.setToolTip(_ui09_history_metadata_tooltip(job))
         done = job.state == RenderJobState.COMPLETED and bool(job.verified_output)
         self.status = QLabel(_ui09_history_status_text(job))
         # Native job metadata stays available on hover. No rendered file is
@@ -281,6 +310,13 @@ def _present_history_cards(history) -> None:
         job = jobs.get(item.data(Qt.ItemDataRole.UserRole))
         if job is None:
             continue
+        # The card deliberately lets the native QListWidget own hover/click.
+        # Append the truthful metadata to the item tooltip (not just the
+        # mouse-transparent card), preserving its existing error/output text.
+        metadata = _ui09_history_metadata_tooltip(job)
+        prior = item.toolTip()
+        if metadata and metadata not in prior:
+            item.setToolTip(f"{prior}\n\n{metadata}" if prior else metadata)
         item.setSizeHint(QSize(0, 64))
         card = _RenderHistoryCard(
             job, compact=listing.viewport().width() < 250, parent=listing
