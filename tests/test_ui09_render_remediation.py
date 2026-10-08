@@ -119,8 +119,8 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "#FFFFFF" in cards[2].styleSheet()
         assert "#687793" in cards[1].number.styleSheet()
         assert cards[0].progress_detail.text() == "Estimasi sisa 00:36"
-        assert cards[1].progress_detail.text() == ""
-        assert cards[2].progress_detail.text() == "File hasil telah diverifikasi"
+        assert cards[1].progress_detail.text() == "◷ Dalam antrean"
+        assert cards[2].progress_detail.text() == "✓ File terverifikasi"
         # Without real image media, show an honest music placeholder.
         assert all(card.cover.source_path is None for card in cards)
         assert all(card.cover.text() == "♫" for card in cards)
@@ -135,6 +135,24 @@ def test_ui09_render_remediation_route_contract() -> None:
             "RUNNING", "ANTREAN", "SELESAI"
         ]
         assert [card.bar.value() for card in cards] == [630, 0, 1000]
+        assert "Output terverifikasi" in cards[2].note.text()
+        assert [card.heading.text() for card in cards] == [
+            "Senja di Kota Ini", "Jalan Pulang", "Perjalanan Kita"
+        ]
+        assert "Full Album" in cards[0].heading.toolTip()
+        assert "#148742" in cards[2].state.styleSheet()
+        assert "#BAC8DC" in cards[1].bar.styleSheet()
+
+        # An unverified COMPLETED state must not be presented as a verified
+        # final file, even when the job reports 100 percent.
+        verified = completed.verified_output
+        completed.verified_output = ""
+        cards[2].refresh(completed)
+        assert cards[2].state.text() == "COMPLETED"
+        assert cards[2].progress_detail.text() == "Belum terverifikasi"
+        assert "Output terverifikasi" not in cards[2].note.text()
+        completed.verified_output = verified
+        cards[2].refresh(completed)
         assert "Output terverifikasi" in cards[2].note.text()
         assert workspace.queue_list.item(2).text().find("COMPLETED VERIFIED") >= 0
 

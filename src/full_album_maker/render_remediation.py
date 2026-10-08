@@ -186,6 +186,15 @@ def _visible_queue_jobs(jobs):
     return active
 
 
+def _job_display_title(final_output: Path) -> str:
+    """Short UI label only; retain the actual output filename and tooltip."""
+    stem = final_output.stem
+    suffix = " - Full Album"
+    if stem.casefold().endswith(suffix.casefold()) and len(stem) > len(suffix):
+        return stem[:-len(suffix)]
+    return stem
+
+
 class _QueueJobCard(QFrame):
     """Render-only card; progress updates come from the engine job."""
 
@@ -255,9 +264,11 @@ class _QueueJobCard(QFrame):
         self.refresh(job)
 
     def refresh(self, job) -> None:
-        name = Path(job.settings.final_output).stem
+        final_output = Path(job.settings.final_output)
+        name = _job_display_title(final_output)
         self.heading.setText(name)
-        self.setAccessibleName(f"Antrean render: {name}")
+        self.heading.setToolTip(final_output.name)
+        self.setAccessibleName(f"Antrean render: {final_output.stem}")
         settings = job.settings
         self.details.setText(
             f"{settings.width} × {settings.height}  •  "
@@ -284,19 +295,31 @@ class _QueueJobCard(QFrame):
             "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
         )
         self.progress_detail.setText("")
-        if job.state == RenderJobState.COMPLETED:
+        self.state.setStyleSheet("font-size:10px;color:#52729A;")
+        self.progress_detail.setStyleSheet("font-size:9px;color:#607EA8;")
+        if job.state == RenderJobState.COMPLETED and bool(job.verified_output):
             self.state.setText("SELESAI")
+            self.state.setStyleSheet("font-size:10px;color:#148742;font-weight:700;")
             self.note.setText("Output terverifikasi")
-            self.progress_detail.setText("File hasil telah diverifikasi")
+            self.progress_detail.setText("✓ File terverifikasi")
+            self.progress_detail.setStyleSheet("font-size:9px;color:#148742;")
             self.bar.setStyleSheet("QProgressBar::chunk{background:#16A34A;}")
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#159447;")
         elif job.state == RenderJobState.QUEUED:
             self.state.setText("ANTREAN")
             self.note.setText("Menunggu giliran render")
-            self.bar.setStyleSheet("QProgressBar::chunk{background:#1672ED;}")
+            self.progress_detail.setText("◷ Dalam antrean")
+            self.bar.setStyleSheet("QProgressBar::chunk{background:#BAC8DC;}")
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
         else:
             self.state.setText(job.state.value)
+            if job.state == RenderJobState.COMPLETED:
+                # State alone never proves the final output was verified.
+                self.note.setText("Verifikasi output belum tersedia")
+                self.progress_detail.setText("Belum terverifikasi")
+                self.bar.setStyleSheet("QProgressBar::chunk{background:#BAC8DC;}")
+                self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#607EA8;")
+                return
             self.bar.setStyleSheet("QProgressBar::chunk{background:#1672ED;}")
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
             fps = job.metrics.fps
