@@ -975,6 +975,18 @@ def _ui09_preflight_action_icon() -> QIcon:
     return QIcon(pixmap)
 
 
+def _ui09_sidebar_surface_style(desktop: bool) -> str:
+    """Golden desktop rail is a white card; compact retains proven styling.
+
+    Restrict to a single frame via its object name. Avoid a new border/padding
+    so Qt keeps every existing child control and history/queue geometry.
+    """
+    return (
+        "QFrame#ui09RenderSidebar{background-color:#FFFFFF;border-radius:9px;}"
+        if desktop else ""
+    )
+
+
 def _prepare_center(window) -> None:
     workspace = window.render_workspace_s10
     if getattr(workspace, "_ui09_prepared", False):
@@ -1098,6 +1110,7 @@ def _prepare_center(window) -> None:
 
     sidebar = QFrame(workspace)
     sidebar.setObjectName("ui09RenderSidebar")
+    sidebar.setStyleSheet(_ui09_sidebar_surface_style(desktop_golden))
     # Golden viewport reserves a substantial preset/history rail; compact
     # layouts keep the smaller rail to avoid squeezing preflight/queue cards.
     # Freeze the breakpoint chosen for the entire route before Qt relayout.
@@ -1265,6 +1278,7 @@ def _apply_ui09_breakpoint(window) -> None:
             card.setMinimumHeight(88)
 
     sidebar = workspace.ui09_sidebar
+    sidebar.setStyleSheet(_ui09_sidebar_surface_style(desktop))
     sidebar.setMinimumWidth(274 if desktop else 196)
     sidebar.setMaximumWidth(282 if desktop else 214)
     side = workspace.ui09_sidebar_layout
