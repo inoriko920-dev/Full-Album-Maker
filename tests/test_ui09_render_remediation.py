@@ -50,6 +50,11 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert shell.timeline.collapsed is True
         assert workspace.ui09_sidebar.isHidden() is False
         assert workspace.ui09_sidebar.width() in range(274, 283), workspace.ui09_sidebar.width()
+        # Wave20 paints only the desktop sidebar backing; history and preset
+        # ownership/size remain in their original production widgets.
+        assert workspace.ui09_sidebar.objectName() == "ui09RenderSidebar"
+        assert "background-color:#FFFFFF" in workspace.ui09_sidebar.styleSheet()
+        assert "border-radius:9px" in workspace.ui09_sidebar.styleSheet()
         assert set(workspace.ui09_preset_buttons) == {
             "youtube_1080p", "youtube_1440p", "youtube_4k", "custom"
         }
@@ -466,6 +471,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         assert window.width() == 1366, window.width()
         assert workspace.ui09_compact is True
         assert workspace.ui09_sidebar.width() in range(196, 215)
+        assert workspace.ui09_sidebar.styleSheet() == ""
         assert workspace.ui09_preset_buttons["youtube_1080p"].height() >= 40
         assert workspace.queue_list.count() == 3
         assert all(workspace.preflight_cards[k].minimumHeight() == 88
@@ -488,6 +494,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         settle()
         assert workspace.ui09_compact is False
         assert workspace.ui09_sidebar.width() in range(274, 283)
+        assert "background-color:#FFFFFF" in workspace.ui09_sidebar.styleSheet()
         assert workspace.ui09_preset_buttons["youtube_1080p"].height() >= 48
         assert all(workspace.preflight_cards[k].minimumHeight() == 154
                    and workspace.preflight_cards[k].maximumHeight() == 154
