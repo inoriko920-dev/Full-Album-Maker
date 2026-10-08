@@ -1042,6 +1042,15 @@ def _prepare_center(window) -> None:
 
     workspace.snapshot_label.hide()
 
+    header_text_layout = header.itemAt(0).layout() if header is not None else None
+    if header_text_layout is not None:
+        # Canonical UI09 keeps title and subtitle 20px inside the banner.
+        # Indent only the pre-existing text stack, not the Preflight button
+        # or the header row; restore the untouched compact margin on resize.
+        header_text_layout.setContentsMargins(
+            20 if window.width() >= 1500 else 0, 0, 0, 0
+        )
+
     if header is not None:
         preflight = FAMButton("Jalankan Preflight", kind="ghost")
         preflight.setIcon(_ui09_preflight_action_icon())
@@ -1237,6 +1246,7 @@ def _prepare_center(window) -> None:
     workspace.ui09_host = host
     workspace.ui09_compact = window.width() < 1500
     workspace.ui09_center_layout = center_layout
+    workspace.ui09_header_text_layout = header_text_layout
     workspace.ui09_center_top_spacer = center_layout.itemAt(1).spacerItem()
     workspace.ui09_center_subtitle = preflight_subtitle if desktop_golden else None
     workspace.ui09_center_extra_spacers = (
@@ -1275,6 +1285,9 @@ def _apply_ui09_breakpoint(window) -> None:
         return
 
     desktop = not compact
+    header_text_layout = workspace.ui09_header_text_layout
+    if header_text_layout is not None:
+        header_text_layout.setContentsMargins(20 if desktop else 0, 0, 0, 0)
     workspace.ui09_center.ui09_desktop_header = desktop
     workspace.ui09_center.update()
     center = workspace.ui09_center_layout
