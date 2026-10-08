@@ -66,7 +66,12 @@ def test_ui09_render_remediation_route_contract() -> None:
         # Desktop-only proportion work: do not alter render settings, jobs,
         # workers or the 1366px compact layout.
         assert "Memeriksa kesiapan proyek untuk rendering." in headings
-        assert workspace.ui09_preset_buttons["youtube_1080p"].minimumHeight() >= 74
+        assert workspace.ui09_preset_buttons["youtube_1080p"].minimumHeight() >= 74, {
+            "window_width": window.width(),
+            "button_min": workspace.ui09_preset_buttons["youtube_1080p"].minimumHeight(),
+            "button_actual": workspace.ui09_preset_buttons["youtube_1080p"].height(),
+            "sidebar_width": workspace.ui09_sidebar.width(),
+        }
         assert workspace.queue_list.maximumHeight() == 280
 
         assert inspector.start.text() == "Render Sekarang"
