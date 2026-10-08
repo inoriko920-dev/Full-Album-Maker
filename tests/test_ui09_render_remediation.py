@@ -55,6 +55,8 @@ def test_ui09_render_remediation_route_contract() -> None:
         from full_album_maker.render_remediation import _UI09CenterHeaderSurface
         assert isinstance(workspace.ui09_center, _UI09CenterHeaderSurface)
         assert workspace.ui09_center.ui09_desktop_header is True
+        assert workspace.ui09_header_text_layout is not None
+        assert workspace.ui09_header_text_layout.contentsMargins().left() == 20
         header_rect = workspace.ui09_center.ui09_header_layout.geometry()
         assert header_rect.width() > 500 and header_rect.height() >= 40
         app.processEvents()
@@ -488,6 +490,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         assert workspace.ui09_sidebar.width() in range(196, 215)
         assert workspace.ui09_sidebar.styleSheet() == ""
         assert workspace.ui09_center.ui09_desktop_header is False
+        assert workspace.ui09_header_text_layout.contentsMargins().left() == 0
         assert workspace.ui09_preset_buttons["youtube_1080p"].height() >= 40
         assert workspace.queue_list.count() == 3
         assert all(workspace.preflight_cards[k].minimumHeight() == 88
@@ -512,6 +515,7 @@ def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
         assert workspace.ui09_sidebar.width() in range(274, 283)
         assert "background-color:#FFFFFF" in workspace.ui09_sidebar.styleSheet()
         assert workspace.ui09_center.ui09_desktop_header is True
+        assert workspace.ui09_header_text_layout.contentsMargins().left() == 20
         assert workspace.ui09_preset_buttons["youtube_1080p"].height() >= 48
         assert all(workspace.preflight_cards[k].minimumHeight() == 154
                    and workspace.preflight_cards[k].maximumHeight() == 154
