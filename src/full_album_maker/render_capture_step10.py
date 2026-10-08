@@ -335,6 +335,16 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     geometry = {
         "window": [width, height],
         "ui09_inspector_scroll_layout_pass": inspector_ready,
+        "ui09_inspector_debug": {
+            "owner": inspector_scroll.widget() is inspector.ui09_scroll_host,
+            "filename_parent": inspector.filename.parentWidget() is inspector.ui09_scroll_host,
+            "button_parent": inspector.start.parentWidget() is inspector,
+            "button_pinned": inspector_scroll.geometry().bottom() < inspector.start.geometry().top(),
+            "button_visible": not inspector.start.isHidden(),
+            "horizontal_range": inspector_scroll.horizontalScrollBar().maximum(),
+            "scroll_geom": [inspector_scroll.x(), inspector_scroll.y(), inspector_scroll.width(), inspector_scroll.height()],
+            "start_geom": [inspector.start.x(), inspector.start.y(), inspector.start.width(), inspector.start.height()],
+        },
         "ui09_inspector_scroll_range": inspector_scroll.verticalScrollBar().maximum(),
         "ui09_graph_height": window.render_performance_s10.height(),
         "workspace": window.foundation_state.workspace,
