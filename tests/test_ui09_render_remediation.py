@@ -70,6 +70,10 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert preset_card.objectName() == "ui09PresetCard"
         assert preset_card.isVisible() and preset_card.height() >= 48
         assert workspace.queue_list.maximumHeight() == 280
+        # Windows native Qt spacing differs; keep the full card controls and
+        # fit all three rows instead of shortening or scrolling the queue.
+        import sys
+        assert workspace.queue_list.spacing() == (1 if sys.platform == "win32" else 5)
 
         assert inspector.start.text() == "Render Sekarang"
         assert inspector.preset.isHidden() is True
