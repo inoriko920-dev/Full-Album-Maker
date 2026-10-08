@@ -259,10 +259,33 @@ def test_ui09_render_remediation_route_contract() -> None:
         completed.verified_output = ""
         history.apply_jobs((running, queued, completed))
         unverified_card = history.listing.itemWidget(history.listing.item(0))
-        assert unverified_card.status.text() == "COMPLETED"
+        assert unverified_card.status.text() == "Selesai · Belum terverifikasi"
         assert "#6A7C96" in unverified_card.status.styleSheet()
-        assert "Terverifikasi" not in unverified_card.status.text()
+        assert unverified_card.status.toolTip() == "COMPLETED"
         assert history.listing.count() == 1
+
+        # A history attempt's terminal state is translated for UI only.
+        # Native retry/state ownership and source verified path never change.
+        from full_album_maker.render_center_model_step10 import RenderJobState
+        original_state = completed.state
+        original_error = completed.error_message
+        completed.error_message = "Output tidak bisa digunakan"
+        for state, label in (
+            (RenderJobState.FAILED, "Gagal"),
+            (RenderJobState.CANCELLED, "Dibatalkan"),
+            (RenderJobState.INTERRUPTED, "Terhenti"),
+            (RenderJobState.BLOCKED, "Diblokir"),
+        ):
+            completed.state = state
+            history.apply_jobs((running, queued, completed))
+            assert history.listing.count() == 1, state
+            card = history.listing.itemWidget(history.listing.item(0))
+            assert card.status.text() == label, state
+            assert card.status.toolTip() == completed.error_message
+            assert "#6A7C96" in card.status.styleSheet()
+            assert "Terverifikasi" not in card.status.text()
+        completed.state = original_state
+        completed.error_message = original_error
         completed.verified_output = original_verified
         history.apply_jobs((running, queued, completed))
         restored_card = history.listing.itemWidget(history.listing.item(0))
