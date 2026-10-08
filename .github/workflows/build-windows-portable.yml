@@ -82,6 +82,15 @@ jobs:
             throw "Noto Sans portable tampak tidak lengkap."
           }
 
+      # Fail fast on platform-specific Qt widget minimum-size regressions.
+      - name: UI-09 Windows inspector/route smoke
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          FAM_STEP09_PROVIDER: mock
+          FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+        run: python -m pytest -q tests/test_ui09_render_remediation.py
+
       - name: Run regression, long-project, and real FFmpeg tests
         shell: pwsh
         env:
