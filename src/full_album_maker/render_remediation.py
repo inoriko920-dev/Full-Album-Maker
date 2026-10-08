@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QSize, QTimer
-from PySide6.QtGui import QColor, QIcon, QImageReader, QPainter, QPen, QPixmap, QPolygon
+from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -34,7 +34,7 @@ _PRESET_SURFACE = (
 )
 
 
-def _ui09_preset_icon(preset_id: str) -> QIcon:
+def _ui09_preset_icon(preset_id: str) -> QPixmap:
     """Deterministic YouTube/gear symbols; never rely on font emoji glyphs.
 
     The labels, preset ids and STEP10 settings owner remain unchanged.
@@ -66,7 +66,7 @@ def _ui09_preset_icon(preset_id: str) -> QIcon:
         ):
             painter.drawLine(x1, y1, x2, y2)
     painter.end()
-    return QIcon(pixmap)
+    return pixmap
 
 
 # UI-09 queue cards read state exclusively from STEP10 RenderJob/RenderQueue.
@@ -803,8 +803,6 @@ def _prepare_center(window) -> None:
     workspace.ui09_preset_buttons = {}
     for preset_id, label in _PRESET_SURFACE:
         button = QPushButton(label)
-        button.setIcon(_ui09_preset_icon(preset_id))
-        button.setIconSize(QSize(36, 32))
         button.setAccessibleName("Preset Render " + label.splitlines()[0])
         # Isolated from the global QSS tabButton min-height/padding rule.
         button.setObjectName("ui09PresetCard")
@@ -813,11 +811,21 @@ def _prepare_center(window) -> None:
         button.setMinimumHeight(81 if desktop else 55)
         button.setStyleSheet(
             "QPushButton{background:#FFFFFF;color:#24385A;border:1px solid #DDE8F5;"
-            "border-radius:7px;text-align:left;padding:7px 10px;font-size:11px;}"
+            "border-radius:7px;text-align:left;padding:7px 10px 7px 51px;font-size:11px;}"
             "QPushButton:checked{background:#E8F2FF;color:#075CE3;"
             "border-left:3px solid #0870F6;font-weight:700;}"
             "QPushButton:hover{border-color:#86B8FC;}"
         )
+        # A child drawing surface fixes icon coordinates independently of the
+        # native Qt style's text/icon spacing. It never handles mouse events.
+        glyph = QLabel(button)
+        glyph.setObjectName("ui09PresetVectorGlyph")
+        glyph.setPixmap(_ui09_preset_icon(preset_id))
+        glyph.setFixedSize(36, 32)
+        glyph.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        glyph.move(5, 8)
+        glyph.show()
+        button.ui09_preset_glyph = glyph
         # Qt styles may reset minimum heights when the widget is polished.
         # Keep these desktop cards proportionate; compact remains untouched.
         if desktop:
