@@ -262,6 +262,61 @@ def _job_display_title(final_output: Path) -> str:
     return stem
 
 
+class _UI09QueueProgressDetail(QLabel):
+    """Draw queue status markers independent of Windows glyph coverage.
+
+    The existing STEP10 job card remains sole owner of the raw semantic
+    string. This class only changes how the two known, non-freeform status
+    strings are displayed. Other text (including ETA and unverified state)
+    is delegated to QLabel without modification.
+    """
+
+    def paintEvent(self, event) -> None:
+        raw = self.text()
+        if raw == "✓ File terverifikasi":
+            caption, color, marker = "File terverifikasi", QColor("#148742"), "verified"
+        elif raw == "◷ Dalam antrean":
+            caption, color, marker = "Dalam antrean", QColor("#607EA8"), "queued"
+        else:
+            super().paintEvent(event)
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setFont(self.font())
+        icon = 10
+        gap = 4
+        text_width = painter.fontMetrics().horizontalAdvance(caption)
+        left = self.width() - text_width - icon - gap
+        if left < 0:
+            painter.end()
+            super().paintEvent(event)
+            return
+        cy = self.height() // 2
+        painter.setPen(QPen(color, 1.5))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        if marker == "verified":
+            # Simple rounded check shield, never a font checkmark or a fake
+            # output-verification claim. The actual text only comes from
+            # RenderJob.COMPLETED with verified_output.
+            painter.drawEllipse(left, cy - 5, 10, 10)
+            painter.drawLine(left + 2, cy, left + 4, cy + 2)
+            painter.drawLine(left + 4, cy + 2, left + 8, cy - 3)
+        else:
+            painter.drawEllipse(left, cy - 5, 10, 10)
+            painter.drawLine(left + 5, cy - 3, left + 5, cy)
+            painter.drawLine(left + 5, cy, left + 8, cy + 2)
+
+        painter.setPen(color)
+        painter.drawText(
+            QRect(left + icon + gap, 0, self.width() - (left + icon + gap),
+                  self.height()),
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+            caption,
+        )
+        painter.end()
+
+
 class _QueueJobCard(QFrame):
     """Render-only card; progress updates come from the engine job."""
 
@@ -320,7 +375,7 @@ class _QueueJobCard(QFrame):
         self.bar.setFixedHeight(8)
         self.bar.setTextVisible(False)
         progress_column.addWidget(self.bar)
-        self.progress_detail = QLabel()
+        self.progress_detail = _UI09QueueProgressDetail()
         self.progress_detail.setObjectName("ui09QueueProgressDetail")
         self.progress_detail.setStyleSheet("font-size:9px;color:#607EA8;")
         self.progress_detail.setAlignment(
