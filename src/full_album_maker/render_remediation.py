@@ -6,7 +6,7 @@ import sys
 from typing import Any
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRect, Qt, QSize, QTimer
-from PySide6.QtGui import QColor, QIcon, QImageReader, QPainter, QPen, QPixmap, QPolygon
+from PySide6.QtGui import QColor, QIcon, QImageReader, QLinearGradient, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -987,6 +987,42 @@ def _ui09_sidebar_surface_style(desktop: bool) -> str:
     )
 
 
+class _UI09CenterHeaderSurface(QWidget):
+    """Draw a display-only banner behind the existing Render Center header.
+
+    QPainter changes zero layout measurements: the original STEP10 header
+    layout continues owning its title, subtitle, and Preflight button.
+    The compact UI keeps its proven Wave20 background without any banner.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.ui09_header_layout = None
+        self.ui09_desktop_header = True
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        if not self.ui09_desktop_header or self.ui09_header_layout is None:
+            return
+        bounds = self.ui09_header_layout.geometry()
+        if bounds.isEmpty():
+            return
+        # The owner reference extends just beyond the actual text/button
+        # row. Draw *behind* the same widgets; never insert a new layout row.
+        banner = QRect(bounds).adjusted(2, -7, 0, 10).intersected(self.rect())
+        if banner.isEmpty():
+            return
+        gradient = QLinearGradient(banner.topLeft(), banner.topRight())
+        gradient.setColorAt(0.0, QColor("#EFF7FE"))
+        gradient.setColorAt(1.0, QColor("#EAF4FE"))
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(gradient)
+        painter.drawRoundedRect(banner, 9, 9)
+        painter.end()
+
+
 def _prepare_center(window) -> None:
     workspace = window.render_workspace_s10
     if getattr(workspace, "_ui09_prepared", False):
@@ -1081,7 +1117,9 @@ def _prepare_center(window) -> None:
     while root.count():
         existing.append(root.takeAt(0))
 
-    center = QWidget(workspace)
+    center = _UI09CenterHeaderSurface(workspace)
+    center.ui09_header_layout = header
+    center.ui09_desktop_header = window.width() >= 1500
     center_layout = QVBoxLayout(center)
     center_layout.setContentsMargins(10, 17 if window.width() >= 1500 else 8, 10, 8)
     center_layout.setSpacing(7)
@@ -1237,6 +1275,8 @@ def _apply_ui09_breakpoint(window) -> None:
         return
 
     desktop = not compact
+    workspace.ui09_center.ui09_desktop_header = desktop
+    workspace.ui09_center.update()
     center = workspace.ui09_center_layout
     center.setContentsMargins(10, 17 if desktop else 8, 10, 8)
     workspace.ui09_center_top_spacer.changeSize(0, 26 if desktop else 0)
