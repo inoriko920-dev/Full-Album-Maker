@@ -202,7 +202,7 @@ def _set_inspector_golden(inspector, settings) -> None:
         inspector._updating = False
 
 
-def capture(output: Path, width: int, height: int, scale: float) -> dict[str, object]:
+def capture(output: Path, width: int, height: int, scale: float, *, skip_qt_teardown: bool = False) -> dict[str, object]:
     os.environ["FAM_STEP09_PROVIDER"] = "mock"
     os.environ["FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER"] = "1"
     _prepare_qt(scale)
@@ -383,6 +383,18 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "queue_row_count": len(queue_rows),
         "queue_rows": queue_rows,
         "ui09_all_queue_rows_visible": ui09_all_queue_rows_visible,
+        "ui09_queue_viewport_height": queue_widget.viewport().height(),
+        "ui09_queue_widget_height": queue_widget.height(),
+        "ui09_queue_item_rects": [
+            [queue_widget.visualItemRect(queue_widget.item(index)).top(),
+             queue_widget.visualItemRect(queue_widget.item(index)).bottom(),
+             queue_widget.visualItemRect(queue_widget.item(index)).height()]
+            for index in range(queue_widget.count())
+        ],
+        "ui09_queue_item_size_hints": [
+            queue_widget.item(index).sizeHint().height()
+            for index in range(queue_widget.count())
+        ],
         "ui09_queue_covers_count": sum(
             bool(
                 window.render_workspace_s10.queue_list.itemWidget(
@@ -437,13 +449,18 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "font_family": font_family,
     }
 
-    if getattr(window, "_s10_async", None) is not None:
-        window._s10_async.close()
-    if getattr(window, "_s09_async", None) is not None:
-        window._s09_async.close()
-    window.hide()
-    window.deleteLater()
-    app.processEvents()
+    if not skip_qt_teardown:
+        # Existing Linux and manual capture behavior remains unchanged.
+        if getattr(window, "_s10_async", None) is not None:
+            window._s10_async.close()
+        if getattr(window, "_s09_async", None) is not None:
+            window._s09_async.close()
+        window.hide()
+        window.deleteLater()
+        app.processEvents()
+    # Windows Qt may access-violate during offscreen QObject shutdown,
+    # even after a valid screenshot/report. The isolated Windows CI process
+    # explicitly terminates after writing and flushing this evidence.
     return geometry
 
 
@@ -454,16 +471,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--width", type=int, default=1672)
     parser.add_argument("--height", type=int, default=941)
     parser.add_argument("--scale", type=float, default=1.0)
+    parser.add_argument(
+        "--skip-qt-teardown",
+        action="store_true",
+        help="Only for isolated Windows offscreen CI capture subprocesses",
+    )
     ns = parser.parse_args(argv)
 
     output = Path(ns.output)
-    geometry = capture(output, ns.width, ns.height, ns.scale)
+    geometry = capture(
+        output, ns.width, ns.height, ns.scale,
+        skip_qt_teardown=ns.skip_qt_teardown,
+    )
     result = {"current": str(output), "geometry": geometry}
     if ns.report:
         report = Path(ns.report)
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=True, indent=2), flush=True)
+    if ns.skip_qt_teardown:
+        # Both files are fully written and flushed before the process exits.
+        # Never silence capture/geometry failures: those throw before this line.
+        os._exit(0)
     return 0
 
 

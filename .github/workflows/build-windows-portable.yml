@@ -91,6 +91,50 @@ jobs:
           FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
         run: python -m pytest -q tests/test_ui09_render_remediation.py
 
+      # Capture on Windows itself, rather than treating Linux Qt pixels as
+      # evidence of native Windows rendering. A synthetic title frame is used
+      # by the existing STEP10 fixture; this is NOT a native window screenshot.
+      - name: Capture and validate Windows Qt UI-09 screenshot evidence
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_SCALE_FACTOR: '1'
+          PYTHONPATH: src
+          FAM_STEP09_PROVIDER: mock
+          FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
+          FAM_STEP11_NO_RECOVERY_PROMPT: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force "ui09-windows-evidence/current" | Out-Null
+          New-Item -ItemType Directory -Force "ui09-windows-evidence/reports" | Out-Null
+
+          # Each invocation is an isolated child; --skip-qt-teardown avoids
+          # intermittent native Qt crashes after an already-written capture.
+          python -m full_album_maker.render_capture_step10 `
+            --output "ui09-windows-evidence/current/render-g09-final.png" `
+            --report "ui09-windows-evidence/reports/render-g09-final.json" `
+            --skip-qt-teardown
+          if ($LASTEXITCODE -ne 0) { throw "Windows desktop UI09 capture failed." }
+
+          python -m full_album_maker.render_capture_step10 `
+            --width 1366 --height 768 `
+            --output "ui09-windows-evidence/current/render-1366-final.png" `
+            --report "ui09-windows-evidence/reports/render-1366-final.json" `
+            --skip-qt-teardown
+          if ($LASTEXITCODE -ne 0) { throw "Windows compact UI09 capture failed." }
+
+          python build/verify_ui09_windows_evidence.py --root "ui09-windows-evidence"
+          if ($LASTEXITCODE -ne 0) { throw "Windows UI09 screenshot and geometry verification failed." }
+
+      - name: Upload isolated Windows UI-09 screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: UI09-Windows-Qt-Offscreen-Evidence
+          path: ui09-windows-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Run regression, long-project, and real FFmpeg tests
         shell: pwsh
         env:
