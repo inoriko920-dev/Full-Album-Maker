@@ -836,9 +836,133 @@ def _prepare_center(window) -> None:
     _sync_preset_surface(window)
 
 
+def _apply_ui09_breakpoint(window) -> None:
+    """Reflow presentation when crossing the desktop/compact window threshold.
+
+    Wave08 tuned the initial desktop capture but froze card and queue density
+    after first Render entry. This path only runs after a breakpoint change;
+    unchanged golden-sized captures retain exactly their prior structure.
+    """
+    workspace = window.render_workspace_s10
+    if not getattr(workspace, "_ui09_prepared", False):
+        return
+    compact = window.width() < 1500
+    if compact == workspace.ui09_compact:
+        return
+
+    desktop = not compact
+    center = workspace.ui09_center_layout
+    center.setContentsMargins(10, 17 if desktop else 8, 10, 8)
+    workspace.ui09_center_top_spacer.changeSize(0, 26 if desktop else 0)
+    subtitle = workspace.ui09_center_subtitle
+    before, after = workspace.ui09_center_extra_spacers
+    if desktop and subtitle is None:
+        subtitle = QLabel("Memeriksa kesiapan proyek untuk rendering.")
+        subtitle.setObjectName("ui09PreflightSubtitle")
+        subtitle.setStyleSheet("font-size:11px;color:#6880A7;")
+        center.insertWidget(3, subtitle)
+        center.insertSpacing(4, 6)
+        center.insertSpacing(6, 12)
+        workspace.ui09_center_subtitle = subtitle
+        before, after = center.itemAt(4).spacerItem(), center.itemAt(6).spacerItem()
+        workspace.ui09_center_extra_spacers = (before, after)
+    elif subtitle is not None:
+        subtitle.setVisible(desktop)
+        before.changeSize(0, 6 if desktop else 0)
+        after.changeSize(0, 12 if desktop else 0)
+
+    for key in ("media", "snapshot", "ffmpeg", "output", "disk"):
+        card = workspace.preflight_cards[key]
+        if desktop:
+            _ui09_prepare_preflight_icon(card, key)
+        glyph = getattr(card, "ui09_icon", None)
+        if glyph is not None:
+            glyph.setVisible(desktop)
+            card.ui09_icon_row.setContentsMargins(5 if desktop else 0, 0, 0, 0)
+            for item, height in zip(
+                card.ui09_icon_spacers, (14, 15) if desktop else (0, 0)
+            ):
+                item.changeSize(0, height)
+            card.layout().invalidate()
+        if desktop:
+            card.setFixedHeight(154)
+        else:
+            # setFixedHeight binds maximumHeight; both bounds must be reset.
+            card.setMaximumHeight(16777215)
+            card.setMinimumHeight(88)
+
+    sidebar = workspace.ui09_sidebar
+    sidebar.setMinimumWidth(274 if desktop else 196)
+    sidebar.setMaximumWidth(282 if desktop else 214)
+    side = workspace.ui09_sidebar_layout
+    side.setContentsMargins(8, 34 if desktop else 8, 8, 8)
+    side.setSpacing(7 if desktop else 6)
+    top_space, history_space = workspace.ui09_sidebar_extra_spacers
+    if desktop and top_space is None:
+        side.insertSpacing(1, 4)
+        side.insertSpacing(side.indexOf(workspace.ui09_history_heading), 24)
+        top_space = side.itemAt(1).spacerItem()
+        history_space = side.itemAt(
+            side.indexOf(workspace.ui09_history_heading) - 1
+        ).spacerItem()
+        workspace.ui09_sidebar_extra_spacers = (top_space, history_space)
+    elif top_space is not None:
+        top_space.changeSize(0, 4 if desktop else 0)
+        history_space.changeSize(0, 24 if desktop else 0)
+
+    for button in workspace.ui09_preset_buttons.values():
+        button.setMaximumHeight(16777215)
+        button.setMinimumHeight(65 if desktop else 55)
+        if desktop:
+            button.setFixedHeight(65)
+
+    graph = getattr(window, "render_performance_s10", None)
+    if graph is not None:
+        graph.setMinimumHeight(112 if desktop else 88)
+        graph.setMaximumHeight(132 if desktop else 100)
+    workspace.queue_list.setMaximumHeight(280 if desktop else 16777215)
+    workspace.ui09_compact = compact
+    _present_queue(workspace, getattr(workspace, "_ui09_last_jobs", ()))
+    center.invalidate()
+    side.invalidate()
+    workspace.ui09_host.updateGeometry()
+
+
+class _UI09ResizeWatcher(QObject):
+    """Schedule at most one layout update after native Qt resize/layout."""
+
+    def __init__(self, window) -> None:
+        super().__init__(window)
+        self._pending = False
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self.parent() and event.type() == QEvent.Type.Resize:
+            workspace = getattr(watched, "render_workspace_s10", None)
+            state = getattr(watched, "foundation_state", None)
+            if (workspace is not None and getattr(workspace, "_ui09_prepared", False)
+                    and state is not None and state.workspace == "render"
+                    and (watched.width() < 1500) != workspace.ui09_compact
+                    and not self._pending):
+                self._pending = True
+                QTimer.singleShot(0, self._refresh)
+        return False
+
+    def _refresh(self) -> None:
+        self._pending = False
+        window = self.parent()
+        if window is not None:
+            state = getattr(window, "foundation_state", None)
+            if state is not None and state.workspace == "render":
+                _apply_ui09_breakpoint(window)
+
+
 def _ensure_ui09(window) -> None:
     _prepare_inspector(window)
     _prepare_center(window)
+    if getattr(window, "_ui09_resize_watcher", None) is None:
+        watcher = _UI09ResizeWatcher(window)
+        window._ui09_resize_watcher = watcher
+        window.installEventFilter(watcher)
 
 
 def _window_route(self, route: str) -> None:
@@ -846,6 +970,7 @@ def _window_route(self, route: str) -> None:
     if route != "render":
         return
     _ensure_ui09(self)
+    _apply_ui09_breakpoint(self)
     self.render_history_s10.show()
     _sync_preset_surface(self)
     # Prior integration/remediation layers may finish a route resize one event
