@@ -243,6 +243,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
     window._s10_queue.jobs = [running, queued, completed]
     window._s10_selected_key = (running.job_id, running.attempt_id)
     window.render_workspace_s10.apply_queue(window._s10_queue.jobs)
+    window.render_history_s10.apply_jobs(window._s10_queue.jobs)
     window.render_workspace_s10.apply_job(running)
     window.render_workspace_s10.log_list.clear()
     for line in running.log_lines:
@@ -382,6 +383,34 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "queue_row_count": len(queue_rows),
         "queue_rows": queue_rows,
         "ui09_all_queue_rows_visible": ui09_all_queue_rows_visible,
+        "ui09_queue_covers_count": sum(
+            bool(
+                window.render_workspace_s10.queue_list.itemWidget(
+                    window.render_workspace_s10.queue_list.item(index)
+                ).cover
+            )
+            for index in range(window.render_workspace_s10.queue_list.count())
+            if window.render_workspace_s10.queue_list.itemWidget(
+                window.render_workspace_s10.queue_list.item(index)
+            ) is not None
+        ),
+        "ui09_queue_real_covers": sum(
+            bool(
+                window.render_workspace_s10.queue_list.itemWidget(
+                    window.render_workspace_s10.queue_list.item(index)
+                ).cover.source_path
+            )
+            for index in range(window.render_workspace_s10.queue_list.count())
+            if window.render_workspace_s10.queue_list.itemWidget(
+                window.render_workspace_s10.queue_list.item(index)
+            ) is not None
+        ),
+        "ui09_history_cards": sum(
+            window.render_history_s10.listing.itemWidget(
+                window.render_history_s10.listing.item(index)
+            ) is not None
+            for index in range(window.render_history_s10.listing.count())
+        ),
         "ui09_queue_card_count": sum(
             1 for index in range(window.render_workspace_s10.queue_list.count())
             if window.render_workspace_s10.queue_list.itemWidget(
