@@ -183,6 +183,7 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "#687793" in cards[1].number.styleSheet()
         assert cards[0].progress_detail.text() == "Estimasi sisa 00:36"
         assert cards[1].progress_detail.text() == "◷ Dalam antrean"
+        assert cards[1].note.text() == "Menunggu antrean..."
         assert cards[2].progress_detail.text() == "✓ File terverifikasi"
         from full_album_maker.render_remediation import _UI09QueueProgressDetail
         assert all(isinstance(card.progress_detail, _UI09QueueProgressDetail)
