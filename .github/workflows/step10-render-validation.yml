@@ -12,6 +12,7 @@ on:
       - ui/ui09-wave05-queue-graph-parity
       - ui/ui09-wave06-queued-verified-cards
       - qa/ui09-wave07-windows-offscreen-evidence
+      - ui/ui09-wave08-preflight-vector-icons
   workflow_dispatch:
 
 permissions:
