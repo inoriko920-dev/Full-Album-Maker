@@ -55,6 +55,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
+      - name: Verify tested PySide6 and Shiboken versions
+        run: |
+          python - <<'PY'
+          import PySide6
+          import shiboken6
+          assert PySide6.__version__ == "6.11.2", PySide6.__version__
+          assert shiboken6.__version__ == "6.11.2", shiboken6.__version__
+          print("Qt 6.11.2 dependency freeze verified")
+          PY
       - name: Compile source
         run: python -m compileall -q src
       - name: Run STEP10 focused render tests
