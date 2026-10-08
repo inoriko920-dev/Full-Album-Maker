@@ -383,6 +383,18 @@ def capture(output: Path, width: int, height: int, scale: float, *, skip_qt_tear
         "queue_row_count": len(queue_rows),
         "queue_rows": queue_rows,
         "ui09_all_queue_rows_visible": ui09_all_queue_rows_visible,
+        "ui09_queue_viewport_height": queue_widget.viewport().height(),
+        "ui09_queue_widget_height": queue_widget.height(),
+        "ui09_queue_item_rects": [
+            [queue_widget.visualItemRect(queue_widget.item(index)).top(),
+             queue_widget.visualItemRect(queue_widget.item(index)).bottom(),
+             queue_widget.visualItemRect(queue_widget.item(index)).height()]
+            for index in range(queue_widget.count())
+        ],
+        "ui09_queue_item_size_hints": [
+            queue_widget.item(index).sizeHint().height()
+            for index in range(queue_widget.count())
+        ],
         "ui09_queue_covers_count": sum(
             bool(
                 window.render_workspace_s10.queue_list.itemWidget(
