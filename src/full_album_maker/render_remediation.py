@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QSize, QTimer
+from PySide6.QtCore import QEvent, QObject, QPoint, QRect, Qt, QSize, QTimer
 from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -640,6 +640,83 @@ def _ui09_preflight_icon(kind: str) -> QPixmap:
     return image
 
 
+class _UI09PreflightStatusLabel(QLabel):
+    """Paint status badges while retaining exact STEP10 state .text().
+
+    On Windows Unicode status prefix glyphs sometimes render as empty squares.
+    STEP10 set_check still exclusively owns this widget's text/status updates.
+    """
+
+    def paintEvent(self, event) -> None:
+        raw = self.text().strip()
+        if raw == "✓ PASS":
+            label, color = "PASS", QColor("#17A84E")
+        elif raw == "⚠ WARN":
+            label, color = "WARN", QColor("#F29C00")
+        elif raw == "✕ BLOCK":
+            label, color = "BLOCK", QColor("#D64545")
+        else:
+            super().paintEvent(event)
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        cy = self.height() // 2
+        radius = min(11, max(6, cy - 1))
+        cx = radius + 1
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        if label == "WARN":
+            painter.drawPolygon(QPolygon([
+                QPoint(cx, cy - radius),
+                QPoint(cx - radius, cy + radius - 2),
+                QPoint(cx + radius, cy + radius - 2),
+            ]))
+            painter.setPen(QPen(QColor("#FFFFFF"), 2.2))
+            painter.drawLine(cx, cy - 4, cx, cy + 2)
+            painter.drawPoint(cx, cy + 6)
+        else:
+            painter.drawEllipse(cx - radius, cy - radius,
+                                2 * radius, 2 * radius)
+            painter.setPen(QPen(QColor("#FFFFFF"), 2.4))
+            if label == "PASS":
+                painter.drawLine(cx - 5, cy, cx - 1, cy + 4)
+                painter.drawLine(cx - 1, cy + 4, cx + 6, cy - 5)
+            else:
+                painter.drawLine(cx - 4, cy - 4, cx + 4, cy + 4)
+                painter.drawLine(cx + 4, cy - 4, cx - 4, cy + 4)
+
+        font = self.font()
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(color)
+        left = 2 * radius + 8
+        painter.drawText(
+            QRect(left, 0, max(0, self.width() - left), self.height()),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            label,
+        )
+        painter.end()
+
+
+def _ui09_prepare_preflight_status(card) -> None:
+    """Replace presentation label only; preserve existing STEP10 set_check."""
+    if isinstance(card.state, _UI09PreflightStatusLabel):
+        return
+    old = card.state
+    replacement = _UI09PreflightStatusLabel(old.text(), card)
+    replacement.setObjectName(old.objectName())
+    replacement.setStyleSheet(old.styleSheet())
+    replacement.setAccessibleName(old.accessibleName())
+    replacement.setSizePolicy(old.sizePolicy())
+    replacement.setMinimumHeight(26)
+    content = card.layout()
+    content.replaceWidget(old, replacement)
+    card.state = replacement
+    old.hide()
+    old.deleteLater()
+
+
 def _ui09_prepare_preflight_icon(card, kind: str) -> None:
     """Decorate the existing status card; keep its state/detail ownership."""
     if getattr(card, "ui09_icon", None) is not None:
@@ -718,6 +795,7 @@ def _prepare_center(window) -> None:
                 continue
             grid.removeWidget(card)
             card.title.setText(titles[key])
+            _ui09_prepare_preflight_status(card)
             if window.width() >= 1500:
                 _ui09_prepare_preflight_icon(card, key)
             if window.width() >= 1500:
