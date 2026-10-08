@@ -48,6 +48,13 @@ def test_performance_graph_only_visualizes_reported_metrics() -> None:
     assert graph.point_count == 2
     graph.resize(650, 120)
     assert not graph.grab().isNull()
+    # The 1672px desktop chart paints three columns from the same observed
+    # metrics; there is no estimation or extra job/engine state involved.
+    graph.resize(800, 120)
+    assert not graph.grab().isNull()
+    assert graph.point_count == 2
+    assert graph._points[-1].average_fps == 105.0
+    assert graph._points[-1].eta_seconds == 1.5
     # Rendering the graph is read-only and cannot synthesize metrics.
     assert graph.point_count == 2
     graph.clear()
