@@ -187,12 +187,21 @@ def test_ui09_render_remediation_route_contract() -> None:
         # Without real image media, show an honest music placeholder.
         assert all(card.cover.source_path is None for card in cards)
         assert all(card.cover.text() == "♫" for card in cards)
+        # Music notes are Qt painted, never Unicode font fallback squares.
+        # Center stem stays dark blue against the light blue fallback field.
+        for card in cards:
+            cover_image = card.cover.grab().toImage()
+            assert cover_image.pixelColor(10, 22).red() - cover_image.pixelColor(37, 22).red() > 110
+            assert cover_image.pixelColor(37, 22).blue() > cover_image.pixelColor(37, 22).red()
         history = window.render_history_s10
         history.apply_jobs((running, queued, completed))
         assert history.listing.count() == 1
         history_card = history.listing.itemWidget(history.listing.item(0))
         assert history_card is not None
         assert history_card.cover.source_path is None
+        assert history_card.cover.text() == "♫"
+        history_cover = history_card.cover.grab().toImage()
+        assert history_cover.pixelColor(10, 22).red() - history_cover.pixelColor(37, 22).red() > 110
         assert "Terverifikasi" in history_card.status.text()
         assert [card.state.text() for card in cards] == [
             "RUNNING", "ANTREAN", "SELESAI"
