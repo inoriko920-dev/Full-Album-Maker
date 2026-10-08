@@ -284,8 +284,8 @@ class _UI09QueueProgressDetail(QLabel):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setFont(self.font())
-        icon = 14 if marker == "queued" else 10
-        gap = 18 if marker == "queued" else 4
+        icon = 20 if marker == "queued" else 10
+        gap = 12 if marker == "queued" else 4
         text_width = painter.fontMetrics().horizontalAdvance(caption)
         # The frozen golden queue clock sits left of its caption, with a
         # visible gap. Keep it inside the label at compact breakpoints.
@@ -306,9 +306,9 @@ class _UI09QueueProgressDetail(QLabel):
             painter.drawLine(left + 2, cy, left + 4, cy + 2)
             painter.drawLine(left + 4, cy + 2, left + 8, cy - 3)
         else:
-            painter.drawEllipse(left, cy - 7, 14, 14)
-            painter.drawLine(left + 7, cy - 4, left + 7, cy)
-            painter.drawLine(left + 7, cy, left + 11, cy + 2)
+            painter.drawEllipse(left, cy - 10, 20, 20)
+            painter.drawLine(left + 10, cy - 6, left + 10, cy)
+            painter.drawLine(left + 10, cy, left + 15, cy + 3)
 
         painter.setPen(color)
         painter.drawText(
@@ -423,6 +423,11 @@ class _QueueJobCard(QFrame):
         )
         self.progress_detail.setText("")
         self.progress_column.setSpacing(1 if job.state == RenderJobState.QUEUED else 7)
+        # The reference clock/status sits higher than Qt's default bottom
+        # row; retain other states' exact geometry and semantics.
+        self.progress_column.setContentsMargins(
+            0, 0, 0, 7 if job.state == RenderJobState.QUEUED else 0
+        )
         self.state.setStyleSheet("font-size:10px;color:#52729A;")
         self.progress_detail.setStyleSheet("font-size:9px;color:#607EA8;")
         if job.state == RenderJobState.COMPLETED and bool(job.verified_output):
