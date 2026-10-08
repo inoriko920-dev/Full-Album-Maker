@@ -250,6 +250,24 @@ def test_ui09_render_remediation_route_contract() -> None:
         history_cover = history_card.cover.grab().toImage()
         assert history_cover.pixelColor(10, 22).red() - history_cover.pixelColor(37, 22).red() > 110
         assert "Terverifikasi" in history_card.status.text()
+        assert "#58739B" in history_card.status.styleSheet()
+        assert history_card.title.toolTip() == str(completed.settings.final_output)
+        assert history.listing.count() == 1
+        # A falsely completed-but-unverified output must not receive the
+        # visual verified badge or a made-up output history record.
+        original_verified = completed.verified_output
+        completed.verified_output = ""
+        history.apply_jobs((running, queued, completed))
+        unverified_card = history.listing.itemWidget(history.listing.item(0))
+        assert unverified_card.status.text() == "COMPLETED"
+        assert "#6A7C96" in unverified_card.status.styleSheet()
+        assert "Terverifikasi" not in unverified_card.status.text()
+        assert history.listing.count() == 1
+        completed.verified_output = original_verified
+        history.apply_jobs((running, queued, completed))
+        restored_card = history.listing.itemWidget(history.listing.item(0))
+        assert restored_card.status.text() == "Selesai · Terverifikasi"
+        assert "#58739B" in restored_card.status.styleSheet()
         assert [card.state.text() for card in cards] == [
             "RUNNING", "ANTREAN", "SELESAI"
         ]
