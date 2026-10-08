@@ -838,12 +838,12 @@ def _prepare_center(window) -> None:
         side.addWidget(button)
         workspace.ui09_preset_buttons[preset_id] = button
         # The frozen golden has approximately 72px center-to-center preset
-        # spacing, while default Qt card layout yields about 60px. A 2px
-        # explicit spacer plus the layout's native 10px inter-item spacing
-        # targets only the three intervals between the four preset cards.
+        # spacing, while default Qt card layout yields about 60px. An explicit
+        # 12px spacer produces the target 72px on Windows-hosted Qt evidence,
+        # without changing the compact layout or non-preset controls.
         # Keep an owned spacer for reversible compact/desktop transitions.
         if preset_id != "custom":
-            spacer = QSpacerItem(0, 2, QSizePolicy.Policy.Minimum,
+            spacer = QSpacerItem(0, 12, QSizePolicy.Policy.Minimum,
                                  QSizePolicy.Policy.Fixed)
             preset_gap_items.append((preset_id, spacer))
             if desktop:
