@@ -39,29 +39,84 @@ class RenderPerformanceGraph(QWidget):
         return len(self._points)
 
     def paintEvent(self, _event) -> None:
+        """Plot observed FFmpeg percent and FPS only; never predict job state."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.fillRect(self.rect(), QColor(TOKENS.surface))
-        area = QRectF(self.rect()).adjusted(10, 9, -10, -15)
+
+        area = QRectF(self.rect()).adjusted(9, 6, -9, -7)
         painter.setPen(QPen(QColor(TOKENS.border), 1))
+        painter.setBrush(QColor("#FFFFFF"))
         painter.drawRoundedRect(area, 7, 7)
-        painter.setPen(QColor(TOKENS.text_muted))
-        painter.drawText(area.adjusted(8, 2, -8, -2), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, "Performance • FFmpeg metrics")
+
+        title = area.adjusted(11, 2, -11, -2)
+        painter.setPen(QColor("#25486F"))
+        painter.drawText(
+            title,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+            "Grafik Performa Render",
+        )
         if len(self._points) < 2:
-            painter.drawText(area, Qt.AlignmentFlag.AlignCenter, "Menunggu metric render…")
+            painter.setPen(QColor(TOKENS.text_muted))
+            painter.drawText(
+                area,
+                Qt.AlignmentFlag.AlignCenter,
+                "Menunggu metrik FFmpeg…",
+            )
             painter.end()
             return
 
-        plot = area.adjusted(8, 22, -8, -7)
-        values = [max(0.0, min(100.0, item.percent)) for item in self._points]
-        count = len(values)
-        painter.setPen(QPen(QColor(TOKENS.primary_600), 2))
-        previous = None
-        for index, value in enumerate(values):
-            x = plot.left() + (index / max(1, count - 1)) * plot.width()
-            y = plot.bottom() - (value / 100.0) * plot.height()
-            point = QPointF(x, y)
-            if previous is not None:
-                painter.drawLine(previous, point)
-            previous = point
+        latest = self._points[-1]
+        summary = f"Progres {latest.percent:.0f}%"
+        if latest.fps is not None:
+            summary += f"  •  {latest.fps:.0f} FPS"
+        painter.setPen(QColor("#5B7598"))
+        painter.drawText(
+            title,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+            summary,
+        )
+
+        plot = area.adjusted(12, 23, -12, -18)
+        for fraction in (0.25, 0.50, 0.75):
+            y = plot.bottom() - fraction * plot.height()
+            painter.setPen(QPen(QColor("#E7EEF7"), 1, Qt.PenStyle.DashLine))
+            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
+
+        def draw_metrics(values, max_value: float, color: str) -> None:
+            painter.setPen(QPen(QColor(color), 2))
+            previous = None
+            for index, value in enumerate(values):
+                if value is None:
+                    previous = None
+                    continue
+                x = plot.left() + index / max(1, len(values) - 1) * plot.width()
+                y = plot.bottom() - max(0.0, min(float(value) / max_value, 1.0)) * plot.height()
+                current = QPointF(x, y)
+                if previous is not None:
+                    painter.drawLine(previous, current)
+                previous = current
+
+        # The blue curve is output percent. The green curve is observed FPS
+        # normalized only to the maximum *already observed* sample.
+        draw_metrics([point.percent for point in self._points], 100.0, "#146CE5")
+        fps = [point.fps for point in self._points]
+        observed_fps = [float(v) for v in fps if v is not None]
+        if observed_fps:
+            draw_metrics(fps, max(1.0, max(observed_fps)), "#14A88A")
+
+        legend = area.adjusted(11, 0, -11, -3)
+        painter.setPen(QColor("#146CE5"))
+        painter.drawText(
+            legend,
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft,
+            "● Progres",
+        )
+        if observed_fps:
+            painter.setPen(QColor("#14A88A"))
+            painter.drawText(
+                legend,
+                Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
+                "● FPS aktual",
+            )
         painter.end()
