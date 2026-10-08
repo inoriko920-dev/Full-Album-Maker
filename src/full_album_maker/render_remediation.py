@@ -189,7 +189,7 @@ def _visible_queue_jobs(jobs):
 class _QueueJobCard(QFrame):
     """Render-only card; progress updates come from the engine job."""
 
-    def __init__(self, job, position: int, parent=None) -> None:
+    def __init__(self, job, position: int, *, compact=False, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("ui09QueueJobCard")
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -210,11 +210,7 @@ class _QueueJobCard(QFrame):
             "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
         )
         layout.addWidget(number)
-        self.cover = _JobCoverThumb(
-            job, compact=parent is not None and
-            getattr(parent.parentWidget(), "ui09_compact", False),
-            parent=self,
-        )
+        self.cover = _JobCoverThumb(job, compact=compact, parent=self)
         layout.addWidget(self.cover)
 
         content = QVBoxLayout()
@@ -285,7 +281,11 @@ def _present_queue(workspace, jobs) -> None:
         if item is None:
             break
         item.setSizeHint(QSize(0, 68 if getattr(workspace, 'ui09_compact', False) else 78))
-        card = _QueueJobCard(job, index + 1, workspace.queue_list)
+        card = _QueueJobCard(
+            job, index + 1,
+            compact=bool(getattr(workspace, "ui09_compact", False)),
+            parent=workspace.queue_list,
+        )
         workspace.queue_list.setItemWidget(item, card)
         widgets[(job.job_id, job.attempt_id)] = card
     workspace.ui09_queue_widgets = widgets
