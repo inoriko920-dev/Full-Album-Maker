@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from typing import Any
 
 from PySide6.QtCore import Qt, QSize, QTimer
@@ -609,7 +610,11 @@ def _prepare_center(window) -> None:
     # remains visible while the preflight cards receive proper vertical space.
     if window.width() >= 1500:
         workspace.queue_list.setMaximumHeight(280)
-    workspace.queue_list.setSpacing(5)
+    # The Windows Qt offscreen font metrics leave 2px desktop and 5px compact
+    # of the third row below the viewport with spacing=5. Reducing Windows
+    # inter-row spacing by four pixels avoids cropping without shrinking
+    # thumbnails, progress controls, or the Linux golden presentation.
+    workspace.queue_list.setSpacing(1 if sys.platform == "win32" else 5)
     workspace.queue_list.setStyleSheet(
         "QListWidget{border:0;background:#F7FAFF;padding:3px;}"
         "QListWidget::item{border:0;margin:0;padding:0;}"
