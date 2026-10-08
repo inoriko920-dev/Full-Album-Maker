@@ -365,7 +365,6 @@ class _QueueJobCard(QFrame):
 
         progress_column = QVBoxLayout()
         progress_column.setSpacing(7)
-        self.progress_column = progress_column
         value_line = QHBoxLayout()
         self.percent = QLabel()
         self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
@@ -422,12 +421,17 @@ class _QueueJobCard(QFrame):
             "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
         )
         self.progress_detail.setText("")
-        self.progress_column.setSpacing(1 if job.state == RenderJobState.QUEUED else 7)
-        # The reference clock/status sits higher than Qt's default bottom
-        # row; retain other states' exact geometry and semantics.
-        self.progress_column.setContentsMargins(
-            0, 0, 0, 7 if job.state == RenderJobState.QUEUED else 0
-        )
+        # Resolve the already-owned Qt layout at refresh time rather than
+        # keeping a second Python strong reference to a child QLayout.
+        # That avoids late PySide6 native-lifetime hazards on CI teardown.
+        progress_layout = self.layout().itemAt(3).layout()
+        if progress_layout is not None:
+            progress_layout.setSpacing(
+                1 if job.state == RenderJobState.QUEUED else 7
+            )
+            progress_layout.setContentsMargins(
+                0, 0, 0, 7 if job.state == RenderJobState.QUEUED else 0
+            )
         self.state.setStyleSheet("font-size:10px;color:#52729A;")
         self.progress_detail.setStyleSheet("font-size:9px;color:#607EA8;")
         if job.state == RenderJobState.COMPLETED and bool(job.verified_output):
