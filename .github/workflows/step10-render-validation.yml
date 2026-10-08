@@ -20,6 +20,7 @@ on:
       - ui/ui09-wave13-vector-music-placeholder
       - fix/pyside6-6-11-2-qt-teardown
       - ui/ui09-wave14r-after-pyside-hotfix
+      - ui/ui09-wave17-history-status-contrast
       - ui/ui09-wave15-history-heading
       - ui/ui09-wave16-history-title-parity
   workflow_dispatch:
