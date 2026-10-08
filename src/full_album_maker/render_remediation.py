@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
 from PySide6.QtGui import QColor, QImageReader, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -368,6 +368,8 @@ def _present_queue(workspace, jobs) -> None:
 def _apply_queue_presentation(self, jobs) -> None:
     jobs = tuple(jobs)
     _originals["apply_queue"](self, jobs)
+    # Last STEP10 job snapshots for repaint; never a second queue owner.
+    self._ui09_last_jobs = jobs
     if getattr(self, "_ui09_prepared", False):
         _present_queue(self, jobs)
 
@@ -629,6 +631,12 @@ def _ui09_prepare_preflight_icon(card, kind: str) -> None:
     content.insertSpacing(3, 15)
     content.addStretch(1)
     card.ui09_icon = glyph
+    # Preserve layout items for reversible desktop/compact spacing.
+    card.ui09_icon_row = row
+    card.ui09_icon_spacers = (
+        content.itemAt(1).spacerItem(),
+        content.itemAt(3).spacerItem(),
+    )
 
 
 def _prepare_center(window) -> None:
@@ -804,9 +812,24 @@ def _prepare_center(window) -> None:
     workspace.ui09_center = center
     workspace.ui09_host = host
     workspace.ui09_compact = window.width() < 1500
+    workspace.ui09_center_layout = center_layout
+    workspace.ui09_center_top_spacer = center_layout.itemAt(1).spacerItem()
+    workspace.ui09_center_subtitle = preflight_subtitle if desktop_golden else None
+    workspace.ui09_center_extra_spacers = (
+        (center_layout.itemAt(4).spacerItem(), center_layout.itemAt(6).spacerItem())
+        if desktop_golden else (None, None)
+    )
+    workspace.ui09_sidebar_layout = side
+    workspace.ui09_history_heading = history_title
+    workspace.ui09_sidebar_extra_spacers = (
+        (side.itemAt(1).spacerItem(),
+         side.itemAt(side.indexOf(history_title) - 1).spacerItem())
+        if desktop_golden else (None, None)
+    )
     workspace._ui09_prepared = True
     # Initial STEP10 updates happen before the Render route is constructed.
-    _present_queue(workspace, tuple(window._s10_queue.jobs))
+    workspace._ui09_last_jobs = tuple(window._s10_queue.jobs)
+    _present_queue(workspace, workspace._ui09_last_jobs)
 
     inspector = window.render_inspector_s10
     inspector.preset.currentIndexChanged.connect(lambda *_: _sync_preset_surface(window))
