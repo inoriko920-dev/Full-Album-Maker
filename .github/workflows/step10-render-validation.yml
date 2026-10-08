@@ -19,6 +19,7 @@ on:
       - ui/ui09-wave12-preflight-action
       - ui/ui09-wave13-vector-music-placeholder
       - fix/pyside6-6-11-2-qt-teardown
+      - ui/ui09-wave14r-after-pyside-hotfix
   workflow_dispatch:
 
 permissions:
@@ -84,6 +85,22 @@ jobs:
             tests/test_step09_history_store.py \
             tests/test_step09_session_flow.py \
             tests/test_step09_workspace_ui.py
+      - name: Diagnose native Qt shutdown in independent test modules
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          for testcase in \
+            tests/test_atomic_render_bundle.py \
+            tests/test_render_lifecycle.py \
+            tests/test_editor_v2_render.py \
+            tests/test_renderer_integration.py \
+            tests/test_safety_and_renderer.py \
+            tests/test_editor_v2_s11_spectrum_free_audio.py; do
+            echo "::group::Native Qt teardown check: ${testcase}"
+            PYTHONFAULTHANDLER=1 python -X faulthandler -m pytest -q "${testcase}"
+            echo "Complete process exit 0: ${testcase}"
+            echo "::endgroup::"
+          done
       - name: Run recovered render lifecycle regression
         run: |
           python -m pytest -q \
