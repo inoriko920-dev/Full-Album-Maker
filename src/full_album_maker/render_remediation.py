@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
@@ -801,6 +802,7 @@ def _prepare_center(window) -> None:
         side.addSpacing(9)
 
     workspace.ui09_preset_buttons = {}
+    preset_gap_items = []
     for preset_id, label in _PRESET_SURFACE:
         button = QPushButton(label)
         button.setAccessibleName("Preset Render " + label.splitlines()[0])
@@ -823,7 +825,7 @@ def _prepare_center(window) -> None:
         glyph.setPixmap(_ui09_preset_icon(preset_id))
         glyph.setFixedSize(36, 32)
         glyph.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        glyph.move(5, 8)
+        glyph.move(5, 11)
         glyph.show()
         button.ui09_preset_glyph = glyph
         # Qt styles may reset minimum heights when the widget is polished.
@@ -835,6 +837,18 @@ def _prepare_center(window) -> None:
         )
         side.addWidget(button)
         workspace.ui09_preset_buttons[preset_id] = button
+        # The frozen golden has approximately 72px center-to-center preset
+        # spacing, while default Qt card layout yields about 60px. A 2px
+        # explicit spacer plus the layout's native 10px inter-item spacing
+        # targets only the three intervals between the four preset cards.
+        # Keep an owned spacer for reversible compact/desktop transitions.
+        if preset_id != "custom":
+            spacer = QSpacerItem(0, 2, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Fixed)
+            preset_gap_items.append((preset_id, spacer))
+            if desktop:
+                side.addItem(spacer)
+    workspace.ui09_preset_gap_items = preset_gap_items
 
     if desktop:
         side.addSpacing(24)
@@ -961,6 +975,14 @@ def _apply_ui09_breakpoint(window) -> None:
         button.setMinimumHeight(81 if desktop else 55)
         if desktop:
             button.setFixedHeight(81)
+    # Remove the real QSpacerItem from the compact layout (hiding a 0px
+    # spacer would leave another native Qt layout gap). Reinsert on desktop.
+    for preset_id, spacer in workspace.ui09_preset_gap_items:
+        if desktop:
+            button = workspace.ui09_preset_buttons[preset_id]
+            side.insertItem(side.indexOf(button) + 1, spacer)
+        else:
+            side.removeItem(spacer)
 
     graph = getattr(window, "render_performance_s10", None)
     if graph is not None:
