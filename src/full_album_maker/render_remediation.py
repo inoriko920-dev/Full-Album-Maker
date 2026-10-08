@@ -296,7 +296,7 @@ def _prepare_center(window) -> None:
                 continue
             grid.removeWidget(card)
             card.title.setText(titles[key])
-            card.setMinimumHeight(108)
+            card.setMinimumHeight(154)
             grid.addWidget(card, 0, column)
 
     active_card = workspace.progress.parentWidget()
@@ -329,6 +329,7 @@ def _prepare_center(window) -> None:
     preflight_heading = QLabel("Hasil Preflight")
     preflight_heading.setObjectName("sectionHeading")
     center_layout.insertWidget(1, preflight_heading)
+    center_layout.insertSpacing(1, 14)
 
     # Performance belongs below the queue in the golden visual hierarchy.
     graph = getattr(window, "render_performance_s10", None)
@@ -338,8 +339,11 @@ def _prepare_center(window) -> None:
 
     sidebar = QFrame(workspace)
     sidebar.setObjectName("ui09RenderSidebar")
-    sidebar.setMinimumWidth(196)
-    sidebar.setMaximumWidth(214)
+    # Golden viewport reserves a substantial preset/history rail; compact
+    # layouts keep the smaller rail to avoid squeezing preflight/queue cards.
+    desktop = window.width() >= 1500
+    sidebar.setMinimumWidth(274 if desktop else 196)
+    sidebar.setMaximumWidth(282 if desktop else 214)
     side = QVBoxLayout(sidebar)
     side.setContentsMargins(8, 8, 8, 8)
     side.setSpacing(6)
