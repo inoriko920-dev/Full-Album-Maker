@@ -13,6 +13,7 @@ on:
       - ui/ui09-wave06-queued-verified-cards
       - qa/ui09-wave07-windows-offscreen-evidence
       - ui/ui09-wave08-preflight-vector-icons
+      - ui/ui09-wave09-responsive-reflow
   workflow_dispatch:
 
 permissions:

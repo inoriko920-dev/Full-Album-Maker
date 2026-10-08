@@ -245,3 +245,105 @@ def test_ui09_render_remediation_route_contract() -> None:
     )
     assert result.returncode == 0, result.stdout + "\n" + result.stderr
     assert "UI09_RENDER_REMEDIATION_PASS" in result.stdout
+
+
+def test_ui09_resize_reflow_preserves_queue_and_golden_desktop() -> None:
+    """Window resize must not freeze Wave08 desktop card heights in compact."""
+    script = textwrap.dedent(
+        r"""
+        import os
+        import tempfile
+        from pathlib import Path
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("FAM_STEP11_NO_RECOVERY_PROMPT", "1")
+        os.environ.setdefault("FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER", "1")
+        os.environ.setdefault("FAM_STEP09_PROVIDER", "mock")
+
+        import full_album_maker.main
+        from PySide6.QtCore import QEventLoop, QTimer
+        from PySide6.QtWidgets import QApplication
+        from full_album_maker.foundation_window import FoundationMainWindow
+        from full_album_maker.render_capture_step10 import _fixture_document, _mock_jobs
+
+        app = QApplication.instance() or QApplication([])
+        root = Path(tempfile.mkdtemp(prefix="fam-ui09-resize-"))
+        document = _fixture_document(root)
+        signature = document.content_signature()
+        window = FoundationMainWindow()
+        window.resize(1672, 941)
+        window._foundation_project_open = True
+        window.editor_workspace.set_document(document)
+        window.foundation_shell.set_workspace("render")
+        window.show()
+
+        def settle():
+            app.processEvents()
+            loop = QEventLoop()
+            QTimer.singleShot(90, loop.quit)
+            loop.exec()
+            app.processEvents()
+
+        settle()
+        workspace = window.render_workspace_s10
+        running, queued, completed = _mock_jobs(document, root)
+        workspace.apply_queue((running, queued, completed))
+        settle()
+        assert workspace.ui09_compact is False
+        assert workspace.queue_list.count() == 3
+        assert all(workspace.preflight_cards[k].height() == 154 for k in
+                   ("media", "snapshot", "ffmpeg", "output", "disk"))
+
+        window.resize(1366, 768)
+        settle()
+        assert window.width() == 1366, window.width()
+        assert workspace.ui09_compact is True
+        assert workspace.ui09_sidebar.width() in range(196, 215)
+        assert workspace.queue_list.count() == 3
+        assert all(workspace.preflight_cards[k].minimumHeight() == 88
+                   and workspace.preflight_cards[k].maximumHeight() > 154
+                   and workspace.preflight_cards[k].ui09_icon.isHidden()
+                   for k in ("media", "snapshot", "ffmpeg", "output", "disk"))
+        import sys
+        expected = 65 if sys.platform == "win32" else 68
+        assert [workspace.queue_list.item(i).sizeHint().height()
+                for i in range(3)] == [expected] * 3
+        assert all(workspace.queue_list.visualItemRect(
+                    workspace.queue_list.item(i)).bottom()
+                    < workspace.queue_list.viewport().height() for i in range(3)), (
+                    workspace.queue_list.viewport().height(),
+                    [workspace.queue_list.visualItemRect(
+                        workspace.queue_list.item(i)).getRect() for i in range(3)]
+                )
+
+        window.resize(1672, 941)
+        settle()
+        assert workspace.ui09_compact is False
+        assert workspace.ui09_sidebar.width() in range(274, 283)
+        assert all(workspace.preflight_cards[k].minimumHeight() == 154
+                   and workspace.preflight_cards[k].maximumHeight() == 154
+                   and not workspace.preflight_cards[k].ui09_icon.isHidden()
+                   for k in ("media", "snapshot", "ffmpeg", "output", "disk"))
+        assert [workspace.queue_list.item(i).sizeHint().height()
+                for i in range(3)] == [76 if sys.platform == "win32" else 78] * 3
+        assert workspace.queue_list.count() == 3
+        assert window.editor_workspace.document().content_signature() == signature
+        assert workspace.ui09_queue_widgets[(completed.job_id, completed.attempt_id)].progress_detail.text() == "✓ File terverifikasi"
+        print("UI09_RESIZE_REFLOW_PASS", flush=True)
+        os._exit(0)
+        """
+    )
+    env = dict(os.environ)
+    env["QT_QPA_PLATFORM"] = "offscreen"
+    env["FAM_STEP11_NO_RECOVERY_PROMPT"] = "1"
+    env["FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER"] = "1"
+    env["FAM_STEP09_PROVIDER"] = "mock"
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
+    assert "UI09_RESIZE_REFLOW_PASS" in result.stdout
