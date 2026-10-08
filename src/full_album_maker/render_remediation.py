@@ -797,9 +797,10 @@ def _prepare_center(window) -> None:
         preflight.setAccessibleName("Jalankan Preflight")
         preflight.setMinimumSize(QSize(172, 46))
         preflight.setStyleSheet(
-            "QPushButton{background:#FFFFFF;color:#0864DC;"
+            "QPushButton{background:#F8FBFF;color:#0864DC;"
             "border:1px solid #98BCFF;border-radius:6px;"
-            "font-size:12px;font-weight:700;padding:6px 10px;}"
+            "font-size:12px;font-weight:700;padding:6px 10px;"
+            "margin-top:4px;}"
             "QPushButton:hover{background:#F1F7FF;border-color:#0864DC;}"
             "QPushButton:pressed{background:#E1EFFF;}"
         )
