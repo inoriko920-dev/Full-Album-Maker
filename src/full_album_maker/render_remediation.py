@@ -207,6 +207,23 @@ class _UI09HistoryHeading(QLabel):
         painter.end()
 
 
+# Display-only Indonesian labels for terminal render attempts. The
+# underlying RenderJobState/RenderQueue and retry eligibility never change.
+_HISTORY_TERMINAL_STATUS = {
+    RenderJobState.COMPLETED: "Selesai · Belum terverifikasi",
+    RenderJobState.FAILED: "Gagal",
+    RenderJobState.CANCELLED: "Dibatalkan",
+    RenderJobState.INTERRUPTED: "Terhenti",
+    RenderJobState.BLOCKED: "Diblokir",
+}
+
+
+def _ui09_history_status_text(job) -> str:
+    if job.state == RenderJobState.COMPLETED and bool(job.verified_output):
+        return "Selesai · Terverifikasi"
+    return _HISTORY_TERMINAL_STATUS.get(job.state, job.state.value)
+
+
 class _RenderHistoryCard(QFrame):
     """Read-only visual surface over the original clickable history item."""
 
@@ -237,9 +254,10 @@ class _RenderHistoryCard(QFrame):
         )
         self.format.setStyleSheet("font-size:10px;color:#58739B;")
         done = job.state == RenderJobState.COMPLETED and bool(job.verified_output)
-        self.status = QLabel(
-            "Selesai · Terverifikasi" if done else job.state.value
-        )
+        self.status = QLabel(_ui09_history_status_text(job))
+        # Native job metadata stays available on hover. No rendered file is
+        # presented as verified unless STEP10 has marked the attempt so.
+        self.status.setToolTip(job.error_message or job.state.value)
         self.status.setStyleSheet(
             # Owner-golden metadata uses readable muted blue; whether
             # output was verified still belongs exclusively to RenderJob.
