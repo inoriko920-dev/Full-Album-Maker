@@ -70,10 +70,10 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert preset_card.objectName() == "ui09PresetCard"
         assert preset_card.isVisible() and preset_card.height() >= 48
         assert workspace.queue_list.maximumHeight() == 280
-        # Windows native Qt spacing differs; keep the full card controls and
-        # fit all three rows instead of shortening or scrolling the queue.
+        # Windows Qt native viewport is 2px shorter in desktop and 5px in
+        # compact capture; preserve card gaps and only trim the row hint.
         import sys
-        assert workspace.queue_list.spacing() == (1 if sys.platform == "win32" else 5)
+        assert workspace.queue_list.spacing() == 5
 
         assert inspector.start.text() == "Render Sekarang"
         assert inspector.preset.isHidden() is True
@@ -111,6 +111,11 @@ def test_ui09_render_remediation_route_contract() -> None:
         running, queued, completed = _mock_jobs(document, root)
         workspace.apply_queue((running, queued, completed))
         assert workspace.queue_list.count() == 3
+        expected_height = 76 if sys.platform == "win32" else 78
+        assert [
+            workspace.queue_list.item(i).sizeHint().height()
+            for i in range(3)
+        ] == [expected_height] * 3
         cards = [
             workspace.queue_list.itemWidget(workspace.queue_list.item(index))
             for index in range(3)
