@@ -311,13 +311,35 @@ class _UI09QueueProgressDetail(QLabel):
             painter.drawLine(left + 10, cy, left + 15, cy + 3)
 
         painter.setPen(color)
-        painter.drawText(
-            QRect(left + icon + gap, 0, self.width() - (left + icon + gap),
-                  self.height()),
-            (Qt.AlignmentFlag.AlignLeft if marker == "queued"
-             else Qt.AlignmentFlag.AlignRight) | Qt.AlignmentFlag.AlignVCenter,
-            caption,
-        )
+        xtext = left + icon + gap
+        if marker == "queued" and self.height() >= 28:
+            # The owner's 1672x941 golden has two honest queued status lines.
+            # Paint in one owned QLabel without creating a second job/status.
+            painter.drawText(
+                QRect(xtext, 0, max(0, self.width() - xtext), 15),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                caption,
+            )
+            detail = "Setelah proses saat ini selesai."
+            font = painter.font()
+            font.setPointSize(8)
+            painter.setFont(font)
+            # Compact width: never create an overflowing or clipped caption.
+            if painter.fontMetrics().horizontalAdvance(detail) > self.width() - xtext:
+                detail = "Setelah proses ini selesai."
+            if painter.fontMetrics().horizontalAdvance(detail) <= self.width() - xtext:
+                painter.drawText(
+                    QRect(xtext, 15, max(0, self.width() - xtext), 15),
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                    detail,
+                )
+        else:
+            painter.drawText(
+                QRect(xtext, 0, max(0, self.width() - xtext), self.height()),
+                (Qt.AlignmentFlag.AlignLeft if marker == "queued"
+                 else Qt.AlignmentFlag.AlignRight) | Qt.AlignmentFlag.AlignVCenter,
+                caption,
+            )
         painter.end()
 
 
@@ -421,17 +443,14 @@ class _QueueJobCard(QFrame):
             "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
         )
         self.progress_detail.setText("")
-        # Resolve the already-owned Qt layout at refresh time rather than
-        # keeping a second Python strong reference to a child QLayout.
-        # That avoids late PySide6 native-lifetime hazards on CI teardown.
-        progress_layout = self.layout().itemAt(3).layout()
-        if progress_layout is not None:
-            progress_layout.setSpacing(
-                1 if job.state == RenderJobState.QUEUED else 7
-            )
-            progress_layout.setContentsMargins(
-                0, 0, 0, 7 if job.state == RenderJobState.QUEUED else 0
-            )
+        # Keep the Qt-owned progress-column layout unchanged. The queued
+        # status has a two-line painter; never reflow active/verified rows.
+        self.progress_detail.setMinimumHeight(
+            30 if job.state == RenderJobState.QUEUED else 0
+        )
+        self.progress_detail.setMaximumHeight(
+            30 if job.state == RenderJobState.QUEUED else 16777215
+        )
         self.state.setStyleSheet("font-size:10px;color:#52729A;")
         self.progress_detail.setStyleSheet("font-size:9px;color:#607EA8;")
         if job.state == RenderJobState.COMPLETED and bool(job.verified_output):
