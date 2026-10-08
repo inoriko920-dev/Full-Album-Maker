@@ -313,6 +313,15 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
             RenderJobState.QUEUED,
         }
     )
+    # The compact screen must show every representative job without a
+    # hidden/partly clipped bottom row in the deterministic screenshot.
+    queue_widget = window.render_workspace_s10.queue_list
+    last_queue_item = queue_widget.item(queue_widget.count() - 1) if queue_widget.count() else None
+    ui09_all_queue_rows_visible = bool(
+        last_queue_item is not None
+        and queue_widget.visualItemRect(last_queue_item).bottom()
+        <= queue_widget.viewport().height()
+    )
     geometry = {
         "window": [width, height],
         "workspace": window.foundation_state.workspace,
@@ -349,6 +358,7 @@ def capture(output: Path, width: int, height: int, scale: float) -> dict[str, ob
         "completed_verified": bool(completed.verified_output),
         "queue_row_count": len(queue_rows),
         "queue_rows": queue_rows,
+        "ui09_all_queue_rows_visible": ui09_all_queue_rows_visible,
         "ui09_queue_card_count": sum(
             1 for index in range(window.render_workspace_s10.queue_list.count())
             if window.render_workspace_s10.queue_list.itemWidget(
