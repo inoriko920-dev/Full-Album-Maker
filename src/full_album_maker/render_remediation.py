@@ -210,6 +210,7 @@ class _QueueJobCard(QFrame):
             "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
         )
         layout.addWidget(number)
+        self.number = number
         self.cover = _JobCoverThumb(job, compact=compact, parent=self)
         layout.addWidget(self.cover)
 
@@ -243,6 +244,13 @@ class _QueueJobCard(QFrame):
         self.bar.setFixedHeight(8)
         self.bar.setTextVisible(False)
         progress_column.addWidget(self.bar)
+        self.progress_detail = QLabel()
+        self.progress_detail.setObjectName("ui09QueueProgressDetail")
+        self.progress_detail.setStyleSheet("font-size:9px;color:#607EA8;")
+        self.progress_detail.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        progress_column.addWidget(self.progress_detail)
         layout.addLayout(progress_column, 2)
         self.refresh(job)
 
@@ -258,20 +266,49 @@ class _QueueJobCard(QFrame):
         percent = max(0.0, min(100.0, float(job.metrics.percent)))
         self.percent.setText(f"{percent:.0f}%")
         self.bar.setValue(round(percent * 10))
+        running = job.state in {
+            RenderJobState.RUNNING, RenderJobState.STARTING,
+            RenderJobState.FINALIZING,
+        }
+        self.setStyleSheet(
+            "QFrame#ui09QueueJobCard{"
+            + ("background:#E8F2FF;border:1px solid #D5E8FF;"
+               if running else "background:#FFFFFF;border:1px solid #DCE8F7;")
+            + "border-radius:8px;} "
+              "QProgressBar{background:#E8EEF7;border:0;border-radius:4px;}"
+              "QProgressBar::chunk{background:#1672ED;border-radius:4px;}"
+        )
+        self.number.setStyleSheet(
+            "background:#687793;color:white;border-radius:12px;font-weight:700;"
+            if job.state == RenderJobState.QUEUED else
+            "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
+        )
+        self.progress_detail.setText("")
         if job.state == RenderJobState.COMPLETED:
             self.state.setText("SELESAI")
             self.note.setText("Output terverifikasi")
+            self.progress_detail.setText("File hasil telah diverifikasi")
             self.bar.setStyleSheet("QProgressBar::chunk{background:#16A34A;}")
             self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#159447;")
         elif job.state == RenderJobState.QUEUED:
             self.state.setText("ANTREAN")
             self.note.setText("Menunggu giliran render")
+            self.bar.setStyleSheet("QProgressBar::chunk{background:#1672ED;}")
+            self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
         else:
             self.state.setText(job.state.value)
+            self.bar.setStyleSheet("QProgressBar::chunk{background:#1672ED;}")
+            self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
             fps = job.metrics.fps
             self.note.setText(
                 "Sedang merender" if fps is None else f"Sedang merender  •  {fps:.0f} fps"
             )
+            eta = job.metrics.eta_seconds
+            if eta is not None and eta >= 0:
+                remaining = round(eta)
+                self.progress_detail.setText(
+                    f"Estimasi sisa {remaining // 60:02d}:{remaining % 60:02d}"
+                )
 
 
 def _present_queue(workspace, jobs) -> None:
