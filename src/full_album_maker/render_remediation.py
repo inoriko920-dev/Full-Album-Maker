@@ -676,7 +676,13 @@ def _prepare_center(window) -> None:
             card.title.setText(titles[key])
             if window.width() >= 1500:
                 _ui09_prepare_preflight_icon(card, key)
-            card.setMinimumHeight(88 if window.width() < 1500 else 154)
+            if window.width() >= 1500:
+                # Keep desktop card height identical to the proven Wave07
+                # screenshot; the new top-anchored vector layout otherwise
+                # claims extra stretch and steals 30+ pixels from the queue.
+                card.setFixedHeight(154)
+            else:
+                card.setMinimumHeight(88)
             grid.addWidget(card, 0, column)
 
     active_card = workspace.progress.parentWidget()
