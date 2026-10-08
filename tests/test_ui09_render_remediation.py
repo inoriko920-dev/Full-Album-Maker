@@ -112,6 +112,15 @@ def test_ui09_render_remediation_route_contract() -> None:
             for index in range(3)
         ]
         assert all(card is not None for card in cards)
+        # Only an actively running job gets the golden blue highlight.
+        # Queued rows stay neutral and visually distinct from verified output.
+        assert "#E8F2FF" in cards[0].styleSheet()
+        assert "#FFFFFF" in cards[1].styleSheet()
+        assert "#FFFFFF" in cards[2].styleSheet()
+        assert "#687793" in cards[1].number.styleSheet()
+        assert cards[0].progress_detail.text() == "Estimasi sisa 00:36"
+        assert cards[1].progress_detail.text() == ""
+        assert cards[2].progress_detail.text() == "File hasil telah diverifikasi"
         # Without real image media, show an honest music placeholder.
         assert all(card.cover.source_path is None for card in cards)
         assert all(card.cover.text() == "♫" for card in cards)
