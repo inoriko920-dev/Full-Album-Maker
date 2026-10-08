@@ -18,6 +18,7 @@ on:
       - ui/ui09-wave11-preflight-status-icons
       - ui/ui09-wave12-preflight-action
       - ui/ui09-wave13-vector-music-placeholder
+      - fix/pyside6-6-11-2-qt-teardown
       - ui/ui09-wave14r-native-baseline
   workflow_dispatch:
 
@@ -55,14 +56,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
-      - name: Verify tested PySide6 and Shiboken versions
+      - name: Assert Qt native versions before testing
         run: |
           python - <<'PY'
-          import PySide6
-          import shiboken6
+          import PySide6, shiboken6
           assert PySide6.__version__ == "6.11.2", PySide6.__version__
           assert shiboken6.__version__ == "6.11.2", shiboken6.__version__
-          print("Qt 6.11.2 dependency freeze verified")
+          print("Qt 6.11.2 version freeze verified")
           PY
       - name: Compile source
         run: python -m compileall -q src
