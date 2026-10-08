@@ -251,6 +251,7 @@ def _prepare_inspector_scroll(inspector) -> None:
 
     settings_host = QWidget(inspector)
     settings_host.setObjectName("ui09InspectorSettings")
+    settings_host.setStyleSheet("QWidget#ui09InspectorSettings{background:#FFFFFF;}")
     settings_layout = QVBoxLayout(settings_host)
     settings_layout.setContentsMargins(0, 7, 6, 7)
     settings_layout.setSpacing(8)
@@ -260,6 +261,8 @@ def _prepare_inspector_scroll(inspector) -> None:
 
     scroll = QScrollArea(inspector)
     scroll.setObjectName("ui09InspectorScroll")
+    scroll.setStyleSheet("QScrollArea#ui09InspectorScroll{background:#FFFFFF;border:0;}")
+    scroll.viewport().setStyleSheet("background:#FFFFFF;")
     scroll.setFrameShape(QFrame.Shape.NoFrame)
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
