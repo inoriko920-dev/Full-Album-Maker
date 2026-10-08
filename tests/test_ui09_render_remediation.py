@@ -241,6 +241,11 @@ def test_ui09_render_remediation_route_contract() -> None:
         history_card = history.listing.itemWidget(history.listing.item(0))
         assert history_card is not None
         assert history_card.cover.source_path is None
+        # The history title uses the exact same display-only shortening as
+        # the queue, without ever renaming the verified actual output path.
+        assert history_card.title.text() == "Perjalanan Kita"
+        assert history_card.title.toolTip() == str(completed.settings.final_output)
+        assert completed.settings.final_output.name == "Perjalanan Kita - Full Album.mp4"
         assert history_card.cover.text() == "♫"
         history_cover = history_card.cover.grab().toImage()
         assert history_cover.pixelColor(10, 22).red() - history_cover.pixelColor(37, 22).red() > 110
