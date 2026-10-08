@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -226,6 +227,19 @@ def _prepare_inspector_scroll(inspector) -> None:
     disabled safety controls and render action owners remain unchanged.
     """
     root = inspector.layout()
+    # Long hardware choices and native checkbox labels can impose a width
+    # above the 1366px inspector dock. Shrink controls without removing or
+    # replacing the underlying settings widgets.
+    for field in (
+        inspector.filename, inspector.output_folder, inspector.width,
+        inspector.height, inspector.fps, inspector.video_codec,
+        inspector.video_bitrate, inspector.audio_bitrate,
+        inspector.sample_rate, inspector.hardware,
+    ):
+        field.setMinimumWidth(0)
+        field.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
+        )
     items = [root.takeAt(0) for _ in range(root.count())]
     start_index = next(
         (index for index, item in enumerate(items)
@@ -300,6 +314,10 @@ def _prepare_inspector(window) -> None:
     index = root.indexOf(inspector.overwrite)
     root.insertWidget(index + 1 if index >= 0 else max(0, root.count() - 1), close_after)
     inspector.ui09_close_after = close_after
+    if window.width() < 1500:
+        inspector.overwrite.setToolTip(inspector.overwrite.text())
+        inspector.overwrite.setText("Izinkan timpa file final")
+        close_after.setText("Tutup aplikasi setelah render")
     _prepare_inspector_scroll(inspector)
     inspector._ui09_prepared = True
 
