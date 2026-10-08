@@ -91,16 +91,6 @@ jobs:
           FAM_DISABLE_TEMPLATE_THUMBNAIL_RENDER: '1'
         run: python -m pytest -q tests/test_ui09_render_remediation.py
 
-      - name: Run regression, long-project, and real FFmpeg tests
-        shell: pwsh
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          ffmpeg -version
-          ffprobe -version
-          python -m compileall -q src
-          python -m pytest -q
-
       # Capture on Windows itself, rather than treating Linux Qt pixels as
       # evidence of native Windows rendering. A synthetic title frame is used
       # by the existing STEP10 fixture; this is NOT a native window screenshot.
@@ -144,6 +134,16 @@ jobs:
           path: ui09-windows-evidence/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Run regression, long-project, and real FFmpeg tests
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ffmpeg -version
+          ffprobe -version
+          python -m compileall -q src
+          python -m pytest -q
 
       - name: Prepare Windows icon
         shell: pwsh
