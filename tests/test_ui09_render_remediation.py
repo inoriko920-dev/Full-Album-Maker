@@ -184,11 +184,13 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert cards[0].progress_detail.text() == "Estimasi sisa 00:36"
         assert cards[1].progress_detail.text() == "◷ Dalam antrean"
         assert cards[1].note.text() == "Menunggu antrean..."
-        assert cards[1].layout().itemAt(3).layout().spacing() == 1
-        assert cards[1].layout().itemAt(3).layout().contentsMargins().bottom() == 7
-        assert cards[0].layout().itemAt(3).layout().contentsMargins().bottom() == 0
-        assert cards[0].layout().itemAt(3).layout().spacing() == 7
-        assert cards[2].layout().itemAt(3).layout().spacing() == 7
+        # Legacy spacing/layout is unchanged; queued status owns two lines
+        # inside one presentation label, preserving all other rows.
+        assert all(card.layout().itemAt(3).layout().spacing() == 7
+                   for card in cards)
+        assert cards[1].progress_detail.minimumHeight() == 30
+        assert cards[1].progress_detail.maximumHeight() == 30
+        assert cards[0].progress_detail.maximumHeight() > 30
         assert cards[2].progress_detail.text() == "✓ File terverifikasi"
         from full_album_maker.render_remediation import _UI09QueueProgressDetail
         assert all(isinstance(card.progress_detail, _UI09QueueProgressDetail)
