@@ -17,6 +17,7 @@ on:
       - ui/ui09-wave10-vector-preset-icons
       - ui/ui09-wave11-preflight-status-icons
       - ui/ui09-wave12-preflight-action
+      - ui/ui09-wave13-vector-music-placeholder
   workflow_dispatch:
 
 permissions:
