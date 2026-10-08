@@ -476,7 +476,7 @@ def main(argv: list[str] | None = None) -> int:
         report = Path(ns.report)
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
+    print(json.dumps(result, ensure_ascii=True, indent=2), flush=True)
     if ns.skip_qt_teardown:
         # Both files are fully written and flushed before the process exits.
         # Never silence capture/geometry failures: those throw before this line.
