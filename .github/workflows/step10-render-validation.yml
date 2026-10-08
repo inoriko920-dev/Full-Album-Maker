@@ -9,6 +9,7 @@ on:
       - ui/ui09-wave02-inspector-graph
       - ui/ui09-wave03-real-artwork-cards
       - ui/ui09-wave04-golden-layout-proportions
+      - ui/ui09-wave05-queue-graph-parity
   workflow_dispatch:
 
 permissions:
