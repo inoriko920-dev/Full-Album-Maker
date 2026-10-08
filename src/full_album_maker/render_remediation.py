@@ -284,20 +284,19 @@ class _UI09QueueProgressDetail(QLabel):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setFont(self.font())
-        icon = 10
-        gap = 4
+        icon = 14 if marker == "queued" else 10
+        gap = 18 if marker == "queued" else 4
         text_width = painter.fontMetrics().horizontalAdvance(caption)
-        # Golden desktop queue clock sits left of the right-aligned detail.
-        # Clamp the offset at smaller widths so the same vector badge remains
-        # visible on compact Windows without text clipping or font fallback.
+        # The frozen golden queue clock sits left of its caption, with a
+        # visible gap. Keep it inside the label at compact breakpoints.
         right_edge = self.width() - text_width - icon - gap
-        left = min(135, max(0, right_edge)) if marker == "queued" else right_edge
+        left = min(73, max(0, right_edge)) if marker == "queued" else right_edge
         if left < 0 or left + text_width + icon + gap > self.width():
             painter.end()
             super().paintEvent(event)
             return
         cy = self.height() // 2
-        painter.setPen(QPen(color, 1.5))
+        painter.setPen(QPen(color, 1.8 if marker == "queued" else 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         if marker == "verified":
             # Simple rounded check shield, never a font checkmark or a fake
@@ -307,9 +306,9 @@ class _UI09QueueProgressDetail(QLabel):
             painter.drawLine(left + 2, cy, left + 4, cy + 2)
             painter.drawLine(left + 4, cy + 2, left + 8, cy - 3)
         else:
-            painter.drawEllipse(left, cy - 5, 10, 10)
-            painter.drawLine(left + 5, cy - 3, left + 5, cy)
-            painter.drawLine(left + 5, cy, left + 8, cy + 2)
+            painter.drawEllipse(left, cy - 7, 14, 14)
+            painter.drawLine(left + 7, cy - 4, left + 7, cy)
+            painter.drawLine(left + 7, cy, left + 11, cy + 2)
 
         painter.setPen(color)
         painter.drawText(
