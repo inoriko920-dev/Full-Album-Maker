@@ -77,7 +77,13 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert scroll.widget() is inspector.ui09_scroll_host
         assert inspector.filename.parentWidget() is inspector.ui09_scroll_host
         assert inspector.start.parentWidget() is inspector
-        assert scroll.horizontalScrollBar().maximum() == 0
+        assert scroll.horizontalScrollBar().maximum() == 0, {
+            "horizontal_overflow": scroll.horizontalScrollBar().maximum(),
+            "viewport_width": scroll.viewport().width(),
+            "host_width": inspector.ui09_scroll_host.width(),
+            "min_host_width": inspector.ui09_scroll_host.minimumSizeHint().width(),
+            "resolution_widths": (inspector.width.width(), inspector.height.width()),
+        }
         assert scroll.geometry().bottom() < inspector.start.geometry().top()
         assert inspector.start.isVisible() is True
 
