@@ -73,6 +73,28 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert "background:#FEFEFE" in workspace.ui09_preflight.styleSheet()
         assert "margin-top:6px" in workspace.ui09_preflight.styleSheet()
         assert window.render_history_s10.parentWidget() is workspace.ui09_sidebar
+        # Wave15: paint a real history clock icon, not a missing-font glyph.
+        # The heading remains text-accessible and never inserts fake history.
+        from full_album_maker.render_remediation import _UI09HistoryHeading
+        heading = workspace.ui09_history_heading
+        assert isinstance(heading, _UI09HistoryHeading)
+        assert heading.text() == "Proyek Sebelumnya"
+        assert heading.accessibleName() == heading.text()
+        assert heading.objectName() == "sectionHeading"
+        assert heading.contentsMargins().left() == 32
+        app.processEvents()
+        img = heading.grab().toImage()
+        cy = img.height() // 2
+        ink = sum(
+            1 for x in range(3, 29)
+            for y in range(max(0, cy - 11), min(img.height(), cy + 12))
+            if (
+                img.pixelColor(x, y).red() < 110
+                and img.pixelColor(x, y).blue() >
+                img.pixelColor(x, y).red() + 30
+            )
+        )
+        assert ink > 10, ("No painted history clock", ink)
 
         headings = [label.text() for label in workspace.findChildren(QLabel)]
         assert "Pusat Render" in headings
