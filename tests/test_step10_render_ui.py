@@ -46,6 +46,10 @@ def test_performance_graph_only_visualizes_reported_metrics() -> None:
     graph.append_metrics(RenderMetrics(percent=25.0, rendered_seconds=1.0, fps=80.0, average_fps=78.0, speed=2.2, eta_seconds=3.0))
     graph.append_metrics(RenderMetrics(percent=63.0, rendered_seconds=2.5, fps=112.0, average_fps=105.0, speed=2.5, eta_seconds=1.5))
     assert graph.point_count == 2
+    graph.resize(650, 120)
+    assert not graph.grab().isNull()
+    # Rendering the graph is read-only and cannot synthesize metrics.
+    assert graph.point_count == 2
     graph.clear()
     assert graph.point_count == 0
 
