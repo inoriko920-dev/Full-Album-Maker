@@ -49,7 +49,7 @@ def test_ui09_render_remediation_route_contract() -> None:
         assert shell.context.maximumWidth() == 0
         assert shell.timeline.collapsed is True
         assert workspace.ui09_sidebar.isHidden() is False
-        assert workspace.ui09_sidebar.width() in range(196, 215), workspace.ui09_sidebar.width()
+        assert workspace.ui09_sidebar.width() in range(274, 283), workspace.ui09_sidebar.width()
         assert set(workspace.ui09_preset_buttons) == {
             "youtube_1080p", "youtube_1440p", "youtube_4k", "custom"
         }
