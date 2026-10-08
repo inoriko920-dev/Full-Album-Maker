@@ -15,6 +15,7 @@ on:
       - ui/ui09-wave08-preflight-vector-icons
       - ui/ui09-wave09-responsive-reflow
       - ui/ui09-wave10-vector-preset-icons
+      - ui/ui09-wave11-preflight-status-icons
   workflow_dispatch:
 
 permissions:
