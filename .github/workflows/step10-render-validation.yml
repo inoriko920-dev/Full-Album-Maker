@@ -6,6 +6,7 @@ on:
       - ui/step-10-render
       - ui/ui09-render-remediation-v160
       - ui/ui09-visual-queue-wave01
+      - ui/ui09-wave02-inspector-graph
   workflow_dispatch:
 
 permissions:
@@ -126,6 +127,8 @@ jobs:
           assert main['completed_state'] == 'COMPLETED' and main['completed_verified'] is True, main
           assert main['queue_row_count'] == 3, main
           assert main['ui09_queue_card_count'] == 3, main
+          assert main['ui09_inspector_scroll_layout_pass'] is True, main
+          assert main['ui09_inspector_scroll_range'] >= 0, main
           assert main['ui09_all_queue_rows_visible'] is True, main
           assert main['ui09_queue_progress'] == [630, 0, 1000], main
           assert any('COMPLETED VERIFIED' in row for row in main['queue_rows']), main
@@ -147,6 +150,8 @@ jobs:
           assert compact['timeline_collapsed'] is True, compact
           assert compact['queue_row_count'] == 3, compact
           assert compact['ui09_queue_card_count'] == 3, compact
+          assert compact['ui09_inspector_scroll_layout_pass'] is True, compact
+          assert compact['ui09_inspector_scroll_range'] >= 0, compact
           assert compact['ui09_all_queue_rows_visible'] is True, compact
           assert compact['ui09_queue_progress'] == [630, 0, 1000], compact
           assert compact['preflight_pass_count'] == 4 and compact['preflight_warn_count'] == 1, compact
