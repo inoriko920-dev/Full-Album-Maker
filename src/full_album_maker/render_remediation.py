@@ -290,7 +290,7 @@ class _UI09QueueProgressDetail(QLabel):
         # The frozen golden queue clock sits left of its caption, with a
         # visible gap. Keep it inside the label at compact breakpoints.
         right_edge = self.width() - text_width - icon - gap
-        left = min(73, max(0, right_edge)) if marker == "queued" else right_edge
+        left = min(97, max(0, right_edge)) if marker == "queued" else right_edge
         if left < 0 or left + text_width + icon + gap > self.width():
             painter.end()
             super().paintEvent(event)
@@ -365,6 +365,7 @@ class _QueueJobCard(QFrame):
 
         progress_column = QVBoxLayout()
         progress_column.setSpacing(7)
+        self.progress_column = progress_column
         value_line = QHBoxLayout()
         self.percent = QLabel()
         self.percent.setStyleSheet("font-size:12px;font-weight:700;color:#0868EB;")
@@ -421,6 +422,7 @@ class _QueueJobCard(QFrame):
             "background:#0868EB;color:white;border-radius:12px;font-weight:700;"
         )
         self.progress_detail.setText("")
+        self.progress_column.setSpacing(1 if job.state == RenderJobState.QUEUED else 7)
         self.state.setStyleSheet("font-size:10px;color:#52729A;")
         self.progress_detail.setStyleSheet("font-size:9px;color:#607EA8;")
         if job.state == RenderJobState.COMPLETED and bool(job.verified_output):
