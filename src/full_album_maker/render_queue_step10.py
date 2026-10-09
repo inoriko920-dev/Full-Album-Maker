@@ -250,17 +250,29 @@ class RenderQueue:
         """Queue only a job that has already passed real preflight."""
         if job.state != RenderJobState.READY:
             raise ValueError("Job harus READY dari preflight nyata sebelum masuk queue.")
-        if any(
-            item.job_id == job.job_id and item.attempt_id == job.attempt_id
-            for item in self.jobs
-        ):
+        existing_index = next(
+            (
+                index for index, item in enumerate(self.jobs)
+                if item.job_id == job.job_id and item.attempt_id == job.attempt_id
+            ),
+            None,
+        )
+        if existing_index is not None and self.jobs[existing_index] is not job:
             raise ValueError("Attempt render sudah ada di queue/history.")
-        # Keep caller and in-memory state unchanged until the on-disk queue
-        # is durably saved. A failed write must not turn a READY job into a
-        # misleading QUEUED attempt that disappears after restart.
+        # Retry attempts are already persisted as DRAFT by retry(). After
+        # their preflight passes, the SAME attempt transitions to READY and
+        # must be queued in place rather than rejected as a duplicate.
+        # Other duplicate instances are still refused.
         staged = copy(job)
         staged.transition(RenderJobState.QUEUED)
-        candidate = _retain_pending_and_history([*self.jobs, staged])
+        candidate = list(self.jobs)
+        if existing_index is None:
+            candidate.append(staged)
+        else:
+            candidate[existing_index] = staged
+        candidate = _retain_pending_and_history(candidate)
+        # Persist first. On write failure a newly supplied READY job stays
+        # READY and no ghost QUEUED attempt is inserted in memory.
         self.store.save(candidate)
         job.transition(RenderJobState.QUEUED)
         self.jobs = [job if item is staged else item for item in candidate]
