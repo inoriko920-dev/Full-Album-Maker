@@ -589,6 +589,13 @@ class RenderExecutor:
                 raise Step10RenderError(
                     "Output verifier tidak memberi status VERIFIED."
                 )
+            # FFprobe can take time with a long album. Cancellation received
+            # during output verification must prevent publication, even when
+            # the staged MP4 is structurally valid.
+            if cancel_event is not None and cancel_event.is_set():
+                raise Step10RenderCancelled(
+                    "Render dibatalkan selama verifikasi output."
+                )
 
             # Rendering can take hours. Another application may create
             # the output name after the initial/critical preflight passed.
@@ -626,6 +633,7 @@ class RenderExecutor:
                 RenderJobState.STARTING,
                 RenderJobState.RUNNING,
                 RenderJobState.PAUSED,
+                RenderJobState.FINALIZING,
             }:
                 job.transition(RenderJobState.CANCELLED)
             raise
