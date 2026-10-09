@@ -223,3 +223,84 @@ def test_old_terminal_history_is_trimmed_before_pending_jobs(tmp_path: Path) -> 
     assert len(restored) == MAX_HISTORY
     assert restored[0].attempt_id == pending.attempt_id
     assert [job.attempt_id for job in restored[1:]] == [job.attempt_id for job in jobs[-(MAX_HISTORY - 1):]]
+
+
+def test_enqueue_failed_save_is_retryable_without_ghost_queue_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = RenderQueueStore(tmp_path / "unwritable-queue.json")
+    queue = RenderQueue(store)
+    job = _job(tmp_path, "save-failure")
+    _mark_ready(job)
+
+    original_save = store.save
+
+    def fail_save(_jobs) -> None:
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(store, "save", fail_save)
+    with pytest.raises(OSError, match="disk full"):
+        queue.enqueue(job)
+
+    assert job.state == RenderJobState.READY
+    assert queue.jobs == []
+    assert store.load() == []
+
+    # A later successful write can enqueue the exact same attempt.
+    monkeypatch.setattr(store, "save", original_save)
+    assert queue.enqueue(job) is job
+    assert job.state == RenderJobState.QUEUED
+    assert queue.next_queued() is job
+    assert store.load()[0].attempt_id == job.attempt_id
+
+
+def test_retry_failed_save_does_not_create_unpersisted_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = RenderQueueStore(tmp_path / "failed-retry-queue.json")
+    failed = _job(tmp_path, "retry-save-failure")
+    _mark_ready(failed)
+    failed.transition(RenderJobState.STARTING)
+    failed.transition(RenderJobState.FAILED)
+    store.save([failed])
+    queue = RenderQueue(store)
+    original_save = store.save
+
+    def fail_save(_jobs) -> None:
+        raise PermissionError("queue directory read-only")
+
+    monkeypatch.setattr(store, "save", fail_save)
+    with pytest.raises(PermissionError, match="read-only"):
+        queue.retry(failed.job_id, failed.attempt_id)
+
+    assert len(queue.jobs) == 1
+    assert queue.jobs[0].attempt_id == failed.attempt_id
+    assert [j.attempt_id for j in store.load()] == [failed.attempt_id]
+
+    monkeypatch.setattr(store, "save", original_save)
+    retried = queue.retry(failed.job_id, failed.attempt_id)
+    assert len(queue.jobs) == 2
+    assert retried.state == RenderJobState.DRAFT
+    assert retried.attempt_id != failed.attempt_id
+    assert store.load()[1].attempt_id == retried.attempt_id
+
+
+def test_update_failed_save_preserves_registered_queue_members(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = RenderQueueStore(tmp_path / "failed-update-queue.json")
+    existing = _job(tmp_path, "existing-update")
+    _mark_ready(existing)
+    store.save([existing])
+    queue = RenderQueue(store)
+    additional = _job(tmp_path, "new-update")
+    _mark_ready(additional)
+
+    def fail_save(_jobs) -> None:
+        raise OSError("write interrupted")
+
+    monkeypatch.setattr(store, "save", fail_save)
+    with pytest.raises(OSError, match="interrupted"):
+        queue.update(additional)
+    assert [j.attempt_id for j in queue.jobs] == [existing.attempt_id]
+    assert [j.attempt_id for j in store.load()] == [existing.attempt_id]
