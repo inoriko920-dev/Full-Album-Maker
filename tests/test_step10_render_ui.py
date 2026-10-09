@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import threading
 import subprocess
 import sys
 import textwrap
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest
 from PySide6.QtWidgets import QApplication
 
 from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
+from full_album_maker.render_async_step10 import RenderAsyncBridge
+from full_album_maker.render_queue_step10 import RenderQueue, RenderQueueStore
 from full_album_maker.render_center_model_step10 import RenderJob, RenderJobState, build_render_snapshot, settings_from_preset
 from full_album_maker.render_feature_step10 import safe_job_log_text, verified_output_path
 from full_album_maker.render_performance_step10 import RenderPerformanceGraph
@@ -144,3 +148,47 @@ def test_production_render_route_uses_step10_surfaces_without_project_mutation(t
         timeout=35,
     )
     assert result.returncode == 0, (result.stdout + "\n" + result.stderr)
+
+
+@pytest.mark.parametrize("queued", [True, False])
+def test_capability_probe_failure_marks_render_blocked_without_auto_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, queued: bool
+) -> None:
+    _app()
+    doc = _doc(tmp_path)
+    settings = settings_from_preset(
+        "youtube_1080p", filename="missing-ffmpeg", output_folder=str(tmp_path)
+    )
+    job = RenderJob(build_render_snapshot(doc), settings)
+    queue = RenderQueue(RenderQueueStore(tmp_path / "failed-probe-queue.json"))
+    if queued:
+        job.transition(RenderJobState.PREFLIGHTING)
+        job.transition(RenderJobState.READY)
+        queue.enqueue(job)
+    else:
+        queue.update(job)
+
+    bridge = RenderAsyncBridge()
+    failures = []
+    bridge.render_failed.connect(
+        lambda job_id, attempt_id, code, message:
+            failures.append((job_id, attempt_id, code, message))
+    )
+
+    def ffmpeg_unavailable(_settings):
+        raise OSError("FFmpeg disappeared token=sensitive-value")
+
+    monkeypatch.setattr(bridge, "_capability_for_settings", ffmpeg_unavailable)
+    try:
+        bridge._run_job(job, threading.Event())
+        queue.update(job)  # Simulate the production render_failed handler.
+    finally:
+        bridge.close()
+
+    assert job.state == RenderJobState.BLOCKED
+    assert job.error_code == "PREFLIGHT_FAILED"
+    assert "sensitive-value" not in job.error_message
+    assert failures and failures[0][2] == "PREFLIGHT_FAILED"
+    assert "sensitive-value" not in failures[0][3]
+    assert queue.next_queued() is None
+    assert queue.store.load()[0].state == RenderJobState.BLOCKED
