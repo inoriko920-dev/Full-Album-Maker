@@ -633,6 +633,7 @@ class RenderExecutor:
                 RenderJobState.STARTING,
                 RenderJobState.RUNNING,
                 RenderJobState.PAUSED,
+                RenderJobState.FINALIZING,
             }:
                 job.transition(RenderJobState.CANCELLED)
             raise
