@@ -355,6 +355,29 @@ def test_existing_final_requires_explicit_overwrite(tmp_path: Path) -> None:
     assert warned.ready is True
 
 
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_directory_named_like_mp4_is_blocked_before_render(
+    tmp_path: Path, overwrite: bool
+) -> None:
+    doc = _document(tmp_path)
+    output = tmp_path / "output"
+    output.mkdir()
+    target_directory = output / "album.mp4"
+    target_directory.mkdir()
+    settings = RenderSettings(**{
+        **settings_from_preset("youtube_1080p", filename="album", output_folder=str(output)).__dict__,
+        "overwrite": overwrite,
+    })
+    report = run_preflight(
+        doc, settings, capability=_capability(), disk_usage=_disk_ok,
+    )
+    output_check = next(check for check in report.checks if check.key == "output")
+    assert output_check.level == PreflightLevel.BLOCK
+    assert "bukan file biasa" in output_check.message
+    assert not report.ready
+    assert target_directory.is_dir()
+
+
 def test_disk_warn_and_block_are_real_thresholds(tmp_path: Path) -> None:
     doc = _document(tmp_path)
     output = tmp_path / "output"
