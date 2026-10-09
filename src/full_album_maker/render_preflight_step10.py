@@ -300,7 +300,15 @@ def media_integrity_issues(document: ProjectDocument) -> tuple[list[str], list[s
                 warnings.append(f"bad-mtime-fingerprint:{path.name}")
         expected_sha = str(fingerprint.get("sha256") or "").strip().casefold()
         if expected_sha:
-            if _sha256(path).casefold() != expected_sha:
+            try:
+                actual_sha = _sha256(path).casefold()
+            except OSError:
+                # The source can become unreadable after stat() succeeded
+                # (permission change, disconnection, or concurrent deletion).
+                # Fail closed as a media BLOCK instead of crashing preflight.
+                blocking.append(f"unreadable:{path.name or str(path)}")
+                continue
+            if actual_sha != expected_sha:
                 blocking.append(f"changed-sha256:{path.name}")
     return blocking, warnings, count
 
