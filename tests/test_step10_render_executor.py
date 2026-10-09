@@ -174,6 +174,57 @@ def test_verified_executor_publishes_only_after_verifier(tmp_path: Path) -> None
     assert "-progress" in runner.args
 
 
+def test_output_created_during_render_does_not_get_overwritten_without_permission(
+    tmp_path: Path,
+) -> None:
+    job = _job(tmp_path)
+
+    class RaceRunner(FakeRunner):
+        def run(self, args, *, duration_seconds, cancel_event=None, on_metrics=None, on_log=None):
+            value = super().run(
+                args, duration_seconds=duration_seconds, cancel_event=cancel_event,
+                on_metrics=on_metrics, on_log=on_log,
+            )
+            # Another program creates a real final while FFmpeg is working.
+            job.settings.final_output.write_bytes(b"other-program-important-video")
+            return value
+
+    executor = RenderExecutor(_capability(), runner=RaceRunner(), verifier=_verified)
+    with pytest.raises(Step10RenderError, match="overwrite tidak diizinkan"):
+        executor.execute(job)
+
+    assert job.state == RenderJobState.FAILED
+    assert job.settings.final_output.read_bytes() == b"other-program-important-video"
+    assert not list(tmp_path.glob(".*.rendering.mp4"))
+
+
+def test_output_created_during_render_can_be_overwritten_if_explicitly_enabled(
+    tmp_path: Path,
+) -> None:
+    original = _job(tmp_path)
+    original.settings = RenderSettings(
+        **{**original.settings.__dict__, "overwrite": True}
+    )
+    job = original
+
+    class RaceRunner(FakeRunner):
+        def run(self, args, *, duration_seconds, cancel_event=None, on_metrics=None, on_log=None):
+            value = super().run(
+                args, duration_seconds=duration_seconds, cancel_event=cancel_event,
+                on_metrics=on_metrics, on_log=on_log,
+            )
+            job.settings.final_output.write_bytes(b"old-output-created-during-render")
+            return value
+
+    result = RenderExecutor(
+        _capability(), runner=RaceRunner(), verifier=_verified
+    ).execute(job)
+
+    assert job.state == RenderJobState.COMPLETED
+    assert result.verification.verified
+    assert job.settings.final_output.read_bytes() == b"staged-mp4"
+
+
 def test_verifier_failure_never_publishes_partial_final_and_cleans_stage(tmp_path: Path) -> None:
     job = _job(tmp_path)
     runner = FakeRunner()
