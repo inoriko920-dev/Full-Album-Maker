@@ -7,8 +7,8 @@ from typing import Callable
 from PySide6.QtCore import QObject, Signal
 
 from .editor_models import ProjectDocument
-from .render_center_model_step10 import RenderJob, RenderSettings
-from .render_executor_step10 import RenderExecutor, Step10RenderCancelled
+from .render_center_model_step10 import RenderJob, RenderJobState, RenderSettings
+from .render_executor_step10 import RenderExecutor, Step10RenderCancelled, sanitize_render_log
 from .render_preflight_step10 import (
     FFmpegCapability,
     hardware_encoder,
@@ -103,11 +103,25 @@ class RenderAsyncBridge(QObject):
         except Step10RenderCancelled as exc:
             self.render_failed.emit(job.job_id, job.attempt_id, "CANCELLED", str(exc))
         except Exception as exc:
+            if job.state in {
+                RenderJobState.DRAFT,
+                RenderJobState.READY,
+                RenderJobState.QUEUED,
+                RenderJobState.PREFLIGHTING,
+            }:
+                # Capability probing can fail before RenderExecutor takes
+                # ownership. A stale QUEUED job would otherwise be pumped
+                # repeatedly, triggering an unbounded failed-render loop.
+                if job.state != RenderJobState.PREFLIGHTING:
+                    job.transition(RenderJobState.PREFLIGHTING)
+                job.error_code = "PREFLIGHT_FAILED"
+                job.error_message = sanitize_render_log(str(exc))
+                job.transition(RenderJobState.BLOCKED)
             self.render_failed.emit(
                 job.job_id,
                 job.attempt_id,
                 job.error_code or "RENDER_FAILED",
-                job.error_message or str(exc),
+                job.error_message or sanitize_render_log(str(exc)),
             )
         else:
             self.render_finished.emit(job.job_id, job.attempt_id, result)
