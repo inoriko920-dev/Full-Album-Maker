@@ -188,17 +188,25 @@ class RenderQueueStore:
             folder = final.parent
             if not folder.is_dir():
                 continue
-            pattern = f".{final.stem}.*.rendering.mp4"
-            for candidate in folder.glob(pattern):
-                resolved = candidate.resolve(strict=False)
-                if resolved in seen:
-                    continue
-                seen.add(resolved)
-                try:
-                    candidate.unlink(missing_ok=True)
-                    removed += 1
-                except OSError:
-                    pass
+            # Stage files are owned by a specific attempt; sharing only the
+            # output stem is not sufficient to prove ownership. In particular,
+            # do not delete another attempt's in-progress staged render.
+            attempt_prefix = f".{final.stem}.{job.attempt_id[:8]}"
+            patterns = (
+                f"{attempt_prefix}.rendering.mp4",  # historical stage name
+                f"{attempt_prefix}.*.rendering.mp4",  # mkstemp random suffix
+            )
+            for pattern in patterns:
+                for candidate in folder.glob(pattern):
+                    resolved = candidate.resolve(strict=False)
+                    if resolved in seen:
+                        continue
+                    seen.add(resolved)
+                    try:
+                        candidate.unlink(missing_ok=True)
+                        removed += 1
+                    except OSError:
+                        pass
         return removed
 
 
