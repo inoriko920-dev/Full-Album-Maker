@@ -346,6 +346,11 @@ def _output_folder_check(settings: RenderSettings) -> tuple[PreflightLevel, str,
         return PreflightLevel.BLOCK, "Output folder bukan directory.", anchor
     if not os.access(anchor, os.W_OK):
         return PreflightLevel.BLOCK, "Folder output/parent tidak dapat ditulis.", anchor
+    if target.exists() and not target.is_file():
+        # A directory named album.mp4 is valid on Windows but is not a
+        # replaceable output file. Never allow it through preflight, even
+        # when the user explicitly selected overwrite.
+        return PreflightLevel.BLOCK, "Target output sudah ada tetapi bukan file biasa (misalnya folder).", anchor
     if target.exists() and not settings.overwrite:
         return PreflightLevel.BLOCK, "File final sudah ada dan overwrite belum diizinkan.", anchor
     if target.exists() and settings.overwrite:
