@@ -235,3 +235,136 @@ def test_finished_import_is_discarded_if_project_changed(tmp_path, monkeypatch):
     assert replacement.videos == []
     assert "diabaikan karena proyek aktif sudah berganti" in window.log.toPlainText().casefold()
     _close_without_dirty_prompt(window)
+
+
+def test_real_mp3_files_import_through_ui_and_export_to_verified_mp4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Post-release acceptance: actual MP3 bytes, actual Qt import and FFmpeg.
+
+    Existing UI import tests use fake file bytes and mocked durations. This
+    test exercises the real MP3 decoder + metadata path, then constructs the
+    canonical album using the actual imported sources, uses the production
+    playlist service, and renders a real AAC/H.264 MP4. It does not claim
+    that every visual UI interaction or a two-hour album is covered.
+    """
+    import math
+    import subprocess
+    from array import array
+
+    from full_album_maker.editor_models import (
+        MediaAsset as AlbumMediaAsset, ProjectDocument, TIMEBASE,
+    )
+    from full_album_maker.paths import ffmpeg_path, ffprobe_path
+    from full_album_maker.playlist_service_v2 import PlaylistServiceV2
+    from full_album_maker.render_center_model_step10 import (
+        RenderJob, RenderSettings, build_render_snapshot,
+    )
+    from full_album_maker.render_executor_step10 import RenderExecutor
+    from full_album_maker.render_preflight_step10 import probe_ffmpeg
+
+    ffmpeg = ffmpeg_path()
+    if not ffmpeg or not ffprobe_path():
+        pytest.skip("Requires real bundled FFmpeg/FFprobe")
+
+    frequencies = (220, 330, 440, 550, 660, 770, 880, 990)
+    sources = []
+    for index, hz in enumerate(frequencies):
+        target = tmp_path / f"Track-{index + 1:02d}.mp3"
+        subprocess.run(
+            [
+                ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi",
+                "-i", f"sine=frequency={hz}:sample_rate=48000:duration=0.8",
+                "-c:a", "libmp3lame", "-b:a", "128k",
+                "-metadata", f"title=Track {index + 1:02d}",
+                "-metadata", "artist=FAM Automated Acceptance",
+                str(target),
+            ],
+            check=True, capture_output=True, timeout=45,
+        )
+        assert target.is_file() and target.stat().st_size > 1000
+        sources.append(target)
+
+    monkeypatch.setattr(
+        "full_album_maker.async_import.QFileDialog.getOpenFileNames",
+        lambda *args, **kwargs: ([str(s) for s in sources], "Audio"),
+    )
+
+    window = MainWindow()
+    try:
+        window.add_audio()
+        _wait_jobs(window, timeout=45)
+        imported = list(window.project.audios)
+        assert len(imported) == len(frequencies)
+        assert [Path(x.path) for x in imported] == sources
+        assert all(0.70 < x.duration < 0.90 for x in imported)
+        assert all(
+            getattr(x, "display_artist", "") == "FAM Automated Acceptance"
+            for x in imported
+        )
+        # This mirrors canonical album construction using media returned by
+        # the production UI import, rather than creating placeholder files.
+        doc = ProjectDocument.new_empty("Real MP3 post-release acceptance")
+        for item in imported:
+            path = Path(item.path)
+            stat = path.stat()
+            doc.media.append(AlbumMediaAsset(
+                kind="audio",
+                locator=str(path),
+                original_name=path.name,
+                source_duration_tick=round(item.duration * TIMEBASE),
+                fingerprint={"size": stat.st_size, "mtime_ns": stat.st_mtime_ns},
+                metadata={"display_title": getattr(item, "display_title", "")},
+            ))
+        doc.playlist.entries = PlaylistServiceV2.use_all_audio(doc)
+        doc.validate()
+        assert len(doc.playlist.entries) == 8
+
+        settings = RenderSettings(
+            filename="real-MP3-import-to-export",
+            output_folder=str(tmp_path),
+            width=320, height=240, fps=24,
+            video_codec="h264", video_bitrate_bps=350_000,
+            audio_codec="aac", audio_bitrate_bps=128_000,
+            sample_rate=48_000, hardware_mode="software",
+            container="mp4", overwrite=False, preset_id="custom",
+        )
+        capability = probe_ffmpeg()
+        snapshot = build_render_snapshot(doc)
+        expected_duration = sum(item.duration for item in imported)
+        assert abs(snapshot.duration_tick / TIMEBASE - expected_duration) < 0.01
+        result = RenderExecutor(capability).execute(RenderJob(snapshot, settings))
+        assert result.verification.verified
+        assert result.verification.has_audio and result.verification.has_video
+        assert abs(result.verification.duration_seconds - expected_duration) < 0.30
+        assert settings.final_output.is_file()
+
+        pcm = subprocess.run(
+            [
+                ffmpeg, "-hide_banner", "-loglevel", "error",
+                "-i", str(settings.final_output), "-vn",
+                "-ac", "1", "-ar", "48000", "-f", "s16le", "-",
+            ],
+            capture_output=True, check=True, timeout=60,
+        )
+        samples = array("h")
+        samples.frombytes(pcm.stdout)
+        assert len(samples) >= int((expected_duration - 0.15) * 48000)
+
+        song_start = 0.0
+        for index, (item, expected_hz) in enumerate(zip(imported, frequencies)):
+            center = song_start + item.duration / 2
+            start = round((center - 0.12) * 48000)
+            end = round((center + 0.12) * 48000)
+            clip = samples[start:end]
+            assert len(clip) > 11000, f"Audio clip missing: song {index + 1}"
+            assert max(abs(x) for x in clip) > 250, f"Silent: song {index + 1}"
+            crossing = sum(1 for prev, cur in zip(clip, clip[1:]) if prev < 0 <= cur)
+            observed_hz = crossing / (len(clip) / 48000)
+            assert math.isclose(observed_hz, expected_hz, abs_tol=25), (
+                f"Song {index + 1}: {observed_hz:.1f} Hz vs {expected_hz} Hz"
+            )
+            song_start += item.duration
+    finally:
+        _close_without_dirty_prompt(window)
