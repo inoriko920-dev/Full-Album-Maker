@@ -590,6 +590,14 @@ class RenderExecutor:
                     "Output verifier tidak memberi status VERIFIED."
                 )
 
+            # Rendering can take hours. Another application may create
+            # the output name after the initial/critical preflight passed.
+            # Honor overwrite=False again before publishing rather than
+            # silently replacing a file we never had permission to overwrite.
+            if not job.settings.overwrite and final.exists():
+                raise Step10RenderError(
+                    "File final muncul selama render dan overwrite tidak diizinkan."
+                )
             publish_bundle_transactional([(staged, final)])
             staged = None
             job.verified_output = str(final)

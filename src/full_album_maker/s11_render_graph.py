@@ -210,7 +210,13 @@ class S11FFmpegCompiler(FFmpegV2Compiler):
                     f",afade=t=out:st={fade_start:.6f}:d={fade_out:.6f}:curve=tri"
                 )
             if start > 0:
-                chain += f",asetpts=PTS+{start:.6f}/TB"
+                # amix does not preserve per-input start offsets expressed
+                # only via asetpts. Insert real silent samples before a free
+                # timeline clip so its first audible sample starts at the
+                # planned album timestamp (including crossfades and gaps).
+                # The graph has already normalized inputs to stereo/48 kHz.
+                delay_samples = round(start * 48_000)
+                chain += f",adelay={delay_samples}S:all=1"
             chain += f"[aseg{index}]"
             audio_parts.append(chain)
 
