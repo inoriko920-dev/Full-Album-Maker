@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from full_album_maker.editor_models import MediaAsset, ProjectDocument, SongInstance, TIMEBASE
+from full_album_maker.editor_models import Layer, MediaAsset, ProjectDocument, SongInstance, TIMEBASE
 from full_album_maker.render_center_model_step10 import RenderSettings, settings_from_preset
 from full_album_maker.render_preflight_step10 import (
     EncoderResolution,
@@ -140,6 +140,115 @@ def test_missing_required_media_blocks_before_render(tmp_path: Path) -> None:
     report = run_preflight(doc, settings, capability=_capability(), disk_usage=_disk_ok)
     assert _levels(report)["media"] == PreflightLevel.BLOCK
     assert report.blocked is True
+
+
+def test_missing_active_fallback_cover_is_blocked_before_ffmpeg(tmp_path: Path) -> None:
+    doc = _document(tmp_path)
+    fallback = MediaAsset(
+        kind="image",
+        locator=str(tmp_path / "missing-fallback-cover.png"),
+        original_name="missing-fallback-cover.png",
+    )
+    doc.media.append(fallback)
+    doc.layers.append(Layer(
+        type="song_cover",
+        track_id=doc.tracks[0].track_id,
+        properties={"fallback_asset_id": fallback.asset_id},
+    ))
+    doc.validate()
+    output = tmp_path / "output"
+    output.mkdir()
+    report = run_preflight(
+        doc,
+        settings_from_preset("youtube_1080p", filename="fallback-missing", output_folder=str(output)),
+        capability=_capability(),
+        disk_usage=_disk_ok,
+    )
+    check = next(item for item in report.checks if item.key == "media")
+    assert check.level == PreflightLevel.BLOCK
+    assert "missing:missing-fallback-cover.png" in check.message
+    assert report.ready is False
+
+
+def test_existing_active_fallback_cover_passes_media_check(tmp_path: Path) -> None:
+    doc = _document(tmp_path)
+    path = tmp_path / "available-fallback.png"
+    path.write_bytes(b"fixture-image-source")
+    stat = path.stat()
+    fallback = MediaAsset(
+        kind="image",
+        locator=str(path),
+        original_name=path.name,
+        fingerprint={"size": stat.st_size, "mtime_ns": stat.st_mtime_ns},
+    )
+    doc.media.append(fallback)
+    doc.layers.append(Layer(
+        type="song_cover",
+        track_id=doc.tracks[0].track_id,
+        properties={"fallback_asset_id": fallback.asset_id},
+    ))
+    doc.validate()
+    output = tmp_path / "output"
+    output.mkdir()
+    report = run_preflight(
+        doc,
+        settings_from_preset("youtube_1080p", filename="fallback-valid", output_folder=str(output)),
+        capability=_capability(),
+        disk_usage=_disk_ok,
+    )
+    assert _levels(report)["media"] == PreflightLevel.PASS
+    assert report.ready
+
+
+def test_disabled_track_media_and_unused_fallback_not_required(tmp_path: Path) -> None:
+    doc = _document(tmp_path)
+    fallback = MediaAsset(
+        kind="image",
+        locator=str(tmp_path / "unused-cover.png"),
+        original_name="unused-cover.png",
+    )
+    disabled = MediaAsset(
+        kind="video",
+        locator=str(tmp_path / "disabled-track-video.mp4"),
+        original_name="disabled-track-video.mp4",
+        source_duration_tick=3 * TIMEBASE,
+    )
+    doc.media.extend([fallback, disabled])
+    # A valid song cover means the fallback never enters the filter graph.
+    own_cover = tmp_path / "own-cover.png"
+    own_cover.write_bytes(b"cover source fixture")
+    cover_stat = own_cover.stat()
+    own_asset = MediaAsset(
+        kind="image",
+        locator=str(own_cover),
+        original_name=own_cover.name,
+        fingerprint={"size": cover_stat.st_size, "mtime_ns": cover_stat.st_mtime_ns},
+    )
+    doc.media.append(own_asset)
+    doc.playlist.entries[0].cover_asset_id = own_asset.asset_id
+    doc.layers.append(Layer(
+        type="song_cover",
+        track_id=doc.tracks[0].track_id,
+        properties={"fallback_asset_id": fallback.asset_id},
+    ))
+    doc.tracks[0].enabled = False
+    doc.layers.append(Layer(
+        type="background",
+        track_id=doc.tracks[0].track_id,
+        asset_refs=[disabled.asset_id],
+        properties={"mode": "asset"},
+    ))
+    doc.validate()
+    output = tmp_path / "output"
+    output.mkdir()
+    report = run_preflight(
+        doc,
+        settings_from_preset("youtube_1080p", filename="disabled-media", output_folder=str(output)),
+        capability=_capability(),
+        disk_usage=_disk_ok,
+    )
+    assert _levels(report)["media"] == PreflightLevel.PASS
+    assert report.ready
 
 
 def test_sha256_read_error_blocks_preflight_instead_of_crashing(
