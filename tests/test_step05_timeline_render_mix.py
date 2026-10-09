@@ -65,3 +65,7 @@ def test_free_render_graph_combines_explicit_fade_with_crossfade(tmp_path):
     # First song has explicit 2s fade out and incoming song has a 2s crossfade.
     assert "afade=t=out:st=8.000000:d=2.000000:curve=tri" in graph
     assert "anullsrc=r=48000:cl=stereo" in graph
+    # amix starts its inputs together unless their audio content is delayed.
+    # Timestamp-only asetpts offsets must never be used as Free scheduling.
+    assert "adelay=384000S:all=1" in graph
+    assert "asetpts=PTS+8.000000/TB" not in graph
