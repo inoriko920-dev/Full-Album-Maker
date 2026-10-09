@@ -79,6 +79,12 @@ def test_restart_marks_active_attempt_interrupted_and_cleans_bound_stage(tmp_pat
     stage.write_bytes(b"partial")
     unrelated = tmp_path / ".unrelated.rendering.mp4"
     unrelated.write_bytes(b"leave-me")
+    # Another attempt for the same output stem must survive recovery.
+    foreign_attempt = tmp_path / f".{job.settings.final_output.stem}.foreign.abc.rendering.mp4"
+    foreign_attempt.write_bytes(b"do-not-delete")
+    # The current mkstemp naming convention also includes a random suffix.
+    bound_random = tmp_path / f".{job.settings.final_output.stem}.{job.attempt_id[:8]}.xyz.rendering.mp4"
+    bound_random.write_bytes(b"old-attempt")
     store.save([job])
 
     jobs, changed = store.recover()
