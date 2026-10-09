@@ -12,6 +12,7 @@ from full_album_maker.render_center_model_step10 import (
     settings_from_preset,
 )
 from full_album_maker.render_queue_step10 import (
+    MAX_HISTORY,
     RenderQueue,
     RenderQueueStore,
     job_from_dict,
@@ -156,3 +157,48 @@ def test_corrupt_queue_store_fails_closed_instead_of_silently_dropping_history(t
     store = RenderQueueStore(path)
     with pytest.raises(ValueError, match="rusak"):
         store.load()
+
+
+def test_many_queued_attempts_remain_persisted_past_history_limit(tmp_path: Path) -> None:
+    store = RenderQueueStore(tmp_path / "many-queued.json")
+    queue = RenderQueue(store)
+    prototype = _job(tmp_path, "many")
+    from full_album_maker.render_center_model_step10 import RenderJob
+
+    attempts = []
+    for _ in range(MAX_HISTORY + 3):
+        job = RenderJob(snapshot=prototype.snapshot, settings=prototype.settings)
+        _mark_ready(job)
+        queue.enqueue(job)
+        attempts.append(job.attempt_id)
+
+    assert [job.attempt_id for job in queue.jobs] == attempts
+    assert [job.attempt_id for job in store.load()] == attempts
+    assert queue.next_queued().attempt_id == attempts[0]
+    assert RenderQueue(store).next_queued().attempt_id == attempts[0]
+
+
+def test_old_terminal_history_is_trimmed_before_pending_jobs(tmp_path: Path) -> None:
+    store = RenderQueueStore(tmp_path / "mixed-queue.json")
+    prototype = _job(tmp_path, "mixed")
+    from full_album_maker.render_center_model_step10 import RenderJob
+
+    jobs = []
+    for _ in range(MAX_HISTORY + 5):
+        job = RenderJob(snapshot=prototype.snapshot, settings=prototype.settings)
+        _mark_ready(job)
+        job.transition(RenderJobState.STARTING)
+        job.transition(RenderJobState.RUNNING)
+        job.transition(RenderJobState.FINALIZING)
+        job.transition(RenderJobState.COMPLETED)
+        jobs.append(job)
+    pending = RenderJob(snapshot=prototype.snapshot, settings=prototype.settings)
+    _mark_ready(pending)
+    pending.transition(RenderJobState.QUEUED)
+    jobs.insert(0, pending)
+
+    store.save(jobs)
+    restored = store.load()
+    assert len(restored) == MAX_HISTORY
+    assert restored[0].attempt_id == pending.attempt_id
+    assert [job.attempt_id for job in restored[1:]] == [job.attempt_id for job in jobs[-(MAX_HISTORY - 1):]]

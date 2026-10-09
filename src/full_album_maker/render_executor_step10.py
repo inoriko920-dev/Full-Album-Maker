@@ -5,6 +5,7 @@ import json
 import math
 import os
 from pathlib import Path
+from queue import Empty, Queue
 import re
 import subprocess
 import tempfile
@@ -301,6 +302,8 @@ class Step10ProcessRunner:
         on_metrics: MetricCallback | None = None,
         on_log: LogCallback | None = None,
     ) -> RenderMetrics:
+        if cancel_event is not None and cancel_event.is_set():
+            raise Step10RenderCancelled("Render dibatalkan sebelum FFmpeg dimulai.")
         process = subprocess.Popen(
             list(args),
             stdout=subprocess.PIPE,
@@ -332,10 +335,26 @@ class Step10ProcessRunner:
             target=drain_stderr, name="fam-render-stderr", daemon=True
         )
         thread.start()
+        # Reading a silent process.stdout directly blocks the UI cancellation
+        # check until FFmpeg writes a newline (or exits). Keep stdout draining
+        # on a worker and poll a queue so cancellation stays responsive.
+        stdout_queue: Queue[str | None] = Queue()
+
+        def drain_stdout() -> None:
+            try:
+                for raw in process.stdout:
+                    stdout_queue.put(raw)
+            finally:
+                stdout_queue.put(None)
+
+        stdout_thread = threading.Thread(
+            target=drain_stdout, name="fam-render-stdout", daemon=True
+        )
+        stdout_thread.start()
         values: dict[str, str] = {}
         last = RenderMetrics()
         try:
-            for raw in process.stdout:
+            while True:
                 if cancel_event is not None and cancel_event.is_set():
                     process.terminate()
                     try:
@@ -344,6 +363,12 @@ class Step10ProcessRunner:
                         process.kill()
                         process.wait(timeout=3)
                     raise Step10RenderCancelled("Render dibatalkan oleh pengguna.")
+                try:
+                    raw = stdout_queue.get(timeout=0.1)
+                except Empty:
+                    continue
+                if raw is None:
+                    break
                 line = sanitize_render_log(raw)
                 if "=" not in line:
                     if line and on_log:
@@ -397,6 +422,7 @@ class Step10ProcessRunner:
                 values.clear()
 
             return_code = process.wait()
+            stdout_thread.join(timeout=1.0)
             thread.join(timeout=1.0)
             if cancel_event is not None and cancel_event.is_set():
                 raise Step10RenderCancelled("Render dibatalkan oleh pengguna.")
@@ -412,6 +438,7 @@ class Step10ProcessRunner:
             if process.poll() is None:
                 process.kill()
                 process.wait()
+            stdout_thread.join(timeout=1.0)
             thread.join(timeout=1.0)
 
 

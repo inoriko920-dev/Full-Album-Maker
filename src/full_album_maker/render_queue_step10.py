@@ -27,6 +27,30 @@ _ACTIVE_ON_CRASH = {
     RenderJobState.PAUSED,
     RenderJobState.FINALIZING,
 }
+_TERMINAL_HISTORY_STATES = {
+    RenderJobState.COMPLETED,
+    RenderJobState.FAILED,
+    RenderJobState.CANCELLED,
+    RenderJobState.INTERRUPTED,
+    RenderJobState.BLOCKED,
+}
+
+
+def _retain_pending_and_history(jobs: Iterable[RenderJob]) -> list[RenderJob]:
+    """Trim only old history, never discard pending/active render attempts."""
+    values = list(jobs)
+    excess = max(0, len(values) - MAX_HISTORY)
+    if not excess:
+        return values
+    retained: list[RenderJob] = []
+    for job in values:
+        if excess and job.state in _TERMINAL_HISTORY_STATES:
+            excess -= 1
+            continue
+        retained.append(job)
+    # More than MAX_HISTORY in-flight jobs are legitimate. They must remain
+    # durable even if the queue file temporarily exceeds its history limit.
+    return retained
 
 
 def _snapshot_to_dict(value: RenderSnapshot) -> dict:
@@ -144,7 +168,7 @@ class RenderQueueStore:
         return [job_from_dict(item) for item in values]
 
     def save(self, jobs: Iterable[RenderJob]) -> None:
-        values = list(jobs)[-MAX_HISTORY:]
+        values = _retain_pending_and_history(jobs)
         payload = {
             "format": QUEUE_FORMAT,
             "version": QUEUE_VERSION,
@@ -267,6 +291,5 @@ class RenderQueue:
         return retry
 
     def _trim_and_save(self) -> None:
-        if len(self.jobs) > MAX_HISTORY:
-            self.jobs = self.jobs[-MAX_HISTORY:]
+        self.jobs = _retain_pending_and_history(self.jobs)
         self.store.save(self.jobs)

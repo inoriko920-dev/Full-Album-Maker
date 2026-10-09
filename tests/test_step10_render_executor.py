@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import sys
 import threading
+import time
 
 import pytest
 
@@ -17,6 +19,7 @@ from full_album_maker.render_center_model_step10 import (
 from full_album_maker.render_executor_step10 import (
     OutputVerification,
     RenderExecutor,
+    Step10ProcessRunner,
     Step10RenderCancelled,
     Step10RenderError,
     apply_encoder_settings,
@@ -276,3 +279,52 @@ def test_ffprobe_verifier_rejects_corrupt_and_accepts_expected_streams(tmp_path:
 
     with pytest.raises(Step10RenderError, match="menolak"):
         verify_output(path, settings=settings, expected_duration_seconds=6.0, ffprobe="ffprobe", run=bad_run)
+
+
+def test_silent_ffmpeg_process_can_be_cancelled_without_stdout() -> None:
+    # A subprocess that never emits a progress line must still be cancellable.
+    cancel = threading.Event()
+    trigger = threading.Timer(0.2, cancel.set)
+    trigger.start()
+    start = time.monotonic()
+    try:
+        with pytest.raises(Step10RenderCancelled, match="dibatalkan"):
+            Step10ProcessRunner().run(
+                (sys.executable, "-u", "-c", "import time; time.sleep(4)"),
+                duration_seconds=4.0,
+                cancel_event=cancel,
+            )
+    finally:
+        trigger.cancel()
+        trigger.join(timeout=1)
+    assert time.monotonic() - start < 3.0
+
+
+def test_cancelled_before_launch_never_starts_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> None:
+    cancel = threading.Event()
+    cancel.set()
+
+    def never_start(*_args, **_kwargs):
+        raise AssertionError("Should not launch FFmpeg for a cancelled job")
+
+    monkeypatch.setattr("full_album_maker.render_executor_step10.subprocess.Popen", never_start)
+    with pytest.raises(Step10RenderCancelled, match="sebelum FFmpeg"):
+        Step10ProcessRunner().run(("ffmpeg", "-version"), duration_seconds=2, cancel_event=cancel)
+
+
+def test_progress_lines_remain_parsed_with_background_stdout() -> None:
+    script = (
+        "print('out_time_us=500000'); print('fps=30'); "
+        "print('speed=1x'); print('progress=continue'); "
+        "print('out_time_us=1000000'); print('fps=30'); "
+        "print('speed=1x'); print('progress=end')"
+    )
+    updates = []
+    latest = Step10ProcessRunner().run(
+        (sys.executable, "-u", "-c", script),
+        duration_seconds=1.0,
+        on_metrics=updates.append,
+    )
+    assert len(updates) == 2
+    assert updates[0].percent == pytest.approx(50)
+    assert latest.percent == pytest.approx(100)
