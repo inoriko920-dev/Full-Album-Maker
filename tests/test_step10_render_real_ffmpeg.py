@@ -118,7 +118,9 @@ def _tone_frequency(samples: array, at_second: float, *, sample_rate: int = 48_0
     start = int((at_second - 0.1) * sample_rate)
     end = int((at_second + 0.1) * sample_rate)
     clip = samples[start:end]
-    assert len(clip) == round(sample_rate * 0.2)
+    # int() of binary floating-point endpoints may differ by one sample
+    # across platforms; this is not a 1-sample audio render defect.
+    assert abs(len(clip) - round(sample_rate * 0.2)) <= 1
     assert max(abs(value) for value in clip) > 400
     crossings = sum(
         1 for earlier, later in zip(clip, clip[1:])
