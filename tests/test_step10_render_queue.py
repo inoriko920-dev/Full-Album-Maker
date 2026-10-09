@@ -92,7 +92,9 @@ def test_restart_marks_active_attempt_interrupted_and_cleans_bound_stage(tmp_pat
     assert jobs[0].state == RenderJobState.INTERRUPTED
     assert jobs[0].error_code == "INTERRUPTED_ON_RESTART"
     assert not stage.exists()
+    assert not bound_random.exists()
     assert unrelated.exists()
+    assert foreign_attempt.read_bytes() == b"do-not-delete"
     assert store.load()[0].state == RenderJobState.INTERRUPTED
 
 
