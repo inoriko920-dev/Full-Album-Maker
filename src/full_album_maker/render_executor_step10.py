@@ -580,10 +580,18 @@ class RenderExecutor:
             raise
         except Exception as exc:
             if not job.error_code:
-                job.error_code = "RENDER_FAILED"
+                job.error_code = (
+                    "PREFLIGHT_ERROR"
+                    if job.state == RenderJobState.PREFLIGHTING
+                    else "RENDER_FAILED"
+                )
             if not job.error_message:
                 job.error_message = sanitize_render_log(str(exc))
-            if job.state in {
+            if job.state == RenderJobState.PREFLIGHTING:
+                # An unexpected preflight failure must not leave a job
+                # indefinitely active; no renderer has been started yet.
+                job.transition(RenderJobState.BLOCKED)
+            elif job.state in {
                 RenderJobState.STARTING,
                 RenderJobState.RUNNING,
                 RenderJobState.FINALIZING,
