@@ -103,7 +103,7 @@ def test_100_real_songs_render_to_single_verified_h264_aac_mp4(tmp_path: Path) -
     settings = RenderSettings(
         filename="STEP01_100_songs_real_export",
         output_folder=str(tmp_path),
-        width=160, height=96, fps=12,
+        width=320, height=240, fps=24,
         video_codec="h264", video_bitrate_bps=300_000,
         audio_codec="aac", audio_bitrate_bps=128_000, sample_rate=SAMPLE_RATE,
         hardware_mode="software", container="mp4",
@@ -131,7 +131,7 @@ def test_100_real_songs_render_to_single_verified_h264_aac_mp4(tmp_path: Path) -
     assert result.verification.video_codec == "h264"
     assert result.verification.audio_codec == "aac"
     assert result.verification.has_video and result.verification.has_audio
-    assert (result.verification.width, result.verification.height) == (160, 96)
+    assert (result.verification.width, result.verification.height) == (320, 240)
     assert abs(result.verification.duration_seconds - expected_seconds) < 0.35
     assert settings.final_output.is_file()
     assert settings.final_output.stat().st_size > 0
