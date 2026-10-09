@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from glob import escape as glob_escape
 import json
 from pathlib import Path
 from typing import Iterable
@@ -216,9 +217,12 @@ class RenderQueueStore:
             # output stem is not sufficient to prove ownership. In particular,
             # do not delete another attempt's in-progress staged render.
             attempt_prefix = f".{final.stem}.{job.attempt_id[:8]}"
+            # Windows permits '[' and ']' in output names, but Path.glob
+            # interprets these as character classes unless escaped.
+            safe_prefix = glob_escape(attempt_prefix)
             patterns = (
-                f"{attempt_prefix}.rendering.mp4",  # historical stage name
-                f"{attempt_prefix}.*.rendering.mp4",  # mkstemp random suffix
+                f"{safe_prefix}.rendering.mp4",  # historical stage name
+                f"{safe_prefix}.*.rendering.mp4",  # mkstemp random suffix
             )
             for pattern in patterns:
                 for candidate in folder.glob(pattern):

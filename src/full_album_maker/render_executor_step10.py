@@ -421,7 +421,23 @@ class Step10ProcessRunner:
                     on_metrics(last)
                 values.clear()
 
-            return_code = process.wait()
+            # A child can close stdout before it exits. The stdout reader
+            # then reports EOF, but process.wait() without a timeout would
+            # stop observing cancellation until the child eventually exits.
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    process.terminate()
+                    try:
+                        process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=3)
+                    raise Step10RenderCancelled("Render dibatalkan oleh pengguna.")
+                try:
+                    return_code = process.wait(timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
             stdout_thread.join(timeout=1.0)
             thread.join(timeout=1.0)
             if cancel_event is not None and cancel_event.is_set():

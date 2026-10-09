@@ -300,6 +300,29 @@ def test_silent_ffmpeg_process_can_be_cancelled_without_stdout() -> None:
     assert time.monotonic() - start < 3.0
 
 
+def test_cancel_after_child_closes_stdout_before_exit() -> None:
+    # The child closes its progress pipe but remains running. The parent must
+    # continue polling the cancellation token instead of blocking in wait().
+    cancel = threading.Event()
+    trigger = threading.Timer(0.2, cancel.set)
+    trigger.start()
+    started = time.monotonic()
+    try:
+        with pytest.raises(Step10RenderCancelled, match="dibatalkan"):
+            Step10ProcessRunner().run(
+                (
+                    sys.executable, "-u", "-c",
+                    "import sys, time; sys.stdout.close(); time.sleep(4)",
+                ),
+                duration_seconds=4.0,
+                cancel_event=cancel,
+            )
+    finally:
+        trigger.cancel()
+        trigger.join(timeout=1)
+    assert time.monotonic() - started < 3.0
+
+
 def test_cancelled_before_launch_never_starts_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> None:
     cancel = threading.Event()
     cancel.set()

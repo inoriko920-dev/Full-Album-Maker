@@ -99,6 +99,27 @@ def test_restart_marks_active_attempt_interrupted_and_cleans_bound_stage(tmp_pat
     assert store.load()[0].state == RenderJobState.INTERRUPTED
 
 
+def test_restart_cleans_stage_for_filename_with_square_brackets(tmp_path: Path) -> None:
+    store = RenderQueueStore(tmp_path / "queue-with-brackets.json")
+    job = _job(tmp_path, "My Album [Live]")
+    _mark_ready(job)
+    job.transition(RenderJobState.STARTING)
+    job.transition(RenderJobState.RUNNING)
+    stage = tmp_path / (
+        f".{job.settings.final_output.stem}.{job.attempt_id[:8]}.abc.rendering.mp4"
+    )
+    stage.write_bytes(b"partial-render")
+    unrelated = tmp_path / f".{job.settings.final_output.stem}.other.abc.rendering.mp4"
+    unrelated.write_bytes(b"keep")
+    store.save([job])
+
+    jobs, changed = store.recover()
+    assert changed == (job.attempt_id,)
+    assert jobs[0].state == RenderJobState.INTERRUPTED
+    assert not stage.exists()
+    assert unrelated.read_bytes() == b"keep"
+
+
 def test_queued_job_survives_restart_but_requires_executor_critical_preflight_later(tmp_path: Path) -> None:
     store = RenderQueueStore(tmp_path / "queue.json")
     job = _job(tmp_path, "queued")
