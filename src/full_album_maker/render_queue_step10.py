@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import asdict
 from glob import escape as glob_escape
 import json
@@ -254,9 +255,15 @@ class RenderQueue:
             for item in self.jobs
         ):
             raise ValueError("Attempt render sudah ada di queue/history.")
+        # Keep caller and in-memory state unchanged until the on-disk queue
+        # is durably saved. A failed write must not turn a READY job into a
+        # misleading QUEUED attempt that disappears after restart.
+        staged = copy(job)
+        staged.transition(RenderJobState.QUEUED)
+        candidate = _retain_pending_and_history([*self.jobs, staged])
+        self.store.save(candidate)
         job.transition(RenderJobState.QUEUED)
-        self.jobs.append(job)
-        self._trim_and_save()
+        self.jobs = [job if item is staged else item for item in candidate]
         return job
 
     def next_queued(self) -> RenderJob | None:
@@ -268,13 +275,14 @@ class RenderQueue:
         )
 
     def update(self, job: RenderJob) -> None:
-        for index, current in enumerate(self.jobs):
+        candidate = list(self.jobs)
+        for index, current in enumerate(candidate):
             if current.job_id == job.job_id and current.attempt_id == job.attempt_id:
-                self.jobs[index] = job
-                self._trim_and_save()
-                return
-        self.jobs.append(job)
-        self._trim_and_save()
+                candidate[index] = job
+                break
+        else:
+            candidate.append(job)
+        self._persist_candidate(candidate)
 
     def retry(self, job_id: str, attempt_id: str) -> RenderJob:
         source = next(
@@ -290,10 +298,12 @@ class RenderQueue:
         retry = source.retry()
         # Retry is deliberately DRAFT: it must pass preflight again before
         # enqueue, because source/disk/encoder/output may have changed.
-        self.jobs.append(retry)
-        self._trim_and_save()
+        self._persist_candidate([*self.jobs, retry])
         return retry
 
-    def _trim_and_save(self) -> None:
-        self.jobs = _retain_pending_and_history(self.jobs)
-        self.store.save(self.jobs)
+    def _persist_candidate(self, jobs: Iterable[RenderJob]) -> None:
+        # Saving before swapping memory prevents failed disk writes from
+        # adding ghost queue entries or discarding old attempts.
+        candidate = _retain_pending_and_history(jobs)
+        self.store.save(candidate)
+        self.jobs = candidate
