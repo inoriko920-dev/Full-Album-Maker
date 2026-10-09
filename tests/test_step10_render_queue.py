@@ -147,6 +147,48 @@ def test_retry_creates_new_attempt_in_draft_and_cannot_queue_without_new_preflig
         queue.enqueue(retry)
 
 
+def test_retry_ready_attempt_is_queued_in_place_after_preflight(tmp_path: Path) -> None:
+    store = RenderQueueStore(tmp_path / "retry-ready-queue.json")
+    failed = _job(tmp_path, "retry-ready")
+    _mark_ready(failed)
+    failed.transition(RenderJobState.STARTING)
+    failed.transition(RenderJobState.FAILED)
+    store.save([failed])
+    queue = RenderQueue(store)
+
+    retry = queue.retry(failed.job_id, failed.attempt_id)
+    assert retry.state == RenderJobState.DRAFT
+    assert queue.jobs[-1] is retry
+
+    # Simulate the production preflight-ready callback.
+    retry.transition(RenderJobState.PREFLIGHTING)
+    retry.transition(RenderJobState.READY)
+    queued = queue.enqueue(retry)
+
+    assert queued is retry
+    assert queued.state == RenderJobState.QUEUED
+    assert len(queue.jobs) == 2
+    assert queue.jobs[-1] is retry
+    assert queue.next_queued() is retry
+    assert store.load()[-1].state == RenderJobState.QUEUED
+
+
+def test_separate_duplicate_attempt_is_still_rejected(tmp_path: Path) -> None:
+    from copy import copy
+
+    queue = RenderQueue(RenderQueueStore(tmp_path / "duplicate-instance.json"))
+    job = _job(tmp_path, "duplicate-instance")
+    _mark_ready(job)
+    queue.enqueue(job)
+    impostor = copy(job)
+    impostor.state = RenderJobState.READY
+
+    with pytest.raises(ValueError, match="sudah ada"):
+        queue.enqueue(impostor)
+    assert len(queue.jobs) == 1
+    assert queue.next_queued() is job
+
+
 def test_single_active_slot_returns_no_next_job_while_an_attempt_is_running(tmp_path: Path) -> None:
     store = RenderQueueStore(tmp_path / "queue.json")
     first = _job(tmp_path, "first")
