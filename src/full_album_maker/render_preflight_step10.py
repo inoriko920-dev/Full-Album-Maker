@@ -213,17 +213,27 @@ def resolve_encoder(settings: RenderSettings, capability: FFmpegCapability) -> E
 
 
 def _required_asset_ids(document: ProjectDocument) -> set[str]:
-    ids = {song.asset_id for song in document.playlist.entries if song.enabled}
-    for song in document.playlist.entries:
-        if not song.enabled:
-            continue
+    """Return sources the enabled timeline can actually decode during export."""
+    enabled_songs = [song for song in document.playlist.entries if song.enabled]
+    ids = {song.asset_id for song in enabled_songs}
+    for song in enabled_songs:
         if song.cover_asset_id:
             ids.add(song.cover_asset_id)
         if song.visual_asset_id:
             ids.add(song.visual_asset_id)
+
+    tracks = {track.track_id: track for track in document.tracks}
     for layer in document.layers:
-        if layer.enabled:
-            ids.update(layer.asset_refs)
+        track = tracks.get(layer.track_id)
+        if not layer.enabled or track is None or not track.enabled:
+            continue
+        ids.update(layer.asset_refs)
+        if layer.type == "song_cover":
+            # Cover fallback is stored in properties, not asset_refs. The
+            # compiler opens it whenever a song has no explicit cover.
+            fallback_id = str(layer.properties.get("fallback_asset_id") or "").strip()
+            if fallback_id and any(not song.cover_asset_id for song in enabled_songs):
+                ids.add(fallback_id)
     return ids
 
 
