@@ -142,6 +142,32 @@ def test_missing_required_media_blocks_before_render(tmp_path: Path) -> None:
     assert report.blocked is True
 
 
+def test_sha256_read_error_blocks_preflight_instead_of_crashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    doc = _document(tmp_path)
+    doc.media[0].fingerprint["sha256"] = "a" * 64
+    output = tmp_path / "output"
+    output.mkdir()
+
+    def unreadable_sha(_path: Path) -> str:
+        raise PermissionError("source locked after stat")
+
+    monkeypatch.setattr(
+        "full_album_maker.render_preflight_step10._sha256", unreadable_sha
+    )
+    report = run_preflight(
+        doc,
+        settings_from_preset("youtube_1080p", filename="locked", output_folder=str(output)),
+        capability=_capability(),
+        disk_usage=_disk_ok,
+    )
+    check = next(item for item in report.checks if item.key == "media")
+    assert check.level == PreflightLevel.BLOCK
+    assert "unreadable:" in check.message
+    assert report.ready is False
+
+
 def test_changed_source_fingerprint_blocks_before_render(tmp_path: Path) -> None:
     doc = _document(tmp_path)
     source = Path(doc.media[0].locator)
