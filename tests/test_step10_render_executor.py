@@ -207,6 +207,27 @@ def test_double_start_is_rejected_before_touching_output(tmp_path: Path) -> None
     assert not job.settings.final_output.exists()
 
 
+def test_unexpected_preflight_error_does_not_leave_active_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job = _job(tmp_path)
+
+    def preflight_crash(*_args, **_kwargs):
+        raise OSError("source disappeared during preflight")
+
+    monkeypatch.setattr(
+        "full_album_maker.render_executor_step10.run_preflight", preflight_crash
+    )
+    executor = RenderExecutor(_capability(), runner=FakeRunner(), verifier=_verified)
+    with pytest.raises(OSError, match="source disappeared"):
+        executor.execute(job)
+    assert job.state == RenderJobState.BLOCKED
+    assert job.error_code == "PREFLIGHT_ERROR"
+    assert "source disappeared" in job.error_message
+    assert not job.settings.final_output.exists()
+    assert not list(tmp_path.glob(".*.rendering.mp4"))
+
+
 def test_ready_job_reenters_critical_preflight_before_start(tmp_path: Path) -> None:
     job = _job(tmp_path)
     job.transition(RenderJobState.PREFLIGHTING)
