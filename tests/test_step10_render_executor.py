@@ -251,6 +251,30 @@ def test_cancel_never_publishes_final_and_sets_cancelled(tmp_path: Path) -> None
     assert not list(tmp_path.glob(".*.rendering.mp4"))
 
 
+def test_cancel_during_ffprobe_finalization_never_publishes_mp4(tmp_path: Path) -> None:
+    job = _job(tmp_path)
+    cancel = threading.Event()
+
+    def verify_then_cancel(*args, **kwargs):
+        result = _verified(*args, **kwargs)
+        # A long FFprobe verification may complete after the user clicked
+        # cancel. The staged output must not become the public final MP4.
+        cancel.set()
+        return result
+
+    executor = RenderExecutor(
+        _capability(), runner=FakeRunner(), verifier=verify_then_cancel,
+    )
+    with pytest.raises(Step10RenderCancelled, match="verifikasi output"):
+        executor.execute(job, cancel_event=cancel)
+
+    assert job.state == RenderJobState.CANCELLED
+    assert job.error_code == "CANCELLED"
+    assert job.verified_output == ""
+    assert not job.settings.final_output.exists()
+    assert not list(tmp_path.glob(".*.rendering.mp4"))
+
+
 def test_double_start_is_rejected_before_touching_output(tmp_path: Path) -> None:
     job = _job(tmp_path)
     executor = RenderExecutor(_capability(), runner=FakeRunner(), verifier=_verified)
