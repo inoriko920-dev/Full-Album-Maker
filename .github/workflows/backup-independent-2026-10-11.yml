@@ -4,7 +4,7 @@ on:
     branches: [backup/verified-2026-10-11]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   package:
     if: github.repository == 'inoriko920-dev/Full-Album-Maker'
@@ -97,3 +97,17 @@ jobs:
           path: out/*
           if-no-files-found: error
           retention-days: 90
+
+      - name: Preserve Git and build backup as a private draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          backups=(out/MASTER-BACKUP-FULL-ALBUM-MAKER-GIT-ONLY-*.zip)
+          if [ "${#backups[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one ZIP backup"
+            exit 1
+          fi
+          gh release create backup-partial-full-album-maker-2026-10-11             "${backups[0]}" "${backups[0]}.sha256"             --repo "$GITHUB_REPOSITORY"             --target "$GITHUB_SHA"             --title "2026-10-11 — Git/source/build recovery (EXTERNAL ASSETS MISSING)"             --notes "Verified independent Git bundle, complete reachable Git history/branches, main source snapshot and Windows v1.6.1 portable build. IMPORTANT: This is BACKUP_PARTIAL. External ASTRA/SOL DOCX, the 9 original UI golden PNGs, prompts, and uncommitted logo files are NOT included. Save offline and merge them before describing it as 100 percent project recovery."             --draft             --latest=false
