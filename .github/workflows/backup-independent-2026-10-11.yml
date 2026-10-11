@@ -1,0 +1,99 @@
+name: Full-Album-Maker independent Git recovery backup
+on:
+  push:
+    branches: [backup/verified-2026-10-11]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    if: github.repository == 'inoriko920-dev/Full-Album-Maker'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Build independent Git and source backup (no repository changes)
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          export TZ=Asia/Jakarta
+          stamp="$(date +%Y-%m-%d_%H-%M-%S)-WIB"
+          work="$RUNNER_TEMP/fam-backup"
+          stage="$work/MASTER-BACKUP-FULL-ALBUM-MAKER"
+          mkdir -p "$stage"/{GIT,SOURCE,BUILD,METADATA,RECOVERY} "$GITHUB_WORKSPACE/out"
+          echo "Downloading Git mirror for $GITHUB_REPOSITORY"
+          git clone --mirror "https://github.com/$GITHUB_REPOSITORY.git" "$work/repo.git"
+          git -C "$work/repo.git" remote update --prune
+          git -C "$work/repo.git" fsck --full --no-reflogs
+          git -C "$work/repo.git" bundle create "$stage/GIT/Full-Album-Maker-ALL-REFS.bundle" --all
+          git init --bare "$work/verify.git"
+          git -C "$work/verify.git" bundle verify "$stage/GIT/Full-Album-Maker-ALL-REFS.bundle"
+          git -C "$work/repo.git" archive --format=zip --output="$stage/SOURCE/Full-Album-Maker-SOURCE-main.zip" refs/heads/main
+          unzip -tqq "$stage/SOURCE/Full-Album-Maker-SOURCE-main.zip"
+          git -C "$work/repo.git" for-each-ref --format='%(refname) %(objectname)' | sort > "$stage/METADATA/ALL_REFS.txt"
+          git -C "$work/repo.git" for-each-ref refs/heads --format='%(refname) %(objectname)' | sort > "$stage/METADATA/BRANCHES.txt"
+          git -C "$work/repo.git" for-each-ref refs/tags --format='%(refname) %(objectname)' | sort > "$stage/METADATA/TAGS.txt"
+          git -C "$work/repo.git" log --all --date=iso-strict --format='%H%x09%ad%x09%s' > "$stage/METADATA/COMMIT_HISTORY.tsv"
+          git -C "$work/repo.git" bundle list-heads "$stage/GIT/Full-Album-Maker-ALL-REFS.bundle" > "$stage/METADATA/BUNDLE_HEADS.txt"
+          git -C "$work/repo.git" rev-parse refs/heads/main > "$stage/METADATA/MAIN_COMMIT.txt"
+          if git -C "$work/repo.git" lfs version >/dev/null 2>&1; then
+            git -C "$work/repo.git" lfs fetch --all origin
+            if [ -d "$work/repo.git/lfs/objects" ]; then
+              mkdir -p "$stage/GIT/LFS_OBJECTS"
+              cp -a "$work/repo.git/lfs/objects/." "$stage/GIT/LFS_OBJECTS/"
+            fi
+          fi
+          echo "BUILD_NOT_AVAILABLE" > "$stage/BUILD/STATUS_BUILD.txt"
+          if gh release download v1.6.1 --repo "$GITHUB_REPOSITORY" --pattern 'Full-Album-Maker-v1.6.1-Windows-Portable.zip' --dir "$stage/BUILD"; then
+            if gh release download v1.6.1 --repo "$GITHUB_REPOSITORY" --pattern 'SHA256SUMS.txt' --dir "$stage/BUILD"; then
+              (cd "$stage/BUILD" && sha256sum -c SHA256SUMS.txt)
+              echo "VERIFIED_v1.6.1_WINDOWS_PORTABLE" > "$stage/BUILD/STATUS_BUILD.txt"
+            else
+              rm -f "$stage/BUILD/Full-Album-Maker-v1.6.1-Windows-Portable.zip"
+            fi
+          fi
+          cat > "$stage/00_README_PERTAMA.txt" <<'README'
+          BACKUP Full-Album-Maker: Git bundle (all reachable branches/tags and commit history), source main, and portable build if available.
+          This package DOES NOT include external ChatGPT/Library DOCX, the original nine golden UI PNGs, or uncommitted logo/prompts.
+          Status: BACKUP_PARTIAL_EXTERNAL_ASSETS_MISSING. Do not describe as full independent project recovery until merged with external files.
+          GitHub secrets, settings, issues, PR comments, and Actions run history are NOT preserved.
+          Download immediately and keep outside GitHub; Actions artifacts have finite retention.
+          Before sharing publicly, audit the historic Git bundle for credentials.
+          README
+          cat > "$stage/RECOVERY/RESTORE_TO_NEW_GITHUB.txt" <<'README'
+          REQUIREMENTS: Git for Windows, empty GitHub repository under your new account.
+          1. Extract this ZIP on Windows, open PowerShell in the extracted MASTER-BACKUP-FULL-ALBUM-MAKER folder.
+          2. git init --bare VERIFY.git
+          3. git -C VERIFY.git bundle verify GIT/Full-Album-Maker-ALL-REFS.bundle
+          4. git clone GIT/Full-Album-Maker-ALL-REFS.bundle Full-Album-Maker-restored
+          5. cd Full-Album-Maker-restored
+          6. git remote remove origin
+          7. git remote add origin https://github.com/NEW-ACCOUNT/Full-Album-Maker.git
+          8. git push origin --all ; git push origin --tags
+          9. Reconfigure repository settings/CI secrets by hand. Never restore secret values from backups.
+          NOTE: backup-only refs and historical pull refs may need manual restoration, and Git LFS objects must be restored separately.
+          README
+          {
+            echo "REPO=$GITHUB_REPOSITORY"
+            echo "DATE_WIB=$stamp"
+            echo "MAIN_COMMIT=$(cat "$stage/METADATA/MAIN_COMMIT.txt")"
+            echo "BRANCH_COUNT=$(wc -l < "$stage/METADATA/BRANCHES.txt")"
+            echo "TAG_COUNT=$(wc -l < "$stage/METADATA/TAGS.txt")"
+            echo "BUILD_STATUS=$(cat "$stage/BUILD/STATUS_BUILD.txt")"
+            echo "BACKUP_STATUS=BACKUP_PARTIAL_EXTERNAL_ASSETS_MISSING"
+          } > "$stage/METADATA/REPOSITORY_INFO.txt"
+          (cd "$stage" && find . -type f ! -name '00_SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum > 00_SHA256SUMS.txt)
+          (cd "$stage" && sha256sum -c 00_SHA256SUMS.txt)
+          out="$GITHUB_WORKSPACE/out/MASTER-BACKUP-FULL-ALBUM-MAKER-GIT-ONLY-$stamp.zip"
+          (cd "$work" && zip -q -r "$out" MASTER-BACKUP-FULL-ALBUM-MAKER)
+          unzip -tqq "$out"
+          sha256sum "$out" > "$out.sha256"
+          echo "Backup produced: $(basename "$out")"
+      - name: Upload GitHub backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Full-Album-Maker-Git-Backup-2026-10-11
+          path: out/*
+          if-no-files-found: error
+          retention-days: 90
