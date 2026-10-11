@@ -14,7 +14,7 @@ jobs:
       - name: Build independent Git and source backup (no repository changes)
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           export TZ=Asia/Jakarta
